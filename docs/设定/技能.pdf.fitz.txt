@@ -1,0 +1,35 @@
+FILE: 技能.pdf
+PAGES: 1
+
+===== PAGE 1 =====
+技能
+技能体系架构设计 (Skill System Framework)
+1. 技能三位一体结构
+每个英雄由以下三类技能构成其完整的战斗逻辑：
+类型
+获取方式
+核心功能
+天赋 (Talent)
+获得英雄时自带
+赋予不同英雄初始特有特点
+被动技能 (Passive)
+各种来源
+提供常驻数值或条件触发效果。
+主动技能 (Active)
+各种来源
+英雄到达行动条终点时，根据逻辑权重释放的行为。
+2. 主动技能分类 (Active Skill Categories)
+将主动技能按“目的”划分为五个模组：
+1. 猛攻 (Assault): 伤害输出类。包括单体爆发、AOE、多段打击。
+2. 坚守 (Defend): 生存防御类。如嘲讽、护盾、伤害减免、反击姿态。
+3. 激昂 (Inspire): 友军增幅类。提升攻击、加速跑条、增加暴击率。
+4. 削弱 (Afflict): 敌军减损类。降低敌方抗性、推条等
+5. 救援 (Succor): 恢复治疗类。HP回复、MP回复、净化负面状态。
+3. 核心机制：动态权重触发系统 (Dynamic Weight Logic)
+这是战斗AI的核心。每次行动条满格时，系统计算所有可用主动技能的即时权重值，并进行加权
+随机（Weighted Random）选择。
+权重计算公式：
+FinalWeight = BaseWeight(100) + Modifier(Equipment) + Modifier(Battlefield)
+‍
+1 / 1
+

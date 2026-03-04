@@ -1,0 +1,565 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Shield, Sword, Flame, Droplets, Snowflake, Wind, Leaf, Sun, Ghost, Moon,
+  User, Compass, ShieldCheck, Book, Settings, MessageSquare, 
+  Map as MapIcon, Home, ShoppingBag, Beer, Hammer, Swords, ClipboardList,
+  ChevronLeft, ChevronRight, Zap, Crosshair, Star, Info, Wand2
+} from 'lucide-react';
+
+// --- 模拟数据与常量 ---
+const VIEW_TYPES = {
+  MAP: 'MAP',
+  LOCATION: 'LOCATION',
+  TEAM: 'TEAM',
+  HERO: 'HERO'
+};
+
+const HEROES = [
+  { 
+    id: 0, 
+    name: '阿瑟·列维坦', 
+    title: 'The Holy Bastion', 
+    class: 'PALADIN',
+    image: 'https://images.unsplash.com/photo-1614726310457-53ba02aa64c5?auto=format&fit=crop&q=80&w=800',
+    stats: { hp: '12,500', mp: '800', str: '245', int: '85', agi: '112', def: '450' }
+  },
+  { 
+    id: 1, 
+    name: '塞琳娜·逐星', 
+    title: 'Astral Weaver', 
+    class: 'MAGE',
+    image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&q=80&w=800',
+    stats: { hp: '4,200', mp: '4,500', str: '42', int: '380', agi: '156', def: '120' }
+  }
+];
+
+const ELEMENTS = [
+  { id: 'fire', icon: <Flame size={14} />, color: '#ef4444', label: '火焰' },
+  { id: 'water', icon: <Droplets size={14} />, color: '#3b82f6', label: '流水' },
+  { id: 'ice', icon: <Snowflake size={14} />, color: '#60a5fa', label: '寒冰' },
+  { id: 'wind', icon: <Wind size={14} />, color: '#10b981', label: '疾风' },
+  { id: 'life', icon: <Leaf size={14} />, color: '#22c55e', label: '生命' },
+  { id: 'light', icon: <Sun size={14} />, color: '#fbbf24', label: '光明' },
+  { id: 'undead', icon: <Ghost size={14} />, color: '#a855f7', label: '亡灵' },
+  { id: 'dark', icon: <Moon size={14} />, color: '#4b5563', label: '黑暗' },
+];
+
+export default function App() {
+  const [currentView, setCurrentView] = useState(VIEW_TYPES.MAP);
+  const [selectedHeroIndex, setSelectedHeroIndex] = useState(0);
+  const [heroTab, setHeroTab] = useState('STATS'); // STATS, GEAR, MEMORY
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [logs, setLogs] = useState([
+    "你在沉睡森林中遭遇了精英骷髅...",
+    "获得物品：生锈的铁剑 x1",
+    "英雄 [阿瑟] 提升到了等级 15",
+    "成功抵达 灰岩镇",
+  ]);
+
+  const activeHero = HEROES[selectedHeroIndex];
+
+  return (
+    <div className="flex h-screen w-full bg-[#0c0a09] text-[#d1c2b1] overflow-hidden font-serif select-none">
+      
+      {/* --- 左侧区域 1/5 --- */}
+      <aside className="w-1/5 border-r border-[#3e352a] flex flex-col bg-[#14110e]">
+        {/* 上方 1/3: 日志 */}
+        <div className="h-1/3 flex flex-col border-b border-[#3e352a]">
+          <div className="bg-[#1c1814] px-3 py-2 border-b border-[#3e352a] flex items-center gap-2">
+            <MessageSquare size={16} className="text-[#d4af37]" />
+            <span className="text-xs font-bold tracking-widest text-[#d4af37]">冒险日志</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar text-[11px] leading-relaxed">
+            {logs.map((log, i) => (
+              <div key={i} className="border-l border-[#3e352a] pl-2 opacity-80">
+                <span className="text-[#8b7355] mr-1">[{new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}]</span>
+                {log}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 底部 2/3: 辅助导航或状态 */}
+        <div className="flex-1 flex flex-col p-4 space-y-4">
+          <div className="p-3 bg-[#1c1814] border border-[#3e352a] rounded">
+            <h3 className="text-[#d4af37] text-xs font-bold mb-2">资源概览</h3>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between"><span>金币:</span><span className="text-[#fbbf24]">12,450</span></div>
+              <div className="flex justify-between"><span>红宝石:</span><span className="text-red-500">120</span></div>
+              <div className="flex justify-between"><span>声望:</span><span className="text-[#60a5fa]">尊崇</span></div>
+            </div>
+          </div>
+          <nav className="flex flex-col gap-2 mt-auto">
+            <NavButton active={currentView === VIEW_TYPES.MAP} icon={<MapIcon/>} label="世界地图" onClick={() => setCurrentView(VIEW_TYPES.MAP)} />
+            <NavButton active={currentView === VIEW_TYPES.TEAM} icon={<ShieldCheck/>} label="队伍配置" onClick={() => setCurrentView(VIEW_TYPES.TEAM)} />
+            <NavButton active={currentView === VIEW_TYPES.HERO} icon={<User/>} label="英雄殿堂" onClick={() => setCurrentView(VIEW_TYPES.HERO)} />
+          </nav>
+        </div>
+      </aside>
+
+      {/* --- 右侧主要区域 4/5 --- */}
+      <main className="w-4/5 relative bg-[#0f0d0b]">
+        {currentView === VIEW_TYPES.MAP && <MapView onEnterLoc={(loc) => { setCurrentLocation(loc); setCurrentView(VIEW_TYPES.LOCATION); }} />}
+        {currentView === VIEW_TYPES.LOCATION && <LocationView location={currentLocation} onBack={() => setCurrentView(VIEW_TYPES.MAP)} />}
+        {currentView === VIEW_TYPES.TEAM && <TeamView />}
+        {currentView === VIEW_TYPES.HERO && (
+          <HeroView 
+            hero={activeHero} 
+            tab={heroTab} 
+            setTab={setHeroTab} 
+            selectedId={selectedHeroIndex} 
+            onSelectHero={setSelectedHeroIndex} 
+          />
+        )}
+      </main>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3e352a; border-radius: 2px; }
+        @keyframes dash { to { stroke-dashoffset: -20; } }
+        .animate-dash { stroke-dasharray: 5, 5; animation: dash 1s linear infinite; }
+      `}</style>
+    </div>
+  );
+}
+
+// --- 子组件: 导航按钮 ---
+function NavButton({ icon, label, active, onClick }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={`flex items-center gap-3 px-4 py-3 border transition-all rounded shadow-inner ${
+        active ? 'bg-[#2a241d] border-[#d4af37] text-[#d4af37]' : 'bg-[#1a1612] border-[#3e352a] hover:border-[#8b7355]'
+      }`}
+    >
+      {React.cloneElement(icon, { size: 18 })}
+      <span className="text-sm font-medium tracking-wider">{label}</span>
+    </button>
+  );
+}
+
+// --- 1. 地图界面 ---
+function MapView({ onEnterLoc }) {
+  const regions = ["艾瑞斯王国", "迷雾沼泽", "极北冰原", "熔岩深渊"];
+  const [activeRegion, setActiveRegion] = useState(0);
+
+  return (
+    <div className="h-full w-full p-8 flex flex-col">
+      <div className="flex gap-4 mb-8">
+        {regions.map((r, i) => (
+          <button 
+            key={r} onClick={() => setActiveRegion(i)}
+            className={`px-6 py-2 border-b-2 transition-all font-bold ${activeRegion === i ? 'text-[#d4af37] border-[#d4af37]' : 'text-[#8b7355] border-transparent hover:text-[#d1c2b1]'}`}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex-1 bg-[#dcc9a9] rounded-lg shadow-2xl relative overflow-hidden border-8 border-[#2a241d] p-10">
+        <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, #000 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+        <div className="absolute top-10 right-10 opacity-30 italic font-serif text-[#5d4037]">Aethelgard World Map v.124</div>
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <path d="M 150 200 Q 300 150 450 300" fill="none" stroke="#5d4037" strokeWidth="2" strokeDasharray="5,5" className="animate-dash" />
+          <path d="M 450 300 Q 600 450 750 250" fill="none" stroke="#5d4037" strokeWidth="2" strokeDasharray="5,5" />
+          <path d="M 450 300 L 400 500" fill="none" stroke="#5d4037" strokeWidth="2" strokeDasharray="5,5" />
+        </svg>
+        <MapNode x="150" y="200" type="TOWN" name="晨星镇" onClick={() => onEnterLoc({ name: "晨星镇", type: 'TOWN' })} />
+        <MapNode x="450" y="300" type="BATTLE" name="荒芜废墟" onClick={() => onEnterLoc({ name: "荒芜废墟", type: 'BATTLE' })} />
+        <MapNode x="750" y="250" type="EVENT" name="神秘遗迹" onClick={() => onEnterLoc({ name: "神秘遗迹", type: 'EVENT' })} />
+        <MapNode x="400" y="500" type="BATTLE" name="龙骨之地" onClick={() => onEnterLoc({ name: "龙骨之地", type: 'BATTLE' })} />
+      </div>
+    </div>
+  );
+}
+
+function MapNode({ x, y, type, name, onClick }) {
+  const icons = { TOWN: <Home size={24}/>, BATTLE: <Swords size={24}/>, EVENT: <ClipboardList size={24}/> };
+  return (
+    <div style={{ left: `${x}px`, top: `${y}px` }} className="absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer" onClick={onClick}>
+      <div className="bg-[#1a1612] text-[#d4af37] p-2 rounded-full border-2 border-[#5d4037] group-hover:scale-125 transition-transform duration-200 shadow-lg">
+        {icons[type]}
+      </div>
+      <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[#2a241d] px-2 py-0.5 rounded text-[10px] text-[#dcc9a9] font-bold border border-[#5d4037]">
+        {name}
+      </div>
+    </div>
+  );
+}
+
+// --- 2. 当前位置界面 ---
+function LocationView({ location, onBack }) {
+  if (!location) return null;
+
+  if (location.type === 'TOWN') {
+    return (
+      <div className="h-full w-full relative">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1599408162165-401246c5c8bc?auto=format&fit=crop&q=80&w=1600)' }}>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0f0d0b] via-transparent to-[#0f0d0b]/50" />
+        </div>
+        <button onClick={onBack} className="absolute top-6 left-6 flex items-center gap-2 bg-[#1a1612]/80 px-4 py-2 border border-[#d4af37] text-xs hover:bg-[#d4af37] hover:text-[#1a1612] transition-colors z-10">
+          <ChevronLeft size={16}/> 返回地图
+        </button>
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-2/3 flex justify-center gap-6">
+          <TownButton icon={<Beer/>} label="酒馆" />
+          <TownButton icon={<ShoppingBag/>} label="商店" />
+          <TownButton icon={<Hammer/>} label="铁匠铺" />
+        </div>
+        <div className="absolute top-10 right-10 text-right">
+          <h2 className="text-4xl font-bold text-[#d4af37] italic drop-shadow-md">{location.name}</h2>
+          <p className="text-[#d1c2b1] opacity-75">繁华的边境贸易港口</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (location.type === 'BATTLE') {
+    return (
+      <div className="h-full flex flex-col p-8 gap-6">
+        <div className="flex justify-between items-center border-b border-[#3e352a] pb-4">
+          <h2 className="text-2xl font-bold text-red-500">战斗中: {location.name}</h2>
+          <button onClick={onBack} className="text-xs text-[#8b7355] border border-[#3e352a] px-3 py-1 hover:bg-red-900/20">撤退</button>
+        </div>
+        <div className="flex-1 flex gap-6">
+          <div className="flex-1 flex flex-col justify-between py-10">
+            <div className="grid grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-20 border border-red-900/50 bg-red-950/10 rounded flex items-center justify-center text-xs text-red-400 font-bold border-dashed">
+                  {i < 3 ? `骷髅射手 LV.1${i}` : '-'}
+                </div>
+              ))}
+            </div>
+            <div className="h-px bg-gradient-to-r from-transparent via-[#d4af37]/30 to-transparent my-10" />
+            <div className="grid grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-20 border border-blue-900/50 bg-blue-950/10 rounded flex items-center justify-center text-xs text-blue-300 font-bold">
+                  {i < 2 ? HEROES[i].name : '-'}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="w-64 border border-[#3e352a] bg-[#14110e] flex flex-col">
+            <div className="p-2 border-b border-[#3e352a] text-[10px] font-bold text-[#d4af37] uppercase tracking-widest bg-[#1c1814]">战斗记录</div>
+            <div className="flex-1 p-3 overflow-y-auto space-y-2 custom-scrollbar text-[10px]">
+              <div className="text-red-400">骷髅射手 对 阿瑟 造成 45点伤害</div>
+              <div className="text-blue-400">塞琳娜 释放了 [奥术冲击]</div>
+              <div className="text-green-400">阿瑟 触发了 [神圣防御]</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (location.type === 'EVENT') {
+    return (
+      <div className="h-full p-12 bg-[#0c0a09] flex flex-col">
+        <div className="max-w-3xl mx-auto w-full border-4 border-[#3e352a] p-1 bg-[#1a1612] shadow-2xl">
+          <div className="border border-[#d4af37] p-8 min-h-[500px] flex flex-col">
+            <h2 className="text-3xl font-bold text-[#d4af37] mb-6 text-center underline underline-offset-8 decoration-double">任务布告板</h2>
+            <div className="space-y-6 flex-1 italic text-lg leading-relaxed text-[#d1c2b1]">
+              <p>“来自远方的信息已经到达。在荒芜废墟的深处，古老的恶魔正在苏醒。”</p>
+              <div className="mt-10 p-4 border-l-4 border-[#d4af37] bg-[#2a241d]/50">
+                <h4 className="font-bold text-[#d4af37] mb-2">任务奖励：</h4>
+                <ul className="text-sm space-y-1 opacity-80">
+                  <li>• 5000枚金币</li>
+                  <li>• 远古记忆碎片 x1</li>
+                  <li>• 地区声望：+50</li>
+                </ul>
+              </div>
+            </div>
+            <div className="flex gap-4 justify-end mt-8">
+              <button onClick={onBack} className="px-8 py-2 border border-[#3e352a] text-sm hover:bg-[#3e352a]">放弃</button>
+              <button className="px-8 py-2 bg-[#d4af37] text-[#1a1612] font-bold text-sm">接受任务</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+
+function TownButton({ icon, label }) {
+  return (
+    <button className="flex flex-col items-center gap-2 group">
+      <div className="w-16 h-16 rounded-full bg-[#1a1612]/90 border-2 border-[#d4af37] flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform shadow-2xl group-hover:bg-[#d4af37] group-hover:text-[#1a1612]">
+        {React.cloneElement(icon, { size: 28 })}
+      </div>
+      <span className="text-sm font-bold tracking-widest text-[#d1c2b1] drop-shadow-lg">{label}</span>
+    </button>
+  );
+}
+
+// --- 3. 队伍界面 ---
+function TeamView() {
+  const [activeTeam, setActiveTeam] = useState(0);
+  return (
+    <div className="h-full p-8 flex flex-col">
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-[#d4af37]">队伍配置</h2>
+          <p className="text-xs text-[#8b7355] mt-1 uppercase tracking-[0.2em]">Strategy and Formation</p>
+        </div>
+        <div className="flex gap-1">
+          {[...Array(10)].map((_, i) => (
+            <button key={i} onClick={() => setActiveTeam(i)} className={`w-10 h-10 border flex items-center justify-center text-xs transition-all ${activeTeam === i ? 'bg-[#d4af37] text-[#1a1612] border-[#d4af37]' : 'bg-[#1c1814] text-[#8b7355] border-[#3e352a] hover:border-[#d4af37]'}`}>
+              {i + 1}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex-1 grid grid-cols-2 gap-12 bg-[#14110e] border border-[#3e352a] p-12 rounded shadow-2xl">
+        <div className="flex flex-col justify-center gap-6">
+          <div className="grid grid-cols-3 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="aspect-[3/4] border-2 border-[#3e352a] border-dashed rounded-lg flex flex-col items-center justify-center gap-2 group hover:border-[#d4af37] cursor-pointer transition-colors relative overflow-hidden bg-[#1a1612]">
+                {i < 2 ? (
+                  <>
+                    <img src={HEROES[i].image} className="absolute inset-0 object-cover opacity-40" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                    <span className="absolute bottom-4 text-[10px] font-bold text-[#d4af37]">{HEROES[i].name}</span>
+                  </>
+                ) : (
+                  <div className="opacity-20 flex flex-col items-center text-[#8b7355]">
+                    <Shield size={32} />
+                    <span className="text-[10px] mt-1 italic">EMPTY</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-xs text-[#8b7355] italic">拖拽英雄以调整 2x3 阵型位置</p>
+        </div>
+        <div className="border-l border-[#3e352a] pl-12 flex flex-col py-4">
+          <div className="mb-6 p-4 bg-[#1c1814] border border-[#3e352a]">
+            <h4 className="text-[#d4af37] text-sm font-bold mb-4 flex items-center gap-2"><Zap size={16}/> 阵型光环</h4>
+            <div className="space-y-2 text-xs opacity-80">
+              <div className="flex justify-between"><span>法术伤害提升:</span><span className="text-green-500">+10%</span></div>
+              <div className="flex justify-between"><span>物理防御加成:</span><span className="text-green-500">+5%</span></div>
+              <div className="flex justify-between"><span>属性共鸣:</span><span className="text-[#fbbf24]">光/暗 激活</span></div>
+            </div>
+          </div>
+          <button className="mt-auto w-full py-4 bg-[#d4af37] text-[#1a1612] font-black uppercase tracking-widest hover:brightness-110 transition-all">保存当前配置</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- 4. 英雄界面 ---
+function HeroView({ hero, tab, setTab, selectedId, onSelectHero }) {
+  return (
+    <div className="h-full flex">
+      {/* 英雄列表 (左侧侧边栏) */}
+      <div className="w-16 border-r border-[#3e352a] bg-[#1c1814] flex flex-col items-center py-4 gap-4">
+        {HEROES.map((h, i) => (
+          <button 
+            key={h.id} 
+            onClick={() => onSelectHero(i)}
+            className={`w-12 h-12 rounded border-2 transition-all overflow-hidden ${selectedId === i ? 'border-[#d4af37] scale-110 shadow-[0_0_10px_#d4af37]' : 'border-[#3e352a] opacity-50 hover:opacity-100'}`}
+          >
+            <img src={h.image} className="w-full h-full object-cover" alt={h.name} />
+          </button>
+        ))}
+        <button className="w-12 h-12 rounded border-2 border-dashed border-[#3e352a] flex items-center justify-center text-[#3e352a] hover:text-[#8b7355] hover:border-[#8b7355] transition-colors">
+          <User size={20} />
+        </button>
+      </div>
+
+      {/* 主展示区 */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex gap-1 px-6 pt-6">
+          <HeroTab active={tab==='STATS'} label="基础属性" onClick={()=>setTab('STATS')} />
+          <HeroTab active={tab==='GEAR'} label="装备体系" onClick={()=>setTab('GEAR')} />
+          <HeroTab active={tab==='MEMORY'} label="记忆共鸣" onClick={()=>setTab('MEMORY')} />
+        </div>
+
+        <div className="flex-1 p-6 overflow-hidden">
+          {tab === 'STATS' && (
+            <div className="h-full flex gap-8">
+              <div className="w-[30%] aspect-[9/16] bg-[#1a1612] border border-[#d4af37] relative overflow-hidden group shadow-2xl">
+                <img src={hero.image} className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0f0d0b] via-transparent to-transparent" />
+                <div className="absolute bottom-6 left-6">
+                  <h3 className="text-2xl font-black text-[#d4af37] italic uppercase tracking-tighter">{hero.name}</h3>
+                  <p className="text-[10px] tracking-[0.3em] uppercase text-[#8b7355]">{hero.title}</p>
+                </div>
+              </div>
+
+              <div className="flex-1 bg-[#14110e] border border-[#3e352a] p-8 overflow-y-auto custom-scrollbar shadow-inner">
+                <div className="grid grid-cols-2 gap-10">
+                  <section>
+                    <SectionTitle title="1. 核心属性 (Core Stats)" />
+                    <div className="space-y-2">
+                      <StatRow label="生命值 (HP)" value={hero.stats.hp} color="#ef4444" />
+                      <StatRow label="法力值 (MP)" value={hero.stats.mp} color="#3b82f6" />
+                      <StatRow label="力量 (STR)" value={hero.stats.str} />
+                      <StatRow label="智力 (INT)" value={hero.stats.int} />
+                      <StatRow label="敏捷 (AGI)" value={hero.stats.agi} />
+                    </div>
+                  </section>
+                  <section>
+                    <SectionTitle title="2. 战斗辅助指标" />
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                      <StatTiny label="物理防御" value={hero.stats.def} />
+                      <StatTiny label="物理穿透" value="12%" />
+                      <StatTiny label="暴击率" value="15.2%" />
+                      <StatTiny label="暴击伤害" value="210%" />
+                      <StatTiny label="闪避率" value="5.8%" />
+                      <StatTiny label="嘲讽值" value="80" />
+                      <StatTiny label="吸血" value="2.5%" />
+                      <StatTiny label="反伤" value="10%" />
+                    </div>
+                  </section>
+                  <section className="col-span-2">
+                    <SectionTitle title="3. 八大元素体系" />
+                    <div className="grid grid-cols-4 gap-4">
+                      {ELEMENTS.map(ele => (
+                        <div key={ele.id} className="p-3 bg-[#1c1814] border border-[#3e352a] rounded shadow-inner">
+                          <div className="flex items-center gap-2 mb-2" style={{ color: ele.color }}>
+                            {ele.icon} <span className="text-[11px] font-bold">{ele.label}</span>
+                          </div>
+                          <div className="text-[9px] flex justify-between opacity-70"><span>加成:</span><span>+15%</span></div>
+                          <div className="text-[9px] flex justify-between opacity-70"><span>抗性:</span><span>+24%</span></div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                  <section className="col-span-2">
+                    <SectionTitle title="4. 高级属性" />
+                    <div className="flex flex-wrap gap-6">
+                      <StatTiny label="元素穿透" value="18%" wide />
+                      <StatTiny label="全元素抗性" value="10%" wide />
+                      <StatTiny label="全元素加成" value="5%" wide />
+                      <StatTiny label="护甲百分比穿透" value="25%" wide />
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'GEAR' && (
+            <div className="h-full flex gap-8">
+              <div className="w-1/4 flex flex-col gap-6">
+                <div className="flex-1 bg-[#14110e] border border-[#3e352a] p-4 flex flex-col shadow-inner">
+                  <SectionTitle title="属性汇总" />
+                  <div className="flex-1 space-y-2 py-4">
+                    <StatTiny label="装备总血量" value="+2,400" />
+                    <StatTiny label="魔法效能加成" value="+350" />
+                    <StatTiny label="吟唱缩减" value="+8%" />
+                  </div>
+                </div>
+                <div className="h-40 bg-[#1c1814] border border-[#3e352a] p-4">
+                  <SectionTitle title="套装效果" />
+                  <div className="text-[10px] text-green-500 italic mt-2">
+                    {hero.class === 'PALADIN' ? '[狮心王 2/5] 格挡成功恢复1%生命' : '[群星织物 3/5] 暴击后法术伤害提升20%'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 bg-[#14110e] border border-[#3e352a] relative p-12 overflow-hidden shadow-2xl">
+                <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#d4af37_1px,transparent_1px)] bg-[size:20px_20px]" />
+                {hero.class === 'PALADIN' ? (
+                  <div className="h-full relative w-full flex justify-center items-center">
+                    <div className="z-10 grid gap-12">
+                      <GearSlot label="头盔" icon={<Shield size={24}/>} className="justify-self-center" />
+                      <div className="flex gap-24">
+                        <GearSlot label="主手" icon={<Sword size={24}/>} />
+                        <GearSlot label="护甲" icon={<ShieldCheck size={24}/>} />
+                        <GearSlot label="副手" icon={<Shield size={24}/>} />
+                      </div>
+                      <GearSlot label="护腿" icon={<Settings size={24}/>} className="justify-self-center" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full relative w-full flex justify-center items-center">
+                    <svg className="absolute inset-0 w-full h-full opacity-30 stroke-[#d4af37]" viewBox="0 0 100 100">
+                      <polygon points="50,15 85,40 72,85 28,85 15,40" fill="none" strokeWidth="0.5" strokeDasharray="2,2" />
+                    </svg>
+                    <GearSlot label="符文·辉" icon={<Star size={20}/>} className="absolute top-[12%]" />
+                    <GearSlot label="符文·蚀" icon={<Star size={20}/>} className="absolute top-[38%] right-[10%]" />
+                    <GearSlot label="符文·流" icon={<Star size={20}/>} className="absolute bottom-[10%] right-[25%]" />
+                    <GearSlot label="符文·固" icon={<Star size={20}/>} className="absolute bottom-[10%] left-[25%]" />
+                    <GearSlot label="符文·迅" icon={<Star size={20}/>} className="absolute top-[38%] left-[10%]" />
+                    <div className="w-24 h-24 rounded-full border-4 border-[#d4af37] bg-[#1a1612] flex flex-col items-center justify-center shadow-[0_0_30px_rgba(212,175,55,0.2)] animate-pulse z-10">
+                      <Zap className="text-[#d4af37]" />
+                      <span className="text-[8px] font-bold mt-1 tracking-widest">AETHER CORE</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {tab === 'MEMORY' && (
+            <div className="h-full flex gap-8">
+              <div className="w-1/3 bg-[#14110e] border border-[#3e352a] p-8 shadow-inner">
+                <SectionTitle title="记忆碎片效果" />
+                <h4 className="text-[#d4af37] text-lg font-bold mb-2">{hero.class === 'PALADIN' ? '破碎的王座' : '凋零的群星'}</h4>
+                <p className="text-xs italic text-[#8b7355] mb-6">“那是连光都被吞噬的黎明前夜...”</p>
+                <div className="space-y-4">
+                  <div className="p-4 border border-[#d4af37]/30 bg-[#2a241d]/30 text-xs leading-relaxed">
+                    {hero.class === 'PALADIN' ? '获得 [孤傲]：孤军奋战时伤害+50%。' : '获得 [法涌]：法力值越高，法术穿透越高。'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 bg-[#14110e] border border-[#3e352a] flex items-center justify-center relative overflow-hidden group shadow-2xl">
+                <img src={hero.image} className="absolute inset-0 object-cover opacity-40 group-hover:scale-110 transition-transform duration-[4s] blur-[2px] group-hover:blur-0" alt="Memory" />
+                <div className="absolute inset-0 bg-[#000]/40" />
+                <div className="absolute inset-0 border-[30px] border-[#14110e]" />
+                <div className="z-10 text-[#d4af37] flex flex-col items-center">
+                  <div className="w-48 h-px bg-gradient-to-r from-transparent via-[#d4af37] to-transparent mb-4" />
+                  <span className="tracking-[0.8em] text-sm font-light uppercase">Fragile Memories</span>
+                  <div className="w-48 h-px bg-gradient-to-r from-transparent via-[#d4af37] to-transparent mt-4" />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeroTab({ active, label, onClick }) {
+  return (
+    <button onClick={onClick} className={`px-8 py-3 text-sm font-bold tracking-widest border-t-2 transition-all ${active ? 'bg-[#14110e] border-[#d4af37] text-[#d4af37]' : 'bg-[#1a1612] border-transparent text-[#8b7355] hover:text-[#d1c2b1]'}`}>
+      {label}
+    </button>
+  );
+}
+
+function SectionTitle({ title }) {
+  return <h3 className="text-xs font-bold text-[#d4af37] border-b border-[#3e352a] pb-1 mb-4 uppercase tracking-wider">{title}</h3>;
+}
+
+function StatRow({ label, value, color }) {
+  return (
+    <div className="flex justify-between items-center text-xs">
+      <span className="opacity-70">{label}</span>
+      <span className="font-bold" style={{ color: color || '#d1c2b1' }}>{value}</span>
+    </div>
+  );
+}
+
+function StatTiny({ label, value, wide }) {
+  return (
+    <div className={`flex justify-between items-center text-[11px] py-1 border-b border-[#3e352a]/30 ${wide ? 'min-w-[120px]' : ''}`}>
+      <span className="opacity-60">{label}:</span>
+      <span className="font-bold text-[#d4af37] ml-2">{value}</span>
+    </div>
+  );
+}
+
+function GearSlot({ label, icon, className }) {
+  return (
+    <div className={`flex flex-col items-center gap-1 ${className}`}>
+      <div className="w-16 h-16 border border-[#d4af37]/50 bg-[#1c1814] flex items-center justify-center text-[#d4af37]/70 hover:border-[#d4af37] hover:text-[#d4af37] cursor-pointer transition-all shadow-[inset_0_0_15px_rgba(0,0,0,0.5)] active:scale-95 group">
+        {React.cloneElement(icon, { className: "group-hover:drop-shadow-[0_0_5px_#d4af37]" })}
+      </div>
+      <span className="text-[9px] font-bold text-[#8b7355] tracking-widest uppercase mt-1">{label}</span>
+    </div>
+  );
+}
