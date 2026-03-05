@@ -3,6 +3,7 @@ import { User, X, Zap } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { MageGearBoard } from "../components/hero/MageGearBoard";
 import { PaladinGearBoard } from "../components/hero/PaladinGearBoard";
+import { battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
 import {
   EQUIPMENT_SLOT_LABELS,
   EQUIPMENT_SUBTYPE_LABELS,
@@ -12,8 +13,10 @@ import {
   isPaladinHandSlot
 } from "../lib/equipmentCatalog";
 import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS } from "../lib/equipmentSystem";
+import { useBattleSetup } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { heroes } from "../data/mockData";
+import type { BattleLoadout, BattleStatModifier } from "../types/battle";
 import type { EquipmentSlot, EquipmentStatKey, GeneratedEquipment, Hero, HeroTab } from "../types/game";
 
 interface ElementRow {
@@ -73,12 +76,58 @@ const HERO_NAME_MAP = heroes.reduce<Record<string, string>>((map, hero) => {
   map[hero.id] = hero.name;
   return map;
 }, {});
+const talentOptions = Object.values(battleTalents);
+const activeSkillOptions = Object.values(battleActiveSkills);
+const passiveSkillOptions = Object.values(battlePassiveSkills);
+
+function formatModifierValue(value: number): string {
+  if (Math.abs(value) > 0 && Math.abs(value) < 1) {
+    return `${value > 0 ? "+" : ""}${(value * 100).toFixed(1)}%`;
+  }
+  return `${value > 0 ? "+" : ""}${Number.isInteger(value) ? value : value.toFixed(2)}`;
+}
+
+function summarizeModifier(modifiers: BattleStatModifier): string[] {
+  const lines: string[] = [];
+  if (modifiers.flat) {
+    Object.entries(modifiers.flat).forEach(([key, value]) => {
+      if (typeof value === "number") {
+        lines.push(`${key} ${formatModifierValue(value)}`);
+      }
+    });
+  }
+  if (modifiers.ratio) {
+    Object.entries(modifiers.ratio).forEach(([key, value]) => {
+      if (typeof value === "number") {
+        lines.push(`${key} ${formatModifierValue(value)}`);
+      }
+    });
+  }
+  if (modifiers.elementBoost) {
+    Object.entries(modifiers.elementBoost).forEach(([key, value]) => {
+      if (typeof value === "number") {
+        lines.push(`${key}Boost ${formatModifierValue(value)}`);
+      }
+    });
+  }
+  if (modifiers.elementRes) {
+    Object.entries(modifiers.elementRes).forEach(([key, value]) => {
+      if (typeof value === "number") {
+        lines.push(`${key}Res ${formatModifierValue(value)}`);
+      }
+    });
+  }
+  return lines;
+}
 
 function nextTab(tab: HeroTab): HeroTab {
   if (tab === "stats") {
     return "gear";
   }
   if (tab === "gear") {
+    return "skills";
+  }
+  if (tab === "skills") {
     return "memory";
   }
   return "stats";
@@ -230,6 +279,175 @@ function HeroStatsContent({ hero }: { hero: Hero }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function HeroSkillLoadoutEditor({
+  hero,
+  loadout,
+  onChangeTalent,
+  onChangeActive,
+  onChangePassive,
+  onReset
+}: {
+  hero: Hero;
+  loadout: BattleLoadout;
+  onChangeTalent: (talentId: string | null) => void;
+  onChangeActive: (slotIndex: number, skillId: string | null) => void;
+  onChangePassive: (slotIndex: number, skillId: string | null) => void;
+  onReset: () => void;
+}) {
+  const [hoveredSkill, setHoveredSkill] = useState<{ id: string; x: number; y: number } | null>(null);
+  const hoveredTalent = hoveredSkill ? battleTalents[hoveredSkill.id] : null;
+  const hoveredActive = hoveredSkill ? battleActiveSkills[hoveredSkill.id] : null;
+  const hoveredPassive = hoveredSkill ? battlePassiveSkills[hoveredSkill.id] : null;
+  const hoveredType = hoveredTalent ? "talent" : hoveredActive ? "active" : hoveredPassive ? "passive" : null;
+  const hoveredDesc = hoveredTalent?.description ?? hoveredActive?.description ?? hoveredPassive?.description ?? "";
+  const hoveredName = hoveredTalent?.name ?? hoveredActive?.name ?? hoveredPassive?.name ?? "";
+  const hoveredStyle = useMemo(() => {
+    if (!hoveredSkill) {
+      return undefined;
+    }
+    const panelWidth = 350;
+    const panelHeight = 320;
+    let left = hoveredSkill.x + 16;
+    let top = hoveredSkill.y + 16;
+    if (typeof window !== "undefined") {
+      left = Math.min(left, window.innerWidth - panelWidth - 12);
+      top = Math.min(top, window.innerHeight - panelHeight - 12);
+    }
+    return { left: `${Math.max(10, left)}px`, top: `${Math.max(10, top)}px` };
+  }, [hoveredSkill]);
+
+  const hoveredModifierLines = hoveredTalent
+    ? summarizeModifier(hoveredTalent.modifiers)
+    : hoveredPassive
+    ? summarizeModifier(hoveredPassive.modifiers)
+    : [];
+
+  const handleSkillHover = (skillId: string | null, x: number, y: number) => {
+    if (!skillId) {
+      return;
+    }
+    setHoveredSkill({ id: skillId, x, y });
+  };
+
+  return (
+    <section className="hero-skill-editor">
+      <header className="hero-skill-editor-head">
+        <h3>战斗技能配置</h3>
+        <p>
+          {hero.name} · 1 天赋 / 10 主动 / 10 被动（仅展示可配置逻辑，未做职业限制）
+        </p>
+      </header>
+
+      <div className="hero-skill-editor-grid">
+        <div className="hero-skill-column">
+          <h4>天赋槽位</h4>
+          <label className="hero-skill-select-row">
+            <span>Talent</span>
+            <select
+              value={loadout.talentSlot ?? ""}
+              onChange={(event) => onChangeTalent(event.target.value || null)}
+              onMouseEnter={(event) => handleSkillHover(loadout.talentSlot, event.clientX, event.clientY)}
+              onMouseMove={(event) => handleSkillHover(loadout.talentSlot, event.clientX, event.clientY)}
+              onMouseLeave={() => setHoveredSkill(null)}
+            >
+              <option value="">空槽</option>
+              {talentOptions.map((skill) => (
+                <option key={skill.id} value={skill.id}>
+                  {skill.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="hero-skill-column">
+          <h4>主动槽位</h4>
+          <div className="hero-skill-slot-list custom-scrollbar">
+            {loadout.activeSlots.map((skillId, index) => (
+              <label key={`active-${index}`} className="hero-skill-select-row">
+                <span>A{index + 1}</span>
+                <select
+                  value={skillId ?? ""}
+                  onChange={(event) => onChangeActive(index, event.target.value || null)}
+                  onMouseEnter={(event) => handleSkillHover(skillId, event.clientX, event.clientY)}
+                  onMouseMove={(event) => handleSkillHover(skillId, event.clientX, event.clientY)}
+                  onMouseLeave={() => setHoveredSkill(null)}
+                >
+                  <option value="">空槽</option>
+                  {activeSkillOptions.map((skill) => (
+                    <option key={skill.id} value={skill.id}>
+                      {skill.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="hero-skill-column">
+          <h4>被动槽位</h4>
+          <div className="hero-skill-slot-list custom-scrollbar">
+            {loadout.passiveSlots.map((skillId, index) => (
+              <label key={`passive-${index}`} className="hero-skill-select-row">
+                <span>P{index + 1}</span>
+                <select
+                  value={skillId ?? ""}
+                  onChange={(event) => onChangePassive(index, event.target.value || null)}
+                  onMouseEnter={(event) => handleSkillHover(skillId, event.clientX, event.clientY)}
+                  onMouseMove={(event) => handleSkillHover(skillId, event.clientX, event.clientY)}
+                  onMouseLeave={() => setHoveredSkill(null)}
+                >
+                  <option value="">空槽</option>
+                  {passiveSkillOptions.map((skill) => (
+                    <option key={skill.id} value={skill.id}>
+                      {skill.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="hero-skill-editor-actions">
+        <button type="button" className="ghost-btn" onClick={onReset}>
+          恢复默认技能模板
+        </button>
+      </div>
+
+      {hoveredSkill && hoveredStyle && hoveredType ? (
+        <aside className="hero-skill-hover-detail custom-scrollbar" style={hoveredStyle}>
+          <header>
+            <h4>{hoveredName}</h4>
+            <span>{hoveredType.toUpperCase()}</span>
+          </header>
+          <p>{hoveredDesc}</p>
+
+          {hoveredActive ? (
+            <div className="hero-skill-hover-meta">
+              <p>分类：{hoveredActive.category}</p>
+              <p>
+                MP {hoveredActive.mpCost} · CD {hoveredActive.cooldown} · 权重 {hoveredActive.baseWeight}
+              </p>
+              <p>基础威力：{hoveredActive.basePower}</p>
+            </div>
+          ) : null}
+
+          {hoveredModifierLines.length > 0 ? (
+            <div className="hero-skill-hover-mods">
+              {hoveredModifierLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+          ) : null}
+        </aside>
+      ) : null}
+    </section>
   );
 }
 
@@ -638,6 +856,35 @@ function HeroGearContent({
   );
 }
 
+function HeroSkillsContent({
+  hero,
+  loadout,
+  onSetTalent,
+  onSetActiveSkill,
+  onSetPassiveSkill,
+  onResetHeroLoadout
+}: {
+  hero: Hero;
+  loadout: BattleLoadout;
+  onSetTalent: (heroId: string, talentId: string | null) => void;
+  onSetActiveSkill: (heroId: string, slotIndex: number, skillId: string | null) => void;
+  onSetPassiveSkill: (heroId: string, slotIndex: number, skillId: string | null) => void;
+  onResetHeroLoadout: (heroId: string) => void;
+}) {
+  return (
+    <div className="hero-skills-view">
+      <HeroSkillLoadoutEditor
+        hero={hero}
+        loadout={loadout}
+        onChangeTalent={(talentId) => onSetTalent(hero.id, talentId)}
+        onChangeActive={(slotIndex, skillId) => onSetActiveSkill(hero.id, slotIndex, skillId)}
+        onChangePassive={(slotIndex, skillId) => onSetPassiveSkill(hero.id, slotIndex, skillId)}
+        onReset={() => onResetHeroLoadout(hero.id)}
+      />
+    </div>
+  );
+}
+
 function HeroMemoryContent({ hero }: { hero: Hero }) {
   const title = hero.heroClass === "paladin" ? "破碎的王座" : "凛冬的群星";
   const quote =
@@ -676,6 +923,8 @@ export function HeroPage() {
   const currentTab = (searchParams.get("tab") as HeroTab) || "stats";
   const hero = heroes.find((item) => item.id === heroId) ?? heroes[0];
   const { items, itemMap, equippedByHero, refreshItems, equipItem, unequipItem, getItemOwners } = useEquipmentInventory();
+  const { getHeroLoadout, setHeroTalent, setHeroActiveSkill, setHeroPassiveSkill, resetHeroLoadout } = useBattleSetup();
+  const heroLoadout = getHeroLoadout(hero.id);
 
   const [selectedSlotByHero, setSelectedSlotByHero] = useState<Record<string, string>>({});
 
@@ -702,7 +951,7 @@ export function HeroPage() {
     <section className="page hero-page">
       <header className="page-header">
         <h1>英雄殿堂</h1>
-        <p>装备页已接入背包生成与手动穿戴流程：先生成，再按槽位选择装备。</p>
+        <p>装备与技能均可独立配置：装备影响面板，技能槽位直接驱动战斗释放逻辑。</p>
       </header>
 
       <div className="hero-layout">
@@ -725,6 +974,7 @@ export function HeroPage() {
           <div className="hero-tabs">
             <HeroTabButton active={currentTab === "stats"} label="基础属性" onClick={() => setTab("stats")} />
             <HeroTabButton active={currentTab === "gear"} label="装备体系" onClick={() => setTab("gear")} />
+            <HeroTabButton active={currentTab === "skills"} label="技能配置" onClick={() => setTab("skills")} />
             <HeroTabButton active={currentTab === "memory"} label="记忆共鸣" onClick={() => setTab("memory")} />
           </div>
 
@@ -743,6 +993,16 @@ export function HeroPage() {
                   onEquipToSlot={handleEquipToSlot}
                   onUnequipSlot={handleUnequipSlot}
                   onRefreshBackpack={refreshItems}
+                />
+              )}
+              {currentTab === "skills" && (
+                <HeroSkillsContent
+                  hero={hero}
+                  loadout={heroLoadout}
+                  onSetTalent={setHeroTalent}
+                  onSetActiveSkill={setHeroActiveSkill}
+                  onSetPassiveSkill={setHeroPassiveSkill}
+                  onResetHeroLoadout={resetHeroLoadout}
                 />
               )}
               {currentTab === "memory" && <HeroMemoryContent hero={hero} />}

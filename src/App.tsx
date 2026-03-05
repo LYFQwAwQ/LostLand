@@ -2,6 +2,7 @@
 import { MainLayout } from "./components/layout/MainLayout";
 import { HeroPage } from "./pages/HeroPage";
 import { InventoryPage } from "./pages/InventoryPage";
+import { BattlePage } from "./pages/BattlePage";
 import { NodeActionPage } from "./pages/NodeActionPage";
 import { NodeHubPage } from "./pages/NodeHubPage";
 import { RitualPage } from "./pages/RitualPage";
@@ -16,6 +17,7 @@ export function App() {
         <Route path="node/:nodeId" element={<NodeHubPage />} />
         <Route path="node/:nodeId/ritual" element={<RitualPage />} />
         <Route path="node/:nodeId/:action" element={<NodeActionPage />} />
+        <Route path="battle/:nodeId" element={<BattlePage />} />
         <Route path="team" element={<TeamPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="hero/:heroId" element={<HeroPage />} />

@@ -1,6 +1,6 @@
 ﻿export type HeroClass = "paladin" | "mage";
 
-export type HeroTab = "stats" | "gear" | "memory";
+export type HeroTab = "stats" | "gear" | "skills" | "memory";
 
 export interface Hero {
   id: string;

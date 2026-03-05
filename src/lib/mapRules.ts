@@ -34,7 +34,7 @@ export const ACTION_META: Record<NodeAction, NodeActionMeta> = {
   battle: {
     key: "battle",
     label: "进入讨伐",
-    description: "战斗准备界面：阵容确认、侦察、进入战斗。"
+    description: "战斗准备界面：侦察、阵容确认、进入实时战斗。"
   },
   ritual: {
     key: "ritual",

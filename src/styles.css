@@ -278,6 +278,17 @@ body {
   gap: 14px;
 }
 
+.team-grid-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.team-grid-block h2 {
+  margin: 0 0 8px;
+  color: #e6cc98;
+  font-size: 14px;
+}
+
 .team-grid {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -297,6 +308,15 @@ body {
   place-items: center;
   color: var(--muted);
   position: relative;
+  background: #1b1511;
+  text-align: center;
+  cursor: pointer;
+}
+
+.team-slot.active {
+  border-style: solid;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px rgb(212 175 55 / 30%);
 }
 
 .team-slot img {
@@ -319,6 +339,19 @@ body {
   font-size: 12px;
 }
 
+.team-slot small {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 1;
+  font-size: 10px;
+  color: #bda17b;
+  background: rgb(16 13 10 / 72%);
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid #68533f;
+}
+
 .team-side-card {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -337,7 +370,61 @@ body {
   color: var(--muted);
 }
 
-.team-side-card button {
+.team-side-actions {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.team-side-card h3 {
+  margin: 12px 0 8px;
+  color: #e0c891;
+  font-size: 14px;
+}
+
+.team-hero-pool {
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.team-hero-card {
+  border: 1px solid #5f4d39;
+  border-radius: 8px;
+  background: #211910;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.team-hero-card img {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid #6f5a45;
+}
+
+.team-hero-card strong {
+  font-size: 12px;
+  color: #e8cf9f;
+}
+
+.team-hero-card p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #a58b68;
+}
+
+.team-hero-card .ghost-btn {
+  grid-column: 1 / -1;
+}
+
+.team-side-card .team-save-btn {
   margin-top: 20px;
   width: 100%;
   border: none;
@@ -1112,6 +1199,143 @@ body {
   min-height: 0;
 }
 
+.hero-skills-view {
+  height: 100%;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.hero-skill-editor {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #19130f;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.hero-skill-editor-head h3 {
+  margin: 0;
+  color: #ecd4a6;
+  font-size: 17px;
+}
+
+.hero-skill-editor-head p {
+  margin: 7px 0 0;
+  color: #af9570;
+  font-size: 12px;
+}
+
+.hero-skill-editor-grid {
+  display: grid;
+  grid-template-columns: 0.8fr 1fr 1fr;
+  gap: 10px;
+}
+
+.hero-skill-column {
+  border: 1px solid #5b4a39;
+  border-radius: 8px;
+  background: #211910;
+  padding: 8px;
+  min-height: 0;
+}
+
+.hero-skill-column h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #dbc18f;
+}
+
+.hero-skill-slot-list {
+  display: grid;
+  gap: 6px;
+  max-height: 332px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.hero-skill-select-row {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #bda27b;
+}
+
+.hero-skill-select-row select {
+  border: 1px solid #6a5742;
+  border-radius: 6px;
+  background: #17120d;
+  color: #dcc8a0;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.hero-skill-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.hero-skill-hover-detail {
+  position: fixed;
+  z-index: 65;
+  width: min(350px, calc(100vw - 20px));
+  max-height: min(320px, calc(100vh - 20px));
+  overflow: auto;
+  pointer-events: none;
+  border: 1px solid rgb(141 114 79 / 92%);
+  border-radius: 10px;
+  background: linear-gradient(160deg, rgb(31 23 17 / 92%) 0%, rgb(20 17 13 / 90%) 100%);
+  backdrop-filter: blur(3px);
+  box-shadow: 0 20px 45px rgb(0 0 0 / 48%);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.hero-skill-hover-detail header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-skill-hover-detail h4 {
+  margin: 0;
+  color: #eed6a8;
+  font-size: 15px;
+}
+
+.hero-skill-hover-detail header span {
+  border: 1px solid #7f6747;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: #d9bd8c;
+}
+
+.hero-skill-hover-detail > p {
+  margin: 0;
+  color: #c9af85;
+  font-size: 12px;
+}
+
+.hero-skill-hover-meta,
+.hero-skill-hover-mods {
+  border-top: 1px dashed rgb(157 136 106 / 45%);
+  padding-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.hero-skill-hover-meta p,
+.hero-skill-hover-mods p {
+  margin: 0;
+  font-size: 11px;
+  color: #bfa37b;
+}
+
 .hero-gear-stack {
   height: 100%;
   display: flex;
@@ -1878,6 +2102,10 @@ body {
     flex-direction: column;
   }
 
+  .hero-skill-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
   .hero-portrait-card,
   .gear-left-panel,
   .memory-info-card {
@@ -2213,7 +2441,9 @@ body {
 }
 
 .secondary-btn-link {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 10px;
   text-decoration: none;
   border: 1px solid var(--line);
@@ -3032,5 +3262,359 @@ body {
   .map-node-tag {
     max-width: 140px;
     font-size: 10px;
+  }
+}
+
+.battle-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.battle-page-header p {
+  color: #c0a989;
+}
+
+.battle-top-actions {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.battle-control-group,
+.battle-speed-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.battle-control-group {
+  justify-content: center;
+}
+
+.battle-speed-group {
+  justify-content: flex-end;
+}
+
+.ghost-btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.battle-result-banner {
+  border: 1px solid #5a4a36;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.battle-result-banner.win {
+  border-color: #5ea07d;
+  color: #9de5b8;
+  background: rgb(41 83 60 / 26%);
+}
+
+.battle-result-banner.lose {
+  border-color: #a05d5d;
+  color: #f3b2b2;
+  background: rgb(92 48 48 / 30%);
+}
+
+.battle-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 12px;
+  min-height: 540px;
+}
+
+.battle-main-board {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 18% 12%, rgb(212 175 55 / 8%), transparent 38%),
+    radial-gradient(circle at 86% 15%, rgb(95 149 198 / 6%), transparent 34%),
+    #13100d;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.battle-side-panel {
+  border: 1px solid #554534;
+  border-radius: 10px;
+  padding: 10px;
+  background: rgb(30 24 18 / 74%);
+}
+
+.battle-side-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.battle-side-panel h3 {
+  margin: 0;
+  color: #e7ce9a;
+  font-size: 16px;
+}
+
+.battle-side-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.battle-line-block {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.battle-line-label {
+  color: #d6bd94;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.battle-line-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(80px, 1fr));
+  gap: 8px;
+}
+
+.battle-unit-slot {
+  border: 1px solid #5a4937;
+  border-radius: 8px;
+  background: #1d1610;
+  padding: 8px;
+  min-height: 124px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.battle-unit-slot.empty {
+  border-style: dashed;
+  align-content: center;
+  justify-items: center;
+  color: #7f6a50;
+}
+
+.battle-unit-slot.defeated {
+  opacity: 0.55;
+  filter: grayscale(0.25);
+}
+
+.battle-unit-slot header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.battle-unit-slot strong {
+  font-size: 12px;
+  color: #ecd5ab;
+}
+
+.battle-unit-slot small {
+  color: #9f8a6d;
+  font-size: 10px;
+}
+
+.battle-unit-bars {
+  display: grid;
+  gap: 4px;
+}
+
+.bar-row {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgb(76 62 47 / 72%);
+}
+
+.bar-row span {
+  display: block;
+  height: 100%;
+  transition: width 0.08s linear;
+}
+
+.bar-row.hp span {
+  background: linear-gradient(90deg, #9d3a3a, #d55f5f);
+}
+
+.bar-row.mp span {
+  background: linear-gradient(90deg, #3f5f9f, #6196d8);
+}
+
+.bar-row.action span {
+  background: linear-gradient(90deg, #9d7a32, #d7af53);
+}
+
+.battle-unit-meta {
+  margin: 0;
+  color: #bda583;
+  font-size: 10px;
+}
+
+.battle-unit-status {
+  margin: 0;
+  color: #988364;
+  font-size: 10px;
+}
+
+.battle-timeline-card {
+  border: 1px dashed #6b5843;
+  border-radius: 10px;
+  padding: 10px;
+  background: rgb(25 20 15 / 70%);
+}
+
+.battle-timeline-card h3 {
+  margin: 0;
+  color: #d9bf8f;
+  font-size: 13px;
+}
+
+.battle-timeline-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.battle-timeline-row {
+  border: 1px solid #5a4736;
+  border-radius: 6px;
+  padding: 5px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.battle-timeline-row span {
+  color: #e3cb9f;
+}
+
+.battle-timeline-row small {
+  color: #9e8769;
+}
+
+.battle-sidebar {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #15120f;
+  padding: 10px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+}
+
+.battle-side-card {
+  border: 1px solid #584735;
+  border-radius: 10px;
+  background: #1b1510;
+  padding: 10px;
+}
+
+.battle-side-card h3 {
+  margin: 0;
+  color: #e6cf9d;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.battle-side-card p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #b99f77;
+}
+
+.battle-log-card {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+}
+
+.battle-log-list {
+  margin-top: 8px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.battle-log-list p {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 1px solid #594735;
+  line-height: 1.4;
+}
+
+.battle-log-list .tone-damage {
+  color: #f2a5a5;
+}
+
+.battle-log-list .tone-heal {
+  color: #9de1ae;
+}
+
+.battle-log-list .tone-buff {
+  color: #9ec6f3;
+}
+
+.battle-log-list .tone-debuff {
+  color: #dcb0f5;
+}
+
+.battle-log-list .tone-drop {
+  color: #f7cb7d;
+}
+
+.battle-drop-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.battle-drop-list p {
+  margin: 0;
+  font-size: 11px;
+  color: #f0cc92;
+}
+
+@media (max-width: 1220px) {
+  .battle-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-sidebar {
+    grid-template-rows: auto auto auto;
+  }
+}
+
+@media (max-width: 980px) {
+  .battle-top-actions {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .battle-control-group,
+  .battle-speed-group {
+    justify-content: flex-start;
+  }
+
+  .battle-line-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .battle-unit-slot {
+    min-height: 88px;
   }
 }

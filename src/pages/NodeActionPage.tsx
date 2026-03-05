@@ -90,15 +90,17 @@ export function NodeActionPage() {
 
       {action === "battle" ? (
         <div className="module-grid">
-          <HeaderInfo title="讨伐准备（战斗系统未接入）">
-            <p>当前阶段仅保留入口与情报流程，不进入战斗回合计算。</p>
-            <button type="button" className="primary-btn">
+          <HeaderInfo title="讨伐准备">
+            <p>战斗系统已接入实时模拟，可直接作为后续正式战斗模板。</p>
+            <p>队伍规则：双方 1-6 人，前后排各最多 3 人。</p>
+            <Link to={`/battle/${node.id}?region=${region.id}`} className="secondary-btn-link">
               <Shield size={14} />
-              锁定阵容（占位）
-            </button>
+              进入实时战斗
+            </Link>
           </HeaderInfo>
           <HeaderInfo title="侦察情报">
-            <p>敌方规模：中等 / 环境词缀：地形压制。</p>
+            <p>敌方规模：依据 BL 等级自动生成（1-6 人，含前后排分布）。</p>
+            <p>当前地图压制：{region.mapSuppression}%（影响掉落强度与数量）。</p>
             <p>推荐压制值：{Math.max(45, region.mapSuppression)}%</p>
             {node.archetype === "BL3" ? (
               <Link to={`/node/${node.id}/ritual?region=${region.id}`} className="secondary-btn-link">
