@@ -1,10 +1,12 @@
-import type { GeneratedEquipment } from "./game";
+import type { GeneratedEquipment, HeroClass } from "./game";
 
 export type BattleSide = "ally" | "enemy";
 export type BattleLine = "front" | "back";
 export type BattleDamageType = "physical" | "magic";
 export type BattleSkillCategory = "assault" | "defend" | "inspire" | "afflict" | "succor";
 export type BattleSkillKind = "active" | "passive" | "talent";
+export type BattleSkillPool = "common" | "class" | "enemy";
+export type BattleTalentRarity = "common" | "rare" | "epic" | "legendary" | "unique";
 export type BattleLogTone = "system" | "damage" | "heal" | "buff" | "debuff" | "miss" | "drop";
 export type BattleDropCategory = "equipment" | "material";
 export type BattleMaterialRarity = "common" | "uncommon" | "rare" | "epic";
@@ -112,6 +114,9 @@ export interface BattleActiveSkillDefinition {
   id: string;
   name: string;
   kind: "active";
+  skillPool?: BattleSkillPool;
+  allowedHeroClasses?: HeroClass[];
+  conflictSkillIds?: string[];
   category: BattleSkillCategory;
   description: string;
   targetType: BattleTargetType;
@@ -136,6 +141,9 @@ export interface BattlePassiveSkillDefinition {
   id: string;
   name: string;
   kind: "passive";
+  skillPool?: BattleSkillPool;
+  allowedHeroClasses?: HeroClass[];
+  conflictSkillIds?: string[];
   description: string;
   modifiers: BattleStatModifier;
 }
@@ -144,6 +152,10 @@ export interface BattleTalentDefinition {
   id: string;
   name: string;
   kind: "talent";
+  rarity: BattleTalentRarity;
+  skillPool?: BattleSkillPool;
+  allowedHeroClasses?: HeroClass[];
+  conflictSkillIds?: string[];
   description: string;
   modifiers: BattleStatModifier;
 }

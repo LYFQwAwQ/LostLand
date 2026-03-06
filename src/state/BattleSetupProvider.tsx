@@ -1,8 +1,8 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { getDefaultHeroLoadout } from "../data/battleUnits";
-import { battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
 import { heroes } from "../data/mockData";
+import { ensureBattleLoadoutShape, normalizeHeroLoadout } from "../lib/battleLoadoutRules";
 import type { Hero } from "../types/game";
 import type { BattleLine, BattleLoadout } from "../types/battle";
 
@@ -21,6 +21,7 @@ interface BattleSetupContextValue {
   clearFormation: () => void;
   resetFormationDefault: () => void;
   getHeroLoadout: (heroId: string) => BattleLoadout;
+  setHeroLoadout: (heroId: string, loadout: BattleLoadout) => void;
   setHeroTalent: (heroId: string, talentId: string | null) => void;
   setHeroActiveSkill: (heroId: string, slotIndex: number, skillId: string | null) => void;
   setHeroPassiveSkill: (heroId: string, slotIndex: number, skillId: string | null) => void;
@@ -46,34 +47,27 @@ function cloneLoadout(loadout: BattleLoadout): BattleLoadout {
 
 function buildDefaultHeroLoadouts(allHeroes: Hero[]): Record<string, BattleLoadout> {
   return allHeroes.reduce<Record<string, BattleLoadout>>((acc, hero) => {
-    acc[hero.id] = cloneLoadout(getDefaultHeroLoadout(hero));
+    const defaultLoadout = getDefaultHeroLoadout(hero);
+    const normalized = normalizeHeroLoadout(hero.heroClass, defaultLoadout, defaultLoadout.talentSlot);
+    acc[hero.id] = cloneLoadout(normalized.loadout);
     return acc;
   }, {});
 }
 
-function ensureLoadoutShape(loadout: BattleLoadout): BattleLoadout {
-  const activeSlots = loadout.activeSlots.slice(0, 10);
-  const passiveSlots = loadout.passiveSlots.slice(0, 10);
-  while (activeSlots.length < 10) {
-    activeSlots.push(null);
-  }
-  while (passiveSlots.length < 10) {
-    passiveSlots.push(null);
-  }
-  return {
-    talentSlot: loadout.talentSlot,
-    activeSlots,
-    passiveSlots
-  };
+const HERO_MAP = new Map(heroes.map((hero) => [hero.id, hero]));
+
+function normalizeForHero(hero: Hero, loadout: BattleLoadout): BattleLoadout {
+  const defaultLoadout = getDefaultHeroLoadout(hero);
+  return normalizeHeroLoadout(hero.heroClass, loadout, defaultLoadout.talentSlot).loadout;
 }
 
 function resolveLoadoutFromStore(store: Record<string, BattleLoadout>, heroId: string): BattleLoadout {
-  const existing = store[heroId];
-  if (existing) {
-    return ensureLoadoutShape(existing);
+  const hero = HERO_MAP.get(heroId);
+  if (!hero) {
+    return ensureBattleLoadoutShape({ talentSlot: null, activeSlots: [], passiveSlots: [] });
   }
-  const hero = heroes.find((item) => item.id === heroId);
-  return hero ? cloneLoadout(getDefaultHeroLoadout(hero)) : ensureLoadoutShape({ talentSlot: null, activeSlots: [], passiveSlots: [] });
+  const existing = store[heroId] ?? getDefaultHeroLoadout(hero);
+  return normalizeForHero(hero, existing);
 }
 
 const BattleSetupContext = createContext<BattleSetupContextValue | null>(null);
@@ -120,13 +114,30 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
     return resolveLoadoutFromStore(heroLoadouts, heroId);
   };
 
+  const setHeroLoadout = (heroId: string, loadout: BattleLoadout) => {
+    const hero = HERO_MAP.get(heroId);
+    if (!hero) {
+      return;
+    }
+    const normalized = normalizeForHero(hero, loadout);
+    setHeroLoadouts((prev) => ({
+      ...prev,
+      [heroId]: cloneLoadout(normalized)
+    }));
+  };
+
   const setHeroTalent = (heroId: string, talentId: string | null) => {
     setHeroLoadouts((prev) => {
+      const hero = HERO_MAP.get(heroId);
+      if (!hero) {
+        return prev;
+      }
       const current = resolveLoadoutFromStore(prev, heroId);
-      const nextTalent = talentId && battleTalents[talentId] ? talentId : null;
+      const nextTalent = typeof talentId === "string" && talentId.length > 0 ? talentId : null;
+      const normalized = normalizeForHero(hero, { ...current, talentSlot: nextTalent });
       return {
         ...prev,
-        [heroId]: { ...current, talentSlot: nextTalent }
+        [heroId]: cloneLoadout(normalized)
       };
     });
   };
@@ -136,12 +147,17 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
       return;
     }
     setHeroLoadouts((prev) => {
+      const hero = HERO_MAP.get(heroId);
+      if (!hero) {
+        return prev;
+      }
       const current = resolveLoadoutFromStore(prev, heroId);
       const activeSlots = [...current.activeSlots];
-      activeSlots[slotIndex] = skillId && battleActiveSkills[skillId] ? skillId : null;
+      activeSlots[slotIndex] = typeof skillId === "string" && skillId.length > 0 ? skillId : null;
+      const normalized = normalizeForHero(hero, { ...current, activeSlots });
       return {
         ...prev,
-        [heroId]: { ...current, activeSlots }
+        [heroId]: cloneLoadout(normalized)
       };
     });
   };
@@ -151,24 +167,30 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
       return;
     }
     setHeroLoadouts((prev) => {
+      const hero = HERO_MAP.get(heroId);
+      if (!hero) {
+        return prev;
+      }
       const current = resolveLoadoutFromStore(prev, heroId);
       const passiveSlots = [...current.passiveSlots];
-      passiveSlots[slotIndex] = skillId && battlePassiveSkills[skillId] ? skillId : null;
+      passiveSlots[slotIndex] = typeof skillId === "string" && skillId.length > 0 ? skillId : null;
+      const normalized = normalizeForHero(hero, { ...current, passiveSlots });
       return {
         ...prev,
-        [heroId]: { ...current, passiveSlots }
+        [heroId]: cloneLoadout(normalized)
       };
     });
   };
 
   const resetHeroLoadout = (heroId: string) => {
-    const hero = heroes.find((item) => item.id === heroId);
+    const hero = HERO_MAP.get(heroId);
     if (!hero) {
       return;
     }
+    const defaultLoadout = normalizeForHero(hero, getDefaultHeroLoadout(hero));
     setHeroLoadouts((prev) => ({
       ...prev,
-      [heroId]: cloneLoadout(getDefaultHeroLoadout(hero))
+      [heroId]: cloneLoadout(defaultLoadout)
     }));
   };
 
@@ -181,6 +203,7 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
       clearFormation,
       resetFormationDefault,
       getHeroLoadout,
+      setHeroLoadout,
       setHeroTalent,
       setHeroActiveSkill,
       setHeroPassiveSkill,

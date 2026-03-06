@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { User, X, Zap } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { MageGearBoard } from "../components/hero/MageGearBoard";
@@ -13,10 +13,16 @@ import {
   isPaladinHandSlot
 } from "../lib/equipmentCatalog";
 import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS } from "../lib/equipmentSystem";
+import {
+  getHeroSkillOptions,
+  normalizeHeroLoadout,
+  parseHeroLoadoutImport,
+  serializeHeroLoadout
+} from "../lib/battleLoadoutRules";
 import { useBattleSetup } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { heroes } from "../data/mockData";
-import type { BattleLoadout, BattleStatModifier } from "../types/battle";
+import type { BattleLoadout, BattleStatModifier, BattleTalentRarity } from "../types/battle";
 import type { EquipmentSlot, EquipmentStatKey, GeneratedEquipment, Hero, HeroTab } from "../types/game";
 
 interface ElementRow {
@@ -72,13 +78,18 @@ const rankOrder = {
   perfect: 3
 } as const;
 
+const TALENT_RARITY_LABELS: Record<BattleTalentRarity, string> = {
+  common: "普通",
+  rare: "稀有",
+  epic: "史诗",
+  legendary: "传说",
+  unique: "独特"
+};
+
 const HERO_NAME_MAP = heroes.reduce<Record<string, string>>((map, hero) => {
   map[hero.id] = hero.name;
   return map;
 }, {});
-const talentOptions = Object.values(battleTalents);
-const activeSkillOptions = Object.values(battleActiveSkills);
-const passiveSkillOptions = Object.values(battlePassiveSkills);
 
 function formatModifierValue(value: number): string {
   if (Math.abs(value) > 0 && Math.abs(value) < 1) {
@@ -285,19 +296,25 @@ function HeroStatsContent({ hero }: { hero: Hero }) {
 function HeroSkillLoadoutEditor({
   hero,
   loadout,
-  onChangeTalent,
-  onChangeActive,
-  onChangePassive,
+  onApplyLoadout,
   onReset
 }: {
   hero: Hero;
   loadout: BattleLoadout;
-  onChangeTalent: (talentId: string | null) => void;
-  onChangeActive: (slotIndex: number, skillId: string | null) => void;
-  onChangePassive: (slotIndex: number, skillId: string | null) => void;
+  onApplyLoadout: (nextLoadout: BattleLoadout) => string[];
   onReset: () => void;
 }) {
+  const skillOptions = useMemo(() => getHeroSkillOptions(hero.heroClass), [hero.heroClass]);
   const [hoveredSkill, setHoveredSkill] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [importText, setImportText] = useState("");
+  const [notice, setNotice] = useState<{ tone: "success" | "warn" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    setHoveredSkill(null);
+    setImportText("");
+    setNotice(null);
+  }, [hero.id]);
+
   const hoveredTalent = hoveredSkill ? battleTalents[hoveredSkill.id] : null;
   const hoveredActive = hoveredSkill ? battleActiveSkills[hoveredSkill.id] : null;
   const hoveredPassive = hoveredSkill ? battlePassiveSkills[hoveredSkill.id] : null;
@@ -332,35 +349,91 @@ function HeroSkillLoadoutEditor({
     setHoveredSkill({ id: skillId, x, y });
   };
 
+  const applyAndNotify = (nextLoadout: BattleLoadout, successText?: string) => {
+    const issues = onApplyLoadout(nextLoadout);
+    if (issues.length > 0) {
+      setNotice({ tone: "warn", text: issues[issues.length - 1] });
+      return;
+    }
+    if (successText) {
+      setNotice({ tone: "success", text: successText });
+    }
+  };
+
+  const handleCopyLoadout = async () => {
+    const payload = serializeHeroLoadout(hero.id, hero.name, hero.heroClass, loadout);
+    try {
+      await navigator.clipboard.writeText(payload);
+      setNotice({ tone: "success", text: "已复制技能配置，可直接粘贴到导入框或外部文档。" });
+    } catch {
+      setImportText(payload);
+      setNotice({ tone: "warn", text: "复制到剪贴板失败，已把配置文本填入导入框，可手动复制。" });
+    }
+  };
+
+  const handleImportLoadout = () => {
+    try {
+      const parsed = parseHeroLoadoutImport(importText);
+      const issues = onApplyLoadout(parsed.loadout);
+      const metaHint =
+        parsed.meta.sourceHeroName && parsed.meta.sourceHeroClass
+          ? `来源：${parsed.meta.sourceHeroName}（${parsed.meta.sourceHeroClass}）`
+          : null;
+      if (issues.length > 0) {
+        setNotice({ tone: "warn", text: metaHint ? `${issues[issues.length - 1]} ${metaHint}` : issues[issues.length - 1] });
+      } else {
+        setNotice({
+          tone: "success",
+          text: metaHint ? `导入成功，${metaHint}。` : "导入成功，技能配置已生效。"
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "导入失败：未知错误。";
+      setNotice({ tone: "error", text: message });
+    }
+  };
+
+  const selectedActiveSkillIds = useMemo(
+    () => new Set(loadout.activeSlots.filter((id): id is string => typeof id === "string" && id.length > 0)),
+    [loadout.activeSlots]
+  );
+  const selectedPassiveSkillIds = useMemo(
+    () => new Set(loadout.passiveSlots.filter((id): id is string => typeof id === "string" && id.length > 0)),
+    [loadout.passiveSlots]
+  );
+  const currentTalent = loadout.talentSlot ? battleTalents[loadout.talentSlot] ?? null : null;
+
   return (
     <section className="hero-skill-editor">
       <header className="hero-skill-editor-head">
         <h3>战斗技能配置</h3>
-        <p>
-          {hero.name} · 1 天赋 / 10 主动 / 10 被动（仅展示可配置逻辑，未做职业限制）
-        </p>
+        <p>{hero.name} · 1 天赋 / 10 主动 / 10 被动（公用池 + 职业池，重复技能视为冲突）</p>
       </header>
+
+      {notice ? <p className={`hero-skill-editor-notice ${notice.tone}`}>{notice.text}</p> : null}
 
       <div className="hero-skill-editor-grid">
         <div className="hero-skill-column">
           <h4>天赋槽位</h4>
-          <label className="hero-skill-select-row">
-            <span>Talent</span>
-            <select
-              value={loadout.talentSlot ?? ""}
-              onChange={(event) => onChangeTalent(event.target.value || null)}
-              onMouseEnter={(event) => handleSkillHover(loadout.talentSlot, event.clientX, event.clientY)}
-              onMouseMove={(event) => handleSkillHover(loadout.talentSlot, event.clientX, event.clientY)}
+          {currentTalent ? (
+            <article
+              className="hero-talent-display-card"
+              onMouseEnter={(event) => handleSkillHover(currentTalent.id, event.clientX, event.clientY)}
+              onMouseMove={(event) => handleSkillHover(currentTalent.id, event.clientX, event.clientY)}
               onMouseLeave={() => setHoveredSkill(null)}
             >
-              <option value="">空槽</option>
-              {talentOptions.map((skill) => (
-                <option key={skill.id} value={skill.id}>
-                  {skill.name}
-                </option>
-              ))}
-            </select>
-          </label>
+              <header>
+                <strong>{currentTalent.name}</strong>
+                <span className={`talent-rarity-badge ${currentTalent.rarity}`}>
+                  {TALENT_RARITY_LABELS[currentTalent.rarity]}
+                </span>
+              </header>
+              <p>{currentTalent.description}</p>
+              <small>天赋为固定槽位，不可修改。</small>
+            </article>
+          ) : (
+            <p className="hero-skill-talent-lock-tip">当前英雄未配置天赋。</p>
+          )}
         </div>
 
         <div className="hero-skill-column">
@@ -371,18 +444,27 @@ function HeroSkillLoadoutEditor({
                 <span>A{index + 1}</span>
                 <select
                   value={skillId ?? ""}
-                  onChange={(event) => onChangeActive(index, event.target.value || null)}
+                  onChange={(event) => {
+                    const activeSlots = [...loadout.activeSlots];
+                    activeSlots[index] = event.target.value || null;
+                    applyAndNotify({ ...loadout, activeSlots }, "已更新主动技能槽位。");
+                  }}
                   onMouseEnter={(event) => handleSkillHover(skillId, event.clientX, event.clientY)}
                   onMouseMove={(event) => handleSkillHover(skillId, event.clientX, event.clientY)}
                   onMouseLeave={() => setHoveredSkill(null)}
                 >
                   <option value="">空槽</option>
-                  {activeSkillOptions.map((skill) => (
+                  {skillOptions.activeSkills
+                    .filter((skill) => skill.id === skillId || !selectedActiveSkillIds.has(skill.id))
+                    .map((skill) => (
                     <option key={skill.id} value={skill.id}>
                       {skill.name}
                     </option>
-                  ))}
+                    ))}
                 </select>
+                <small className="hero-skill-weight-tag">
+                  W {skillId ? (battleActiveSkills[skillId]?.baseWeight ?? "-") : "-"}
+                </small>
               </label>
             ))}
           </div>
@@ -396,17 +478,23 @@ function HeroSkillLoadoutEditor({
                 <span>P{index + 1}</span>
                 <select
                   value={skillId ?? ""}
-                  onChange={(event) => onChangePassive(index, event.target.value || null)}
+                  onChange={(event) => {
+                    const passiveSlots = [...loadout.passiveSlots];
+                    passiveSlots[index] = event.target.value || null;
+                    applyAndNotify({ ...loadout, passiveSlots }, "已更新被动技能槽位。");
+                  }}
                   onMouseEnter={(event) => handleSkillHover(skillId, event.clientX, event.clientY)}
                   onMouseMove={(event) => handleSkillHover(skillId, event.clientX, event.clientY)}
                   onMouseLeave={() => setHoveredSkill(null)}
                 >
                   <option value="">空槽</option>
-                  {passiveSkillOptions.map((skill) => (
+                  {skillOptions.passiveSkills
+                    .filter((skill) => skill.id === skillId || !selectedPassiveSkillIds.has(skill.id))
+                    .map((skill) => (
                     <option key={skill.id} value={skill.id}>
                       {skill.name}
                     </option>
-                  ))}
+                    ))}
                 </select>
               </label>
             ))}
@@ -415,10 +503,38 @@ function HeroSkillLoadoutEditor({
       </div>
 
       <div className="hero-skill-editor-actions">
-        <button type="button" className="ghost-btn" onClick={onReset}>
+        <button type="button" className="ghost-btn" onClick={handleCopyLoadout}>
+          复制配置
+        </button>
+        <button
+          type="button"
+          className="ghost-btn"
+          onClick={() => {
+            onReset();
+            setNotice({ tone: "success", text: "已恢复默认技能模板。" });
+          }}
+        >
           恢复默认技能模板
         </button>
       </div>
+
+      <section className="hero-skill-import-block">
+        <h4>导入配置</h4>
+        <p>粘贴“复制配置”生成的 JSON 文本，系统会按职业规则自动校验并落盘。</p>
+        <textarea
+          value={importText}
+          onChange={(event) => setImportText(event.target.value)}
+          placeholder='{"sourceHeroName":"阿瑟","sourceHeroClass":"paladin","loadout":{...}}'
+        />
+        <div className="hero-skill-import-actions">
+          <button type="button" className="ghost-btn" onClick={handleImportLoadout}>
+            导入并校验
+          </button>
+          <button type="button" className="ghost-btn" onClick={() => setImportText("")}>
+            清空文本
+          </button>
+        </div>
+      </section>
 
       {hoveredSkill && hoveredStyle && hoveredType ? (
         <aside className="hero-skill-hover-detail custom-scrollbar" style={hoveredStyle}>
@@ -859,26 +975,33 @@ function HeroGearContent({
 function HeroSkillsContent({
   hero,
   loadout,
-  onSetTalent,
-  onSetActiveSkill,
-  onSetPassiveSkill,
+  onSetHeroLoadout,
   onResetHeroLoadout
 }: {
   hero: Hero;
   loadout: BattleLoadout;
-  onSetTalent: (heroId: string, talentId: string | null) => void;
-  onSetActiveSkill: (heroId: string, slotIndex: number, skillId: string | null) => void;
-  onSetPassiveSkill: (heroId: string, slotIndex: number, skillId: string | null) => void;
+  onSetHeroLoadout: (heroId: string, loadout: BattleLoadout) => void;
   onResetHeroLoadout: (heroId: string) => void;
 }) {
+  const applyLoadout = (nextLoadout: BattleLoadout): string[] => {
+    const normalized = normalizeHeroLoadout(
+      hero.heroClass,
+      {
+        ...nextLoadout,
+        talentSlot: loadout.talentSlot
+      },
+      loadout.talentSlot
+    );
+    onSetHeroLoadout(hero.id, normalized.loadout);
+    return normalized.issues;
+  };
+
   return (
     <div className="hero-skills-view">
       <HeroSkillLoadoutEditor
         hero={hero}
         loadout={loadout}
-        onChangeTalent={(talentId) => onSetTalent(hero.id, talentId)}
-        onChangeActive={(slotIndex, skillId) => onSetActiveSkill(hero.id, slotIndex, skillId)}
-        onChangePassive={(slotIndex, skillId) => onSetPassiveSkill(hero.id, slotIndex, skillId)}
+        onApplyLoadout={applyLoadout}
         onReset={() => onResetHeroLoadout(hero.id)}
       />
     </div>
@@ -923,7 +1046,7 @@ export function HeroPage() {
   const currentTab = (searchParams.get("tab") as HeroTab) || "stats";
   const hero = heroes.find((item) => item.id === heroId) ?? heroes[0];
   const { items, itemMap, equippedByHero, refreshItems, equipItem, unequipItem, getItemOwners } = useEquipmentInventory();
-  const { getHeroLoadout, setHeroTalent, setHeroActiveSkill, setHeroPassiveSkill, resetHeroLoadout } = useBattleSetup();
+  const { getHeroLoadout, setHeroLoadout, resetHeroLoadout } = useBattleSetup();
   const heroLoadout = getHeroLoadout(hero.id);
 
   const [selectedSlotByHero, setSelectedSlotByHero] = useState<Record<string, string>>({});
@@ -999,9 +1122,7 @@ export function HeroPage() {
                 <HeroSkillsContent
                   hero={hero}
                   loadout={heroLoadout}
-                  onSetTalent={setHeroTalent}
-                  onSetActiveSkill={setHeroActiveSkill}
-                  onSetPassiveSkill={setHeroPassiveSkill}
+                  onSetHeroLoadout={setHeroLoadout}
                   onResetHeroLoadout={resetHeroLoadout}
                 />
               )}

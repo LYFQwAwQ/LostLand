@@ -1,4 +1,4 @@
-﻿import { Compass, Map, Package, ShieldCheck, User } from "lucide-react";
+﻿import { Building2, Compass, Map, Package, ShieldCheck, User } from "lucide-react";
 import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useMapSystem } from "../../state/MapSystemProvider";
@@ -70,6 +70,7 @@ export function MainLayout() {
         <nav className="panel nav-panel">
           <SideNavLink to="/" label="世界地图" icon={<Map size={18} />} />
           <SideNavLink to="/team" label="队伍配置" icon={<ShieldCheck size={18} />} />
+          <SideNavLink to="/organization" label="组织基地" icon={<Building2 size={18} />} />
           <SideNavLink to="/inventory" label="背包" icon={<Package size={18} />} />
           <SideNavLink to="/hero/arthur" label="英雄殿堂" icon={<User size={18} />} />
         </nav>

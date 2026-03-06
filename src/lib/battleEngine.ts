@@ -1,4 +1,5 @@
 import { generateBattleDropsFromTable } from "../data/battleDrops";
+import { battleElementTriggers } from "../data/battleElementTriggers";
 import { DEFAULT_ACTIVE_SKILL_ID, battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
 import type {
   BattleActiveSkillDefinition,
@@ -729,6 +730,38 @@ function computeSkillBase(skill: BattleActiveSkillDefinition, actor: BattleRunti
   );
 }
 
+function resolveElementTriggerBase(
+  valueSource: "dealtDamage" | "attackerMaxHp" | "attackerMissingHp" | "targetMaxHp" | undefined,
+  attacker: BattleRuntimeUnit,
+  target: BattleRuntimeUnit,
+  dealtDamage: number
+): number {
+  if (valueSource === "attackerMaxHp") {
+    return attacker.stats.maxHp;
+  }
+  if (valueSource === "attackerMissingHp") {
+    return Math.max(0, attacker.stats.maxHp - attacker.currentHp);
+  }
+  if (valueSource === "targetMaxHp") {
+    return target.stats.maxHp;
+  }
+  return dealtDamage;
+}
+
+function renderElementTriggerLog(
+  template: string,
+  actorName: string,
+  targetName: string,
+  value: number,
+  label: string
+): string {
+  return template
+    .replace("{actor}", actorName)
+    .replace("{target}", targetName)
+    .replace("{value}", `${value}`)
+    .replace("{label}", label);
+}
+
 function applyElementalTrigger(
   element: BattleElement | undefined,
   attacker: BattleRuntimeUnit,
@@ -743,99 +776,104 @@ function applyElementalTrigger(
   if (!element || dealtDamage <= 0 || !target.alive) {
     return logs;
   }
-  let nextLogs = logs;
 
-  if (element === "fire") {
-    const bonus = Math.max(1, Math.round(dealtDamage * 0.1));
-    const applied = applyDamage(attacker, target, bonus, replay, {
+  const trigger = battleElementTriggers[element];
+  if (!trigger) {
+    return logs;
+  }
+
+  let nextLogs = logs;
+  const sourceBase = resolveElementTriggerBase(trigger.valueSource, attacker, target, dealtDamage);
+  const scaled = (trigger.ratio ?? 0) * sourceBase;
+  const effectValue = Math.max(1, Math.round(typeof trigger.flat === "number" ? trigger.flat : scaled));
+  const triggerLabel = trigger.replaySkillName ?? trigger.name;
+
+  if (trigger.effect === "bonusDamageToTarget") {
+    const applied = applyDamage(attacker, target, effectValue, replay, {
       timeMs,
       cause: "element",
       skillId: null,
-      skillName: "火焰余烬"
+      skillName: trigger.replaySkillName ?? trigger.name
     });
     accumulator.damageDone += applied;
     accumulator.targetUnitIds.add(target.id);
     accumulator.targetUnitNames.add(target.name);
-    nextLogs = appendLog(nextLogs, timeMs, "damage", `火焰余烬追加 ${applied} 点伤害`);
+    nextLogs = appendLog(
+      nextLogs,
+      timeMs,
+      "damage",
+      renderElementTriggerLog(trigger.logTemplate, attacker.name, target.name, applied, triggerLabel)
+    );
     return nextLogs;
   }
 
-  if (element === "water") {
-    const recover = Math.max(1, Math.round(dealtDamage * 0.05));
+  if (trigger.effect === "restoreMpToSelf") {
     const before = attacker.currentMp;
-    attacker.currentMp = Math.min(attacker.stats.maxMp, attacker.currentMp + recover);
+    attacker.currentMp = Math.min(attacker.stats.maxMp, attacker.currentMp + effectValue);
     const actual = attacker.currentMp - before;
     if (actual > 0) {
-      nextLogs = appendLog(nextLogs, timeMs, "buff", `${attacker.name} 回复 ${actual} 点 MP`);
+      nextLogs = appendLog(
+        nextLogs,
+        timeMs,
+        "buff",
+        renderElementTriggerLog(trigger.logTemplate, attacker.name, target.name, actual, triggerLabel)
+      );
     }
     return nextLogs;
   }
 
-  if (element === "ice") {
-    target.actionValue = Math.max(0, target.actionValue - 500);
-    nextLogs = appendLog(nextLogs, timeMs, "debuff", `${target.name} 行动条 -500`);
+  if (trigger.effect === "reduceTargetAction") {
+    target.actionValue = Math.max(0, target.actionValue - effectValue);
+    nextLogs = appendLog(
+      nextLogs,
+      timeMs,
+      "debuff",
+      renderElementTriggerLog(trigger.logTemplate, attacker.name, target.name, effectValue, triggerLabel)
+    );
     return nextLogs;
   }
 
-  if (element === "wind") {
-    attacker.actionValue = Math.min(ACTION_THRESHOLD - 1, attacker.actionValue + 500);
-    nextLogs = appendLog(nextLogs, timeMs, "buff", `${attacker.name} 行动条 +500`);
+  if (trigger.effect === "boostSelfAction") {
+    attacker.actionValue = Math.min(ACTION_THRESHOLD - 1, attacker.actionValue + effectValue);
+    nextLogs = appendLog(
+      nextLogs,
+      timeMs,
+      "buff",
+      renderElementTriggerLog(trigger.logTemplate, attacker.name, target.name, effectValue, triggerLabel)
+    );
     return nextLogs;
   }
 
-  if (element === "life") {
+  if (trigger.effect === "healAllies") {
     const allies = livingUnits(units, attacker.side);
-    const amount = Math.max(1, Math.round(dealtDamage * 0.05));
     allies.forEach((ally) => {
-      const healed = applyHeal(attacker, ally, amount, replay, timeMs, null, "生命回响");
+      const healed = applyHeal(attacker, ally, effectValue, replay, timeMs, null, trigger.replaySkillName ?? trigger.name);
       if (healed > 0) {
         accumulator.healDone += healed;
         accumulator.targetUnitIds.add(ally.id);
         accumulator.targetUnitNames.add(ally.name);
       }
     });
-    nextLogs = appendLog(nextLogs, timeMs, "heal", `${attacker.name} 触发生命回响，友军回复 ${amount}`);
-    return nextLogs;
-  }
-
-  if (element === "light") {
-    const bonus = Math.max(1, Math.round(attacker.stats.maxHp * 0.05));
-    const applied = applyDamage(attacker, target, bonus, replay, {
+    nextLogs = appendLog(
+      nextLogs,
       timeMs,
-      cause: "element",
-      skillId: null,
-      skillName: "光明之力"
-    });
-    accumulator.damageDone += applied;
-    accumulator.targetUnitIds.add(target.id);
-    accumulator.targetUnitNames.add(target.name);
-    nextLogs = appendLog(nextLogs, timeMs, "damage", `光明之力追加 ${applied} 点伤害`);
+      "heal",
+      renderElementTriggerLog(trigger.logTemplate, attacker.name, target.name, effectValue, triggerLabel)
+    );
     return nextLogs;
   }
 
-  if (element === "undead") {
-    const missingHp = Math.max(0, attacker.stats.maxHp - attacker.currentHp);
-    const bonus = Math.max(1, Math.round(missingHp * 0.05));
-    const applied = applyDamage(attacker, target, bonus, replay, {
-      timeMs,
-      cause: "element",
-      skillId: null,
-      skillName: "亡灵之力"
-    });
-    accumulator.damageDone += applied;
-    accumulator.targetUnitIds.add(target.id);
-    accumulator.targetUnitNames.add(target.name);
-    nextLogs = appendLog(nextLogs, timeMs, "damage", `亡灵之力追加 ${applied} 点伤害`);
-    return nextLogs;
-  }
-
-  if (element === "dark") {
-    const reduce = Math.max(1, Math.round(target.stats.maxHp * 0.01));
-    target.stats.maxHp = Math.max(1, target.stats.maxHp - reduce);
+  if (trigger.effect === "reduceTargetMaxHp") {
+    target.stats.maxHp = Math.max(1, target.stats.maxHp - effectValue);
     if (target.currentHp > target.stats.maxHp) {
       target.currentHp = target.stats.maxHp;
     }
-    nextLogs = appendLog(nextLogs, timeMs, "debuff", `${target.name} 最大生命降低 ${reduce}`);
+    nextLogs = appendLog(
+      nextLogs,
+      timeMs,
+      "debuff",
+      renderElementTriggerLog(trigger.logTemplate, attacker.name, target.name, effectValue, triggerLabel)
+    );
   }
   return nextLogs;
 }
