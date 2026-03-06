@@ -6,6 +6,8 @@ export type BattleDamageType = "physical" | "magic";
 export type BattleSkillCategory = "assault" | "defend" | "inspire" | "afflict" | "succor";
 export type BattleSkillKind = "active" | "passive" | "talent";
 export type BattleLogTone = "system" | "damage" | "heal" | "buff" | "debuff" | "miss" | "drop";
+export type BattleDropCategory = "equipment" | "material";
+export type BattleMaterialRarity = "common" | "uncommon" | "rare" | "epic";
 
 export type BattleElement =
   | "fire"
@@ -224,9 +226,110 @@ export interface BattleLogEntry {
   text: string;
 }
 
+export interface BattleMaterialDrop {
+  id: string;
+  name: string;
+  rarity: BattleMaterialRarity;
+}
+
+export interface BattleDropEntry {
+  id: string;
+  category: BattleDropCategory;
+  quantity: number;
+  sourceEnemyId: string;
+  sourceEnemyName: string;
+  equipment: GeneratedEquipment | null;
+  material: BattleMaterialDrop | null;
+}
+
 export interface BattleDropSummary {
   generatedAt: number;
   items: GeneratedEquipment[];
+  entries: BattleDropEntry[];
+}
+
+export interface BattleReplayViewDefinition {
+  key: string;
+  title: string;
+  description: string;
+}
+
+export interface BattleReplayUnitStat {
+  unitId: string;
+  unitName: string;
+  side: BattleSide;
+  damageDealt: number;
+  damageTaken: number;
+  healDone: number;
+  healTaken: number;
+  kills: number;
+  deaths: number;
+  actionCount: number;
+}
+
+export type BattleReplayDamageCause = "skill" | "status" | "element" | "thorns" | "other";
+
+export interface BattleReplayDamageEvent {
+  id: string;
+  timeMs: number;
+  sourceUnitId: string;
+  sourceUnitName: string;
+  targetUnitId: string;
+  targetUnitName: string;
+  amount: number;
+  cause: BattleReplayDamageCause;
+  skillId: string | null;
+  skillName: string | null;
+}
+
+export interface BattleReplayActionSnapshot {
+  id: string;
+  timeMs: number;
+  actorUnitId: string;
+  actorUnitName: string;
+  skillId: string | null;
+  skillName: string;
+  targetUnitIds: string[];
+  targetUnitNames: string[];
+  damageDone: number;
+  healDone: number;
+}
+
+export type BattleReplayStatusChangeAction = "applied" | "refreshed" | "expired";
+
+export interface BattleReplayStatusChange {
+  id: string;
+  timeMs: number;
+  action: BattleReplayStatusChangeAction;
+  statusKey: BattleStatusKey;
+  unitId: string;
+  unitName: string;
+  sourceUnitId: string | null;
+  sourceUnitName: string | null;
+  remainingTurns: number;
+  potency: number;
+}
+
+export interface BattleReplayMaterialStat {
+  materialId: string;
+  name: string;
+  rarity: BattleMaterialRarity;
+  quantity: number;
+}
+
+export interface BattleReplayDropStats {
+  totalEntries: number;
+  byCategory: Record<BattleDropCategory, number>;
+  materials: BattleReplayMaterialStat[];
+}
+
+export interface BattleReplayData {
+  views: BattleReplayViewDefinition[];
+  unitStats: BattleReplayUnitStat[];
+  actionSnapshots: BattleReplayActionSnapshot[];
+  damageEvents: BattleReplayDamageEvent[];
+  statusChanges: BattleReplayStatusChange[];
+  dropStats: BattleReplayDropStats;
 }
 
 export interface BattleRuntimeState {
@@ -242,4 +345,5 @@ export interface BattleRuntimeState {
   units: BattleRuntimeUnit[];
   logs: BattleLogEntry[];
   drops: BattleDropSummary | null;
+  replay: BattleReplayData;
 }

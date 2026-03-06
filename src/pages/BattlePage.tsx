@@ -3,11 +3,38 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { heroes } from "../data/mockData";
 import { buildAllyTeamTemplates, buildEnemyTeamTemplates } from "../lib/battleAdapters";
-import { createBattleRuntime, setBattleRunning, setBattleSpeed, stepBattle } from "../lib/battleEngine";
+import { endBattle, createBattleRuntime, setBattleRunning, setBattleSpeed, stepBattle } from "../lib/battleEngine";
+import { EQUIPMENT_SLOT_LABELS, EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
+import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS } from "../lib/equipmentSystem";
 import { useBattleSetup } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { useMapSystem } from "../state/MapSystemProvider";
-import type { BattleLine, BattleRuntimeState, BattleRuntimeUnit, BattleSide } from "../types/battle";
+import type {
+  BattleDropCategory,
+  BattleLine,
+  BattleRuntimeState,
+  BattleRuntimeUnit,
+  BattleSide
+} from "../types/battle";
+import type { EquipmentQuality, EquipmentRank, EquipmentSlot } from "../types/game";
+
+type DropEquipmentSortBy = "qualityDesc" | "rankDesc" | "nameAsc" | "nameDesc";
+
+const qualityOrder: Record<EquipmentQuality, number> = {
+  common: 0,
+  uncommon: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
+  mythic: 5
+};
+
+const rankOrder: Record<EquipmentRank, number> = {
+  crude: 0,
+  fine: 1,
+  superior: 2,
+  perfect: 3
+};
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -127,6 +154,15 @@ export function BattlePage() {
   const { equippedByHero, itemMap } = useEquipmentInventory();
   const [battleSeed, setBattleSeed] = useState(() => Date.now());
   const [chainRound, setChainRound] = useState(1);
+  const [activeReplayView, setActiveReplayView] = useState("stats");
+
+  const [dropCategoryFilter, setDropCategoryFilter] = useState<"all" | BattleDropCategory>("all");
+  const [dropKeyword, setDropKeyword] = useState("");
+  const [dropQualityFilters, setDropQualityFilters] = useState<EquipmentQuality[]>([]);
+  const [dropRankFilters, setDropRankFilters] = useState<EquipmentRank[]>([]);
+  const [dropSlotFilters, setDropSlotFilters] = useState<EquipmentSlot[]>([]);
+  const [dropEquipmentSortBy, setDropEquipmentSortBy] = useState<DropEquipmentSortBy>("qualityDesc");
+
   const context = useMemo(() => findNodeById(nodeId), [findNodeById, nodeId]);
 
   const baseAllies = useMemo(() => {
@@ -234,6 +270,16 @@ export function BattlePage() {
     return () => window.clearInterval(timer);
   }, [runtime?.status]);
 
+  useEffect(() => {
+    if (!runtime) {
+      return;
+    }
+    const views = runtime.replay.views.map((view) => view.key);
+    if (views.length > 0 && !views.includes(activeReplayView)) {
+      setActiveReplayView(views[0]);
+    }
+  }, [activeReplayView, runtime]);
+
   if (!context || !runtime) {
     return (
       <section className="page">
@@ -250,9 +296,94 @@ export function BattlePage() {
 
   const backLink = `/node/${context.node.id}?region=${context.region.id}`;
   const isRunning = runtime.status === "running";
+  const isFinished = runtime.status === "finished";
   const allyAlive = runtime.units.filter((unit) => unit.side === "ally" && unit.alive).length;
   const enemyAlive = runtime.units.filter((unit) => unit.side === "enemy" && unit.alive).length;
   const logList = runtime.logs.slice(-26).reverse();
+  const allyStats = runtime.replay.unitStats
+    .filter((stat) => stat.side === "ally")
+    .sort((left, right) => right.damageDealt - left.damageDealt);
+  const enemyStats = runtime.replay.unitStats
+    .filter((stat) => stat.side === "enemy")
+    .sort((left, right) => right.damageDealt - left.damageDealt);
+  const actionSnapshots = runtime.replay.actionSnapshots.slice(-30).reverse();
+  const statusChanges = runtime.replay.statusChanges.slice(-30).reverse();
+
+  const dropEntries = runtime.drops?.entries ?? [];
+  const materialDrops = runtime.replay.dropStats.materials;
+  const equipmentDrops = dropEntries
+    .filter((entry) => entry.category === "equipment" && entry.equipment)
+    .map((entry) => entry.equipment!)
+    .filter((item) => {
+      if (dropCategoryFilter === "all") {
+        return true;
+      }
+      return dropCategoryFilter === "equipment";
+    });
+
+  const visibleEquipmentDrops = useMemo(() => {
+    const keyword = dropKeyword.trim().toLowerCase();
+    const filtered = equipmentDrops.filter((item) => {
+      if (dropQualityFilters.length > 0 && !dropQualityFilters.includes(item.quality)) {
+        return false;
+      }
+      if (dropRankFilters.length > 0 && !dropRankFilters.includes(item.rank)) {
+        return false;
+      }
+      if (dropSlotFilters.length > 0 && !dropSlotFilters.includes(item.slot)) {
+        return false;
+      }
+      if (keyword.length === 0) {
+        return true;
+      }
+      return (
+        item.templateName.toLowerCase().includes(keyword) ||
+        EQUIPMENT_SUBTYPE_LABELS[item.subtype].toLowerCase().includes(keyword) ||
+        EQUIPMENT_SLOT_LABELS[item.slot].toLowerCase().includes(keyword)
+      );
+    });
+
+    return [...filtered].sort((left, right) => {
+      if (dropEquipmentSortBy === "qualityDesc") {
+        if (qualityOrder[right.quality] !== qualityOrder[left.quality]) {
+          return qualityOrder[right.quality] - qualityOrder[left.quality];
+        }
+      }
+      if (dropEquipmentSortBy === "rankDesc") {
+        if (rankOrder[right.rank] !== rankOrder[left.rank]) {
+          return rankOrder[right.rank] - rankOrder[left.rank];
+        }
+      }
+      if (dropEquipmentSortBy === "nameAsc") {
+        return left.templateName.localeCompare(right.templateName, "zh-CN");
+      }
+      if (dropEquipmentSortBy === "nameDesc") {
+        return right.templateName.localeCompare(left.templateName, "zh-CN");
+      }
+      return right.templateName.localeCompare(left.templateName, "zh-CN");
+    });
+  }, [dropEquipmentSortBy, dropKeyword, dropQualityFilters, dropRankFilters, dropSlotFilters, equipmentDrops]);
+
+  const shouldShowMaterials = dropCategoryFilter === "all" || dropCategoryFilter === "material";
+  const shouldShowEquipment = dropCategoryFilter === "all" || dropCategoryFilter === "equipment";
+
+  const clearDropEquipmentFilters = () => {
+    setDropKeyword("");
+    setDropQualityFilters([]);
+    setDropRankFilters([]);
+    setDropSlotFilters([]);
+    setDropEquipmentSortBy("qualityDesc");
+  };
+
+  const toggleDropQuality = (quality: EquipmentQuality) => {
+    setDropQualityFilters((prev) => (prev.includes(quality) ? prev.filter((item) => item !== quality) : [...prev, quality]));
+  };
+  const toggleDropRank = (rank: EquipmentRank) => {
+    setDropRankFilters((prev) => (prev.includes(rank) ? prev.filter((item) => item !== rank) : [...prev, rank]));
+  };
+  const toggleDropSlot = (slot: EquipmentSlot) => {
+    setDropSlotFilters((prev) => (prev.includes(slot) ? prev.filter((item) => item !== slot) : [...prev, slot]));
+  };
 
   return (
     <section className="page battle-page">
@@ -269,9 +400,18 @@ export function BattlePage() {
           返回节点主界面
         </Link>
         <div className="battle-control-group">
-          <button type="button" className="primary-btn" onClick={() => setRuntime((prev) => (prev ? setBattleRunning(prev, !isRunning) : prev))}>
+          <button
+            type="button"
+            className="primary-btn"
+            disabled={isFinished}
+            onClick={() => setRuntime((prev) => (prev ? setBattleRunning(prev, !isRunning) : prev))}
+          >
             {isRunning ? <Pause size={14} /> : <Play size={14} />}
-            {isRunning ? "暂停战斗" : "开始战斗"}
+            {isFinished ? "战斗已结束" : isRunning ? "暂停战斗" : "开始战斗"}
+          </button>
+          <button type="button" className="ghost-btn" disabled={isFinished} onClick={() => setRuntime((prev) => (prev ? endBattle(prev) : prev))}>
+            <Swords size={13} />
+            结束战斗
           </button>
           <button
             type="button"
@@ -347,23 +487,230 @@ export function BattlePage() {
               ))}
             </div>
           </article>
+        </aside>
+      </div>
 
-          <article className="battle-side-card battle-drop-card">
-            <h3>战利品</h3>
-            {runtime.drops && runtime.drops.items.length > 0 ? (
-              <div className="battle-drop-list">
-                {runtime.drops.items.map((item) => (
-                  <p key={item.uid}>
-                    {item.templateName} · {item.quality} / {item.rank}
+      <article className="battle-side-card battle-replay-card">
+        <h3>战斗复盘</h3>
+        <div className="battle-replay-tabs">
+          {runtime.replay.views.map((view) => (
+            <button
+              key={view.key}
+              type="button"
+              className={`battle-replay-tab ${activeReplayView === view.key ? "active" : ""}`}
+              onClick={() => setActiveReplayView(view.key)}
+            >
+              {view.title}
+            </button>
+          ))}
+        </div>
+
+        {activeReplayView === "stats" ? (
+          <div className="battle-replay-panel">
+            <h4>我方统计</h4>
+            <div className="battle-replay-grid">
+              {allyStats.map((stat) => (
+                <div key={stat.unitId} className="battle-replay-stat-card">
+                  <strong>{stat.unitName}</strong>
+                  <p>造成伤害：{Math.round(stat.damageDealt)}</p>
+                  <p>承受伤害：{Math.round(stat.damageTaken)}</p>
+                  <p>治疗量：{Math.round(stat.healDone)}</p>
+                  <p>击杀：{stat.kills}</p>
+                </div>
+              ))}
+            </div>
+            <h4>敌方统计</h4>
+            <div className="battle-replay-grid">
+              {enemyStats.map((stat) => (
+                <div key={stat.unitId} className="battle-replay-stat-card">
+                  <strong>{stat.unitName}</strong>
+                  <p>造成伤害：{Math.round(stat.damageDealt)}</p>
+                  <p>承受伤害：{Math.round(stat.damageTaken)}</p>
+                  <p>治疗量：{Math.round(stat.healDone)}</p>
+                  <p>击杀：{stat.kills}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {activeReplayView === "drops" ? (
+          <div className="battle-replay-panel">
+            <div className="battle-drop-summary-row">
+              <p>掉落条目：{runtime.replay.dropStats.totalEntries}</p>
+              <p>装备：{runtime.replay.dropStats.byCategory.equipment}</p>
+              <p>材料：{runtime.replay.dropStats.byCategory.material}</p>
+            </div>
+
+            <div className="battle-replay-category-tabs">
+              <button
+                type="button"
+                className={`battle-replay-tab ${dropCategoryFilter === "all" ? "active" : ""}`}
+                onClick={() => setDropCategoryFilter("all")}
+              >
+                全部
+              </button>
+              <button
+                type="button"
+                className={`battle-replay-tab ${dropCategoryFilter === "equipment" ? "active" : ""}`}
+                onClick={() => setDropCategoryFilter("equipment")}
+              >
+                装备
+              </button>
+              <button
+                type="button"
+                className={`battle-replay-tab ${dropCategoryFilter === "material" ? "active" : ""}`}
+                onClick={() => setDropCategoryFilter("material")}
+              >
+                材料
+              </button>
+            </div>
+
+            {shouldShowMaterials ? (
+              <section className="battle-replay-block">
+                <h4>材料掉落</h4>
+                {materialDrops.length > 0 ? (
+                  <div className="battle-drop-material-list">
+                    {materialDrops.map((item) => (
+                      <p key={item.materialId}>
+                        {item.name} · {item.rarity} · x{item.quantity}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <p>暂无材料掉落。</p>
+                )}
+              </section>
+            ) : null}
+
+            {shouldShowEquipment ? (
+              <section className="battle-replay-block">
+                <h4>装备掉落（筛选）</h4>
+                <div className="battle-drop-filter-grid">
+                  <label>
+                    关键词
+                    <input
+                      type="text"
+                      value={dropKeyword}
+                      onChange={(event) => setDropKeyword(event.target.value)}
+                      placeholder="名称 / 子类型 / 部位"
+                    />
+                  </label>
+                  <label>
+                    排序
+                    <select value={dropEquipmentSortBy} onChange={(event) => setDropEquipmentSortBy(event.target.value as DropEquipmentSortBy)}>
+                      <option value="qualityDesc">品质优先</option>
+                      <option value="rankDesc">品阶优先</option>
+                      <option value="nameAsc">名称 A-Z</option>
+                      <option value="nameDesc">名称 Z-A</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="battle-drop-chip-group">
+                  {(Object.keys(EQUIPMENT_QUALITY_LABELS) as EquipmentQuality[]).map((quality) => (
+                    <button
+                      key={quality}
+                      type="button"
+                      className={`battle-drop-chip ${dropQualityFilters.includes(quality) ? "active" : ""}`}
+                      onClick={() => toggleDropQuality(quality)}
+                    >
+                      品质: {EQUIPMENT_QUALITY_LABELS[quality]}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="battle-drop-chip-group">
+                  {(Object.keys(EQUIPMENT_RANK_LABELS) as EquipmentRank[]).map((rank) => (
+                    <button
+                      key={rank}
+                      type="button"
+                      className={`battle-drop-chip ${dropRankFilters.includes(rank) ? "active" : ""}`}
+                      onClick={() => toggleDropRank(rank)}
+                    >
+                      品阶: {EQUIPMENT_RANK_LABELS[rank]}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="battle-drop-chip-group">
+                  {(Object.keys(EQUIPMENT_SLOT_LABELS) as EquipmentSlot[]).map((slot) => (
+                    <button
+                      key={slot}
+                      type="button"
+                      className={`battle-drop-chip ${dropSlotFilters.includes(slot) ? "active" : ""}`}
+                      onClick={() => toggleDropSlot(slot)}
+                    >
+                      部位: {EQUIPMENT_SLOT_LABELS[slot]}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="battle-drop-actions">
+                  <button type="button" className="ghost-btn" onClick={clearDropEquipmentFilters}>
+                    一键清空筛选
+                  </button>
+                  <small>
+                    结果 {visibleEquipmentDrops.length} / 总数 {equipmentDrops.length}
+                  </small>
+                </div>
+
+                {visibleEquipmentDrops.length > 0 ? (
+                  <div className="battle-drop-equipment-list">
+                    {visibleEquipmentDrops.map((item) => (
+                      <p key={item.uid}>
+                        {item.templateName} · {EQUIPMENT_SUBTYPE_LABELS[item.subtype]} · {EQUIPMENT_QUALITY_LABELS[item.quality]} /{" "}
+                        {EQUIPMENT_RANK_LABELS[item.rank]}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <p>当前筛选条件下无装备掉落。</p>
+                )}
+              </section>
+            ) : null}
+          </div>
+        ) : null}
+
+        {activeReplayView === "actions" ? (
+          <div className="battle-replay-panel">
+            {actionSnapshots.length > 0 ? (
+              <div className="battle-replay-list">
+                {actionSnapshots.map((item) => (
+                  <p key={item.id}>
+                    [{(item.timeMs / 1000).toFixed(1)}s] {item.actorUnitName} · {item.skillName} · 伤害 {Math.round(item.damageDone)} · 治疗{" "}
+                    {Math.round(item.healDone)}
                   </p>
                 ))}
               </div>
             ) : (
-              <p>战斗胜利后显示掉落列表。</p>
+              <p>暂无行动快照。</p>
             )}
-          </article>
-        </aside>
-      </div>
+          </div>
+        ) : null}
+
+        {activeReplayView === "status" ? (
+          <div className="battle-replay-panel">
+            {statusChanges.length > 0 ? (
+              <div className="battle-replay-list">
+                {statusChanges.map((item) => (
+                  <p key={item.id}>
+                    [{(item.timeMs / 1000).toFixed(1)}s] {item.unitName} · {item.statusKey} · {item.action} · 剩余 {item.remainingTurns}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p>暂无状态变化记录。</p>
+            )}
+          </div>
+        ) : null}
+
+        {!["stats", "drops", "actions", "status"].includes(activeReplayView) ? (
+          <div className="battle-replay-panel">
+            <p>该复盘子界面暂未实现，可在 `runtime.replay.views` 新增对应 key 后扩展渲染器。</p>
+          </div>
+        ) : null}
+      </article>
     </section>
   );
 }

@@ -248,7 +248,7 @@ export function buildEnemyTeam(nodeId: string, archetype: NodeArchetype, suppres
       side: "enemy",
       level,
       slot: { line, index },
-      tags: [archetype],
+      tags: [archetype, `enemy:${prototype.id}`],
       baseStats: {
         maxHp: Math.round(prototype.stats.maxHp * hpScale),
         maxMp: Math.round(prototype.stats.maxMp * (1 + level * 0.03)),

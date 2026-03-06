@@ -1,11 +1,16 @@
-import { equipmentTemplates } from "../data/equipmentTemplates";
+import { generateBattleDropsFromTable } from "../data/battleDrops";
 import { DEFAULT_ACTIVE_SKILL_ID, battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
-import { generateEquipmentBatch } from "./equipmentSystem";
 import type {
   BattleActiveSkillDefinition,
   BattleDropSummary,
   BattleElement,
   BattleLogEntry,
+  BattleReplayActionSnapshot,
+  BattleReplayDamageCause,
+  BattleReplayData,
+  BattleReplayDropStats,
+  BattleReplayStatusChangeAction,
+  BattleReplayUnitStat,
   BattleRuntimeState,
   BattleRuntimeUnit,
   BattleSide,
@@ -25,6 +30,12 @@ const LOG_LIMIT = 180;
 const MAX_ACTIONS_PER_STEP = 3;
 const EVA_CAP = 0.5;
 const MULTIPLICATIVE_MODIFIER_KEYS = new Set<BattleStatFlatKey>(["maxHp", "maxMp", "str", "int", "agi", "def"]);
+const REPLAY_VIEWS: BattleReplayData["views"] = [
+  { key: "stats", title: "战斗统计", description: "单位造成/承受伤害、治疗与击杀统计。" },
+  { key: "drops", title: "掉落统计", description: "按掉落类型分类统计，支持装备筛选。" },
+  { key: "actions", title: "行动快照", description: "按时间记录每次行动与技能产出。" },
+  { key: "status", title: "状态变化", description: "记录异常状态施加、刷新与过期轨迹。" }
+];
 
 interface CreateBattleRuntimeParams {
   battleId: string;
@@ -33,6 +44,20 @@ interface CreateBattleRuntimeParams {
   archetype: string;
   allyTeam: BattleUnitTemplate[];
   enemyTeam: BattleUnitTemplate[];
+}
+
+interface TurnAccumulator {
+  damageDone: number;
+  healDone: number;
+  targetUnitIds: Set<string>;
+  targetUnitNames: Set<string>;
+}
+
+interface DamageRecordMeta {
+  timeMs: number;
+  cause: BattleReplayDamageCause;
+  skillId: string | null;
+  skillName: string | null;
 }
 
 function createElementRecord(initial = 0): Record<BattleElement, number> {
@@ -78,6 +103,200 @@ function copyUnit(unit: BattleRuntimeUnit): BattleRuntimeUnit {
     },
     tags: [...unit.tags]
   };
+}
+
+function copyReplayData(replay: BattleReplayData): BattleReplayData {
+  return {
+    views: replay.views.map((view) => ({ ...view })),
+    unitStats: replay.unitStats.map((stat) => ({ ...stat })),
+    actionSnapshots: replay.actionSnapshots.map((snapshot) => ({
+      ...snapshot,
+      targetUnitIds: [...snapshot.targetUnitIds],
+      targetUnitNames: [...snapshot.targetUnitNames]
+    })),
+    damageEvents: replay.damageEvents.map((event) => ({ ...event })),
+    statusChanges: replay.statusChanges.map((change) => ({ ...change })),
+    dropStats: {
+      totalEntries: replay.dropStats.totalEntries,
+      byCategory: { ...replay.dropStats.byCategory },
+      materials: replay.dropStats.materials.map((item) => ({ ...item }))
+    }
+  };
+}
+
+function createEmptyDropStats(): BattleReplayDropStats {
+  return {
+    totalEntries: 0,
+    byCategory: {
+      equipment: 0,
+      material: 0
+    },
+    materials: []
+  };
+}
+
+function createInitialReplayData(units: BattleRuntimeUnit[]): BattleReplayData {
+  const unitStats: BattleReplayUnitStat[] = units.map((unit) => ({
+    unitId: unit.id,
+    unitName: unit.name,
+    side: unit.side,
+    damageDealt: 0,
+    damageTaken: 0,
+    healDone: 0,
+    healTaken: 0,
+    kills: 0,
+    deaths: 0,
+    actionCount: 0
+  }));
+
+  return {
+    views: REPLAY_VIEWS.map((view) => ({ ...view })),
+    unitStats,
+    actionSnapshots: [],
+    damageEvents: [],
+    statusChanges: [],
+    dropStats: createEmptyDropStats()
+  };
+}
+
+function ensureUnitStat(replay: BattleReplayData, unit: BattleRuntimeUnit): BattleReplayUnitStat {
+  const existing = replay.unitStats.find((item) => item.unitId === unit.id);
+  if (existing) {
+    existing.unitName = unit.name;
+    existing.side = unit.side;
+    return existing;
+  }
+
+  const created: BattleReplayUnitStat = {
+    unitId: unit.id,
+    unitName: unit.name,
+    side: unit.side,
+    damageDealt: 0,
+    damageTaken: 0,
+    healDone: 0,
+    healTaken: 0,
+    kills: 0,
+    deaths: 0,
+    actionCount: 0
+  };
+  replay.unitStats.push(created);
+  return created;
+}
+
+function recordDamageEvent(
+  replay: BattleReplayData,
+  source: BattleRuntimeUnit,
+  target: BattleRuntimeUnit,
+  amount: number,
+  meta: DamageRecordMeta
+): void {
+  if (amount <= 0) {
+    return;
+  }
+  const sourceStat = ensureUnitStat(replay, source);
+  const targetStat = ensureUnitStat(replay, target);
+  sourceStat.damageDealt += amount;
+  targetStat.damageTaken += amount;
+
+  replay.damageEvents.push({
+    id: `dmg-${meta.timeMs}-${replay.damageEvents.length + 1}`,
+    timeMs: meta.timeMs,
+    sourceUnitId: source.id,
+    sourceUnitName: source.name,
+    targetUnitId: target.id,
+    targetUnitName: target.name,
+    amount,
+    cause: meta.cause,
+    skillId: meta.skillId,
+    skillName: meta.skillName
+  });
+}
+
+function recordHealEvent(
+  replay: BattleReplayData,
+  source: BattleRuntimeUnit,
+  target: BattleRuntimeUnit,
+  amount: number,
+  timeMs: number,
+  skillId: string | null,
+  skillName: string | null
+): void {
+  if (amount <= 0) {
+    return;
+  }
+  const sourceStat = ensureUnitStat(replay, source);
+  const targetStat = ensureUnitStat(replay, target);
+  sourceStat.healDone += amount;
+  targetStat.healTaken += amount;
+
+  replay.damageEvents.push({
+    id: `heal-${timeMs}-${replay.damageEvents.length + 1}`,
+    timeMs,
+    sourceUnitId: source.id,
+    sourceUnitName: source.name,
+    targetUnitId: target.id,
+    targetUnitName: target.name,
+    amount: -amount,
+    cause: "other",
+    skillId,
+    skillName
+  });
+}
+
+function recordStatusChange(
+  replay: BattleReplayData,
+  action: BattleReplayStatusChangeAction,
+  status: BattleStatusInstance,
+  unit: BattleRuntimeUnit,
+  sourceUnit: BattleRuntimeUnit | null,
+  timeMs: number
+): void {
+  replay.statusChanges.push({
+    id: `status-${timeMs}-${replay.statusChanges.length + 1}`,
+    timeMs,
+    action,
+    statusKey: status.key,
+    unitId: unit.id,
+    unitName: unit.name,
+    sourceUnitId: sourceUnit?.id ?? null,
+    sourceUnitName: sourceUnit?.name ?? null,
+    remainingTurns: status.remainingTurns,
+    potency: status.potency
+  });
+}
+
+function buildDropStats(drops: BattleDropSummary | null): BattleReplayDropStats {
+  const stats = createEmptyDropStats();
+  if (!drops) {
+    return stats;
+  }
+
+  const materialMap = new Map<string, BattleReplayDropStats["materials"][number]>();
+  drops.entries.forEach((entry) => {
+    stats.totalEntries += 1;
+    stats.byCategory[entry.category] += entry.quantity;
+    if (entry.material) {
+      const existing = materialMap.get(entry.material.id);
+      if (existing) {
+        existing.quantity += entry.quantity;
+      } else {
+        materialMap.set(entry.material.id, {
+          materialId: entry.material.id,
+          name: entry.material.name,
+          rarity: entry.material.rarity,
+          quantity: entry.quantity
+        });
+      }
+    }
+  });
+
+  stats.materials = [...materialMap.values()].sort((left, right) => {
+    if (right.quantity !== left.quantity) {
+      return right.quantity - left.quantity;
+    }
+    return left.name.localeCompare(right.name, "zh-CN");
+  });
+  return stats;
 }
 
 function buildBaseStats(template: BattleUnitTemplate): BattleStatBlock {
@@ -135,7 +354,6 @@ function applyStatModifier(stats: BattleStatBlock, modifier: BattleStatModifier)
       if (typeof ratio !== "number") {
         return;
       }
-
       const prevValue = next[key];
       next[key] = MULTIPLICATIVE_MODIFIER_KEYS.has(key) ? prevValue * (1 + ratio) : prevValue + ratio;
     });
@@ -182,7 +400,6 @@ function applyStatModifier(stats: BattleStatBlock, modifier: BattleStatModifier)
     next.elementBoost[element] = clamp(next.elementBoost[element], -0.5, 2);
     next.elementRes[element] = clamp(next.elementRes[element], -0.8, 0.95);
   });
-
   return next;
 }
 
@@ -255,28 +472,82 @@ function getStatusPotency(unit: BattleRuntimeUnit, key: BattleStatusInstance["ke
     .reduce((sum, status) => sum + status.potency, 0);
 }
 
-function applyTurnStartStatus(unit: BattleRuntimeUnit, logs: BattleLogEntry[], timeMs: number): BattleLogEntry[] {
+function applyDamage(
+  source: BattleRuntimeUnit,
+  target: BattleRuntimeUnit,
+  value: number,
+  replay: BattleReplayData,
+  meta: DamageRecordMeta
+): number {
+  const damage = Math.max(1, Math.round(value));
+  const aliveBefore = target.alive && target.currentHp > 0;
+  target.currentHp = Math.max(0, target.currentHp - damage);
+  if (target.currentHp <= 0) {
+    target.alive = false;
+  }
+  recordDamageEvent(replay, source, target, damage, meta);
+  if (aliveBefore && !target.alive && source.id !== target.id) {
+    ensureUnitStat(replay, source).kills += 1;
+    ensureUnitStat(replay, target).deaths += 1;
+  }
+  return damage;
+}
+
+function applyHeal(
+  source: BattleRuntimeUnit,
+  target: BattleRuntimeUnit,
+  value: number,
+  replay: BattleReplayData,
+  timeMs: number,
+  skillId: string | null,
+  skillName: string | null
+): number {
+  const heal = Math.max(1, Math.round(value));
+  const next = Math.min(target.stats.maxHp, target.currentHp + heal);
+  const actual = next - target.currentHp;
+  target.currentHp = next;
+  recordHealEvent(replay, source, target, actual, timeMs, skillId, skillName);
+  return actual;
+}
+
+function applyTurnStartStatus(
+  unit: BattleRuntimeUnit,
+  units: BattleRuntimeUnit[],
+  logs: BattleLogEntry[],
+  timeMs: number,
+  replay: BattleReplayData
+): BattleLogEntry[] {
   let nextLogs = logs;
 
   unit.statuses.forEach((status) => {
     if (status.remainingTurns <= 0 || !unit.alive) {
       return;
     }
-
     if (status.key === "poisoned" || status.key === "burning") {
       const ratio = clamp(status.potency, 0.01, 0.2);
       const damage = Math.max(1, Math.round(unit.stats.maxHp * ratio));
-      unit.currentHp = Math.max(0, unit.currentHp - damage);
-      if (unit.currentHp <= 0) {
-        unit.alive = false;
-      }
-      nextLogs = appendLog(nextLogs, timeMs, "debuff", `${unit.name} 受到持续伤害 ${damage}`);
+      const source = units.find((candidate) => candidate.id === status.sourceUnitId) ?? unit;
+      const dealt = applyDamage(source, unit, damage, replay, {
+        timeMs,
+        cause: "status",
+        skillId: null,
+        skillName: status.key
+      });
+      nextLogs = appendLog(nextLogs, timeMs, "debuff", `${unit.name} 受到持续伤害 ${dealt}`);
     }
   });
 
-  unit.statuses = unit.statuses
-    .map((status) => ({ ...status, remainingTurns: status.remainingTurns - 1 }))
-    .filter((status) => status.remainingTurns > 0);
+  const reducedStatuses: BattleStatusInstance[] = [];
+  unit.statuses.forEach((status) => {
+    const reduced = { ...status, remainingTurns: status.remainingTurns - 1 };
+    if (reduced.remainingTurns > 0) {
+      reducedStatuses.push(reduced);
+    } else {
+      const source = units.find((candidate) => candidate.id === status.sourceUnitId) ?? null;
+      recordStatusChange(replay, "expired", { ...status, remainingTurns: 0 }, unit, source, timeMs);
+    }
+  });
+  unit.statuses = reducedStatuses;
 
   return nextLogs;
 }
@@ -286,7 +557,8 @@ function applyStatus(
   source: BattleRuntimeUnit,
   application: BattleStatusApplication | undefined,
   timeMs: number,
-  logs: BattleLogEntry[]
+  logs: BattleLogEntry[],
+  replay: BattleReplayData
 ): BattleLogEntry[] {
   if (!application || !target.alive) {
     return logs;
@@ -300,14 +572,17 @@ function applyStatus(
   if (existing) {
     existing.remainingTurns = Math.max(existing.remainingTurns, application.duration);
     existing.potency = Math.max(existing.potency, potency);
+    recordStatusChange(replay, "refreshed", existing, target, source, timeMs);
   } else {
-    target.statuses.push({
+    const created: BattleStatusInstance = {
       id: `${target.id}-${application.key}-${timeMs}-${target.statuses.length + 1}`,
       key: application.key,
       remainingTurns: application.duration,
       potency,
       sourceUnitId: source.id
-    });
+    };
+    target.statuses.push(created);
+    recordStatusChange(replay, "applied", created, target, source, timeMs);
   }
 
   return appendLog(logs, timeMs, "debuff", `${source.name} 对 ${target.name} 施加 ${application.key} (${application.duration} 回合)`);
@@ -389,7 +664,6 @@ function selectSkill(actor: BattleRuntimeUnit, units: BattleRuntimeUnit[], arche
     if (tuning?.enemyCountAtLeast && enemies.length >= tuning.enemyCountAtLeast.count) {
       weight += tuning.enemyCountAtLeast.delta;
     }
-
     return { weight: Math.max(1, weight), value: skill };
   });
 
@@ -455,23 +729,6 @@ function computeSkillBase(skill: BattleActiveSkillDefinition, actor: BattleRunti
   );
 }
 
-function applyDamage(attacker: BattleRuntimeUnit, target: BattleRuntimeUnit, value: number): number {
-  const damage = Math.max(1, Math.round(value));
-  target.currentHp = Math.max(0, target.currentHp - damage);
-  if (target.currentHp <= 0) {
-    target.alive = false;
-  }
-  return damage;
-}
-
-function applyHeal(target: BattleRuntimeUnit, value: number): number {
-  const heal = Math.max(1, Math.round(value));
-  const next = Math.min(target.stats.maxHp, target.currentHp + heal);
-  const actual = next - target.currentHp;
-  target.currentHp = next;
-  return actual;
-}
-
 function applyElementalTrigger(
   element: BattleElement | undefined,
   attacker: BattleRuntimeUnit,
@@ -479,7 +736,9 @@ function applyElementalTrigger(
   units: BattleRuntimeUnit[],
   dealtDamage: number,
   logs: BattleLogEntry[],
-  timeMs: number
+  timeMs: number,
+  replay: BattleReplayData,
+  accumulator: TurnAccumulator
 ): BattleLogEntry[] {
   if (!element || dealtDamage <= 0 || !target.alive) {
     return logs;
@@ -488,8 +747,16 @@ function applyElementalTrigger(
 
   if (element === "fire") {
     const bonus = Math.max(1, Math.round(dealtDamage * 0.1));
-    applyDamage(attacker, target, bonus);
-    nextLogs = appendLog(nextLogs, timeMs, "damage", `火焰余烬追加 ${bonus} 点伤害`);
+    const applied = applyDamage(attacker, target, bonus, replay, {
+      timeMs,
+      cause: "element",
+      skillId: null,
+      skillName: "火焰余烬"
+    });
+    accumulator.damageDone += applied;
+    accumulator.targetUnitIds.add(target.id);
+    accumulator.targetUnitNames.add(target.name);
+    nextLogs = appendLog(nextLogs, timeMs, "damage", `火焰余烬追加 ${applied} 点伤害`);
     return nextLogs;
   }
 
@@ -520,7 +787,12 @@ function applyElementalTrigger(
     const allies = livingUnits(units, attacker.side);
     const amount = Math.max(1, Math.round(dealtDamage * 0.05));
     allies.forEach((ally) => {
-      applyHeal(ally, amount);
+      const healed = applyHeal(attacker, ally, amount, replay, timeMs, null, "生命回响");
+      if (healed > 0) {
+        accumulator.healDone += healed;
+        accumulator.targetUnitIds.add(ally.id);
+        accumulator.targetUnitNames.add(ally.name);
+      }
     });
     nextLogs = appendLog(nextLogs, timeMs, "heal", `${attacker.name} 触发生命回响，友军回复 ${amount}`);
     return nextLogs;
@@ -528,16 +800,32 @@ function applyElementalTrigger(
 
   if (element === "light") {
     const bonus = Math.max(1, Math.round(attacker.stats.maxHp * 0.05));
-    applyDamage(attacker, target, bonus);
-    nextLogs = appendLog(nextLogs, timeMs, "damage", `光明之力追加 ${bonus} 点伤害`);
+    const applied = applyDamage(attacker, target, bonus, replay, {
+      timeMs,
+      cause: "element",
+      skillId: null,
+      skillName: "光明之力"
+    });
+    accumulator.damageDone += applied;
+    accumulator.targetUnitIds.add(target.id);
+    accumulator.targetUnitNames.add(target.name);
+    nextLogs = appendLog(nextLogs, timeMs, "damage", `光明之力追加 ${applied} 点伤害`);
     return nextLogs;
   }
 
   if (element === "undead") {
     const missingHp = Math.max(0, attacker.stats.maxHp - attacker.currentHp);
     const bonus = Math.max(1, Math.round(missingHp * 0.05));
-    applyDamage(attacker, target, bonus);
-    nextLogs = appendLog(nextLogs, timeMs, "damage", `亡灵之力追加 ${bonus} 点伤害`);
+    const applied = applyDamage(attacker, target, bonus, replay, {
+      timeMs,
+      cause: "element",
+      skillId: null,
+      skillName: "亡灵之力"
+    });
+    accumulator.damageDone += applied;
+    accumulator.targetUnitIds.add(target.id);
+    accumulator.targetUnitNames.add(target.name);
+    nextLogs = appendLog(nextLogs, timeMs, "damage", `亡灵之力追加 ${applied} 点伤害`);
     return nextLogs;
   }
 
@@ -549,7 +837,6 @@ function applyElementalTrigger(
     }
     nextLogs = appendLog(nextLogs, timeMs, "debuff", `${target.name} 最大生命降低 ${reduce}`);
   }
-
   return nextLogs;
 }
 
@@ -559,7 +846,9 @@ function performDamageSkill(
   targets: BattleRuntimeUnit[],
   units: BattleRuntimeUnit[],
   logs: BattleLogEntry[],
-  timeMs: number
+  timeMs: number,
+  replay: BattleReplayData,
+  accumulator: TurnAccumulator
 ): BattleLogEntry[] {
   let nextLogs = logs;
   const basePower = computeSkillBase(skill, attacker);
@@ -568,9 +857,10 @@ function performDamageSkill(
     if (!target.alive) {
       return;
     }
-
     if (Math.random() < clamp(target.stats.evasion, 0, EVA_CAP)) {
       nextLogs = appendLog(nextLogs, timeMs, "miss", `${attacker.name} 的 ${skill.name} 被 ${target.name} 闪避`);
+      accumulator.targetUnitIds.add(target.id);
+      accumulator.targetUnitNames.add(target.name);
       return;
     }
 
@@ -588,7 +878,15 @@ function performDamageSkill(
     const extraZone = Math.max(0.1, 1 + attacker.stats.damageBoost - weakenedPenalty);
     const reductionZone = Math.max(0.1, 1 - clamp(target.stats.damageReduction + guardedBonus, -0.8, 0.9));
     const finalDamage = Math.max(1, Math.round(basePower * critZone * defZone * elemZone * extraZone * reductionZone));
-    const dealt = applyDamage(attacker, target, finalDamage);
+    const dealt = applyDamage(attacker, target, finalDamage, replay, {
+      timeMs,
+      cause: "skill",
+      skillId: skill.id,
+      skillName: skill.name
+    });
+    accumulator.damageDone += dealt;
+    accumulator.targetUnitIds.add(target.id);
+    accumulator.targetUnitNames.add(target.name);
 
     nextLogs = appendLog(
       nextLogs,
@@ -599,20 +897,28 @@ function performDamageSkill(
 
     if (attacker.stats.lifeSteal > 0 && dealt > 0 && attacker.alive) {
       const heal = Math.max(1, Math.round(dealt * attacker.stats.lifeSteal));
-      const healed = applyHeal(attacker, heal);
+      const healed = applyHeal(attacker, attacker, heal, replay, timeMs, skill.id, `${skill.name}-吸血`);
       if (healed > 0) {
+        accumulator.healDone += healed;
+        accumulator.targetUnitIds.add(attacker.id);
+        accumulator.targetUnitNames.add(attacker.name);
         nextLogs = appendLog(nextLogs, timeMs, "heal", `${attacker.name} 吸血回复 ${healed}`);
       }
     }
 
     if (target.stats.thorns > 0 && dealt > 0 && attacker.alive) {
       const reflect = Math.max(1, Math.round(dealt * target.stats.thorns));
-      const reflected = applyDamage(target, attacker, reflect);
+      const reflected = applyDamage(target, attacker, reflect, replay, {
+        timeMs,
+        cause: "thorns",
+        skillId: null,
+        skillName: "反伤"
+      });
       nextLogs = appendLog(nextLogs, timeMs, "damage", `${target.name} 反伤 ${reflected}`);
     }
 
-    nextLogs = applyElementalTrigger(skill.element, attacker, target, units, dealt, nextLogs, timeMs);
-    nextLogs = applyStatus(target, attacker, skill.targetStatus, timeMs, nextLogs);
+    nextLogs = applyElementalTrigger(skill.element, attacker, target, units, dealt, nextLogs, timeMs, replay, accumulator);
+    nextLogs = applyStatus(target, attacker, skill.targetStatus, timeMs, nextLogs, replay);
 
     if (typeof skill.actionDeltaTarget === "number") {
       target.actionValue = Math.max(0, target.actionValue - skill.actionDeltaTarget);
@@ -627,7 +933,9 @@ function performHealSkill(
   actor: BattleRuntimeUnit,
   targets: BattleRuntimeUnit[],
   logs: BattleLogEntry[],
-  timeMs: number
+  timeMs: number,
+  replay: BattleReplayData,
+  accumulator: TurnAccumulator
 ): BattleLogEntry[] {
   let nextLogs = logs;
   const basePower = computeSkillBase(skill, actor);
@@ -637,9 +945,12 @@ function performHealSkill(
       return;
     }
     const healPower = Math.max(1, Math.round(basePower * (1 + actor.stats.allBoost)));
-    const healed = applyHeal(target, healPower);
+    const healed = applyHeal(actor, target, healPower, replay, timeMs, skill.id, skill.name);
+    accumulator.healDone += healed;
+    accumulator.targetUnitIds.add(target.id);
+    accumulator.targetUnitNames.add(target.name);
     nextLogs = appendLog(nextLogs, timeMs, "heal", `${actor.name} 使用 ${skill.name} 为 ${target.name} 回复 ${healed}`);
-    nextLogs = applyStatus(target, actor, skill.targetStatus, timeMs, nextLogs);
+    nextLogs = applyStatus(target, actor, skill.targetStatus, timeMs, nextLogs, replay);
   });
 
   return nextLogs;
@@ -682,23 +993,30 @@ function detectWinner(units: BattleRuntimeUnit[]): BattleSide | null {
   return null;
 }
 
+function resolveEnemyPrototypeId(unit: BattleRuntimeUnit): string {
+  const tagged = unit.tags.find((tag) => tag.startsWith("enemy:"));
+  if (tagged) {
+    return tagged.slice("enemy:".length);
+  }
+  return unit.id.replace(/-\d+$/, "");
+}
+
 function generateDrops(runtime: BattleRuntimeState): BattleDropSummary {
-  const bonusBySuppression = Math.floor(runtime.suppression / 34);
-  const archetypeBonus = runtime.archetype === "BL3" ? 1 : runtime.archetype === "BL2" ? 0 : 0;
-  const count = clamp(1 + bonusBySuppression + archetypeBonus, 1, 4);
-  const level = clamp(1 + Math.floor(runtime.suppression / 15) + (runtime.archetype === "BL3" ? 2 : 0), 1, 25);
+  const defeatedEnemies = runtime.units
+    .filter((unit) => unit.side === "enemy" && !unit.alive)
+    .map((unit) => ({
+      unitId: unit.id,
+      unitName: unit.name,
+      prototypeId: resolveEnemyPrototypeId(unit),
+      level: unit.level
+    }));
 
-  // TODO(战斗掉落): 当前沿用全局装备生成器，后续接入怪物掉落表、地图压制修正与保底机制。
-  const items = generateEquipmentBatch(equipmentTemplates, count, {
-    level,
-    seed: `${runtime.battleId}-${runtime.elapsedMs}-drops`,
-    source: `battle:${runtime.nodeId}`
+  return generateBattleDropsFromTable({
+    battleId: runtime.battleId,
+    nodeId: runtime.nodeId,
+    elapsedMs: runtime.elapsedMs,
+    enemies: defeatedEnemies
   });
-
-  return {
-    generatedAt: runtime.elapsedMs,
-    items
-  };
 }
 
 function processActorTurn(runtime: BattleRuntimeState, actorIndex: number): BattleRuntimeState {
@@ -708,13 +1026,14 @@ function processActorTurn(runtime: BattleRuntimeState, actorIndex: number): Batt
     return { ...runtime, units };
   }
 
+  const replay = copyReplayData(runtime.replay);
   let logs = [...runtime.logs];
   const timeMs = runtime.elapsedMs;
-  logs = applyTurnStartStatus(actor, logs, timeMs);
+  logs = applyTurnStartStatus(actor, units, logs, timeMs, replay);
   if (!actor.alive) {
     actor.actionValue = 0;
     reduceCooldownsAfterAction(actor, null);
-    return { ...runtime, units, logs };
+    return { ...runtime, units, logs, replay };
   }
 
   const blocked = findBlockingStatus(actor);
@@ -722,28 +1041,49 @@ function processActorTurn(runtime: BattleRuntimeState, actorIndex: number): Batt
     actor.actionValue = 0;
     reduceCooldownsAfterAction(actor, null);
     logs = appendLog(logs, timeMs, "debuff", `${actor.name} 受 ${blocked.key} 影响，跳过行动`);
-    return { ...runtime, units, logs };
+    return { ...runtime, units, logs, replay };
   }
 
   const selectedSkill = selectSkill(actor, units, runtime.archetype);
   const targets = resolveTargets(selectedSkill, actor, units);
+  const accumulator: TurnAccumulator = {
+    damageDone: 0,
+    healDone: 0,
+    targetUnitIds: new Set<string>(),
+    targetUnitNames: new Set<string>()
+  };
 
+  ensureUnitStat(replay, actor).actionCount += 1;
   actor.currentMp = Math.max(0, actor.currentMp - selectedSkill.mpCost);
   logs = appendLog(logs, timeMs, "system", `${actor.name} 释放 ${selectedSkill.name}`);
 
   if (selectedSkill.effect === "damage") {
-    logs = performDamageSkill(selectedSkill, actor, targets, units, logs, timeMs);
+    logs = performDamageSkill(selectedSkill, actor, targets, units, logs, timeMs, replay, accumulator);
   } else {
-    logs = performHealSkill(selectedSkill, actor, targets, logs, timeMs);
+    logs = performHealSkill(selectedSkill, actor, targets, logs, timeMs, replay, accumulator);
   }
 
   if (selectedSkill.selfStatus) {
-    logs = applyStatus(actor, actor, selectedSkill.selfStatus, timeMs, logs);
+    logs = applyStatus(actor, actor, selectedSkill.selfStatus, timeMs, logs, replay);
   }
 
   if (typeof selectedSkill.actionDeltaSelf === "number") {
     actor.actionValue = clamp(actor.actionValue + selectedSkill.actionDeltaSelf, 0, ACTION_THRESHOLD - 1);
   }
+
+  const snapshot: BattleReplayActionSnapshot = {
+    id: `action-${timeMs}-${replay.actionSnapshots.length + 1}`,
+    timeMs,
+    actorUnitId: actor.id,
+    actorUnitName: actor.name,
+    skillId: selectedSkill.id,
+    skillName: selectedSkill.name,
+    targetUnitIds: [...accumulator.targetUnitIds],
+    targetUnitNames: [...accumulator.targetUnitNames],
+    damageDone: accumulator.damageDone,
+    healDone: accumulator.healDone
+  };
+  replay.actionSnapshots.push(snapshot);
 
   reduceCooldownsAfterAction(actor, selectedSkill.id);
   actor.actionValue = 0;
@@ -755,12 +1095,38 @@ function processActorTurn(runtime: BattleRuntimeState, actorIndex: number): Batt
     }
   });
 
-  return { ...runtime, units, logs };
+  return { ...runtime, units, logs, replay };
+}
+
+function finalizeBattle(runtime: BattleRuntimeState, winner: BattleSide, drops: BattleDropSummary | null, baseLogs?: BattleLogEntry[]): BattleRuntimeState {
+  let logs = baseLogs ?? runtime.logs;
+  const replay = copyReplayData(runtime.replay);
+  replay.dropStats = buildDropStats(drops);
+
+  if (winner === "ally" && drops) {
+    drops.entries.forEach((entry) => {
+      if (entry.category === "equipment" && entry.equipment) {
+        logs = appendLog(logs, runtime.elapsedMs, "drop", `掉落装备：${entry.equipment.templateName} (${entry.equipment.quality}/${entry.equipment.rank})`);
+      } else if (entry.category === "material" && entry.material) {
+        logs = appendLog(logs, runtime.elapsedMs, "drop", `掉落材料：${entry.material.name} x${entry.quantity}`);
+      }
+    });
+  }
+
+  return {
+    ...runtime,
+    status: "finished",
+    winner,
+    logs,
+    drops,
+    replay
+  };
 }
 
 export function createBattleRuntime(params: CreateBattleRuntimeParams): BattleRuntimeState {
   const allyTeam = params.allyTeam.map(buildRuntimeUnit);
   const enemyTeam = params.enemyTeam.map(buildRuntimeUnit);
+  const units = [...allyTeam, ...enemyTeam];
 
   const logs: BattleLogEntry[] = [
     {
@@ -781,9 +1147,10 @@ export function createBattleRuntime(params: CreateBattleRuntimeParams): BattleRu
     elapsedMs: 0,
     tickCount: 0,
     speedMultiplier: 1,
-    units: [...allyTeam, ...enemyTeam],
+    units,
     logs,
-    drops: null
+    drops: null,
+    replay: createInitialReplayData(units)
   };
 }
 
@@ -802,6 +1169,14 @@ export function setBattleSpeed(runtime: BattleRuntimeState, speedMultiplier: num
     ...runtime,
     speedMultiplier: clamp(speedMultiplier, 0.5, 6)
   };
+}
+
+export function endBattle(runtime: BattleRuntimeState): BattleRuntimeState {
+  if (runtime.status === "finished") {
+    return runtime;
+  }
+  const logs = appendLog(runtime.logs, runtime.elapsedMs, "system", "战斗被手动结束");
+  return finalizeBattle({ ...runtime, logs }, "enemy", runtime.drops, logs);
 }
 
 export function stepBattle(runtime: BattleRuntimeState, deltaMs: number): BattleRuntimeState {
@@ -846,22 +1221,9 @@ export function stepBattle(runtime: BattleRuntimeState, deltaMs: number): Battle
     next = processActorTurn(next, nextActorIndex);
     const winner = detectWinner(next.units);
     if (winner) {
-      let logs = appendLog(next.logs, next.elapsedMs, "system", winner === "ally" ? "战斗胜利" : "战斗失败");
-      let drops = next.drops;
-      if (winner === "ally") {
-        drops = generateDrops(next);
-        drops.items.forEach((item) => {
-          logs = appendLog(logs, next.elapsedMs, "drop", `掉落：${item.templateName} (${item.quality}/${item.rank})`);
-        });
-      }
-
-      return {
-        ...next,
-        status: "finished",
-        winner,
-        logs,
-        drops
-      };
+      const logs = appendLog(next.logs, next.elapsedMs, "system", winner === "ally" ? "战斗胜利" : "战斗失败");
+      const drops = winner === "ally" ? generateDrops(next) : null;
+      return finalizeBattle({ ...next, logs }, winner, drops, logs);
     }
 
     processed += 1;
