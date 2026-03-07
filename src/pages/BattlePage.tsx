@@ -14,6 +14,7 @@ import type {
   BattleLine,
   BattleRuntimeState,
   BattleRuntimeUnit,
+  BattleStatusKey,
   BattleSide
 } from "../types/battle";
 import type { EquipmentQuality, EquipmentRank, EquipmentSlot } from "../types/game";
@@ -39,6 +40,18 @@ const rankOrder: Record<EquipmentRank, number> = {
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+const STATUS_LABELS: Record<BattleStatusKey, string> = {
+  frozen: "冻结",
+  stunned: "眩晕",
+  poisoned: "中毒",
+  burning: "灼烧",
+  guarded: "守护",
+  weakened: "虚弱",
+  shielded: "护盾",
+  immune: "免疫",
+  taunted: "嘲讽"
+};
 
 function getSideUnits(units: BattleRuntimeUnit[], side: BattleSide, line: BattleLine): Array<BattleRuntimeUnit | null> {
   const group = units.filter((unit) => unit.side === side && unit.slot.line === line);
@@ -81,7 +94,13 @@ function UnitSlot({ unit, side }: { unit: BattleRuntimeUnit | null; side: Battle
       </p>
       <p className="battle-unit-status">
         {unit.statuses.length > 0
-          ? unit.statuses.map((status) => `${status.key}(${status.remainingTurns})`).join(" / ")
+          ? unit.statuses
+              .map((status) =>
+                status.key === "shielded"
+                  ? `${STATUS_LABELS[status.key]}(${Math.round(status.potency)}|${status.remainingTurns})`
+                  : `${STATUS_LABELS[status.key]}(${status.remainingTurns})`
+              )
+              .join(" / ")
           : "无异常状态"}
       </p>
     </div>
@@ -740,7 +759,15 @@ export function BattlePage() {
                   <div className="battle-replay-list">
                     {statusChanges.map((item) => (
                       <p key={item.id}>
-                        [{(item.timeMs / 1000).toFixed(1)}s] {item.unitName} · {item.statusKey} · {item.action} · 剩余 {item.remainingTurns}
+                        [{(item.timeMs / 1000).toFixed(1)}s] {item.unitName} · {STATUS_LABELS[item.statusKey]} ·{" "}
+                        {item.action === "applied"
+                          ? "施加"
+                          : item.action === "refreshed"
+                          ? "刷新"
+                          : item.action === "expired"
+                          ? "自然结束"
+                          : "移除"}{" "}
+                        · 剩余 {item.remainingTurns}
                       </p>
                     ))}
                   </div>

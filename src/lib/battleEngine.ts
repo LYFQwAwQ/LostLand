@@ -15,11 +15,14 @@ import type {
   BattleRuntimeState,
   BattleRuntimeUnit,
   BattleSide,
+  BattleSkillExtraEffect,
   BattleStatBlock,
   BattleStatFlatKey,
   BattleStatModifier,
+  BattleStatusEffectPolarity,
   BattleStatusApplication,
   BattleStatusInstance,
+  BattleStatusKey,
   BattleUnitTemplate
 } from "../types/battle";
 
@@ -31,6 +34,8 @@ const LOG_LIMIT = 180;
 const MAX_ACTIONS_PER_STEP = 3;
 const EVA_CAP = 0.5;
 const MULTIPLICATIVE_MODIFIER_KEYS = new Set<BattleStatFlatKey>(["maxHp", "maxMp", "str", "int", "agi", "def"]);
+const NEGATIVE_STATUS_KEYS = new Set<BattleStatusKey>(["frozen", "stunned", "poisoned", "burning", "weakened", "taunted"]);
+const POSITIVE_STATUS_KEYS = new Set<BattleStatusKey>(["guarded", "shielded", "immune"]);
 const REPLAY_VIEWS: BattleReplayData["views"] = [
   { key: "stats", title: "战斗统计", description: "单位造成/承受伤害、治疗与击杀统计。" },
   { key: "drops", title: "掉落统计", description: "按掉落类型分类统计，支持装备筛选。" },
@@ -473,6 +478,135 @@ function getStatusPotency(unit: BattleRuntimeUnit, key: BattleStatusInstance["ke
     .reduce((sum, status) => sum + status.potency, 0);
 }
 
+function hasPositiveStatus(unit: BattleRuntimeUnit, key: BattleStatusKey): boolean {
+  return unit.statuses.some((status) => status.key === key && status.remainingTurns > 0);
+}
+
+function statusPolarity(key: BattleStatusKey): BattleStatusEffectPolarity {
+  if (NEGATIVE_STATUS_KEYS.has(key)) {
+    return "negative";
+  }
+  if (POSITIVE_STATUS_KEYS.has(key)) {
+    return "positive";
+  }
+  return "all";
+}
+
+function matchesStatusPolarity(key: BattleStatusKey, polarity: BattleStatusEffectPolarity): boolean {
+  if (polarity === "all") {
+    return true;
+  }
+  return statusPolarity(key) === polarity;
+}
+
+function removeStatusesByRule(
+  unit: BattleRuntimeUnit,
+  source: BattleRuntimeUnit,
+  polarity: BattleStatusEffectPolarity,
+  removeCount: number,
+  replay: BattleReplayData,
+  timeMs: number
+): BattleStatusInstance[] {
+  const removable = unit.statuses
+    .filter((status) => status.remainingTurns > 0)
+    .filter((status) => matchesStatusPolarity(status.key, polarity))
+    .sort((left, right) => {
+      if (right.remainingTurns !== left.remainingTurns) {
+        return right.remainingTurns - left.remainingTurns;
+      }
+      return right.potency - left.potency;
+    });
+
+  const picked = removable.slice(0, Math.max(1, removeCount));
+  if (picked.length === 0) {
+    return [];
+  }
+
+  const pickedIds = new Set(picked.map((status) => status.id));
+  unit.statuses = unit.statuses.filter((status) => !pickedIds.has(status.id));
+  picked.forEach((status) => {
+    recordStatusChange(replay, "removed", status, unit, source, timeMs);
+  });
+  return picked;
+}
+
+function resolveShieldAbsorption(
+  target: BattleRuntimeUnit,
+  incomingDamage: number,
+  source: BattleRuntimeUnit,
+  replay: BattleReplayData,
+  timeMs: number
+): { damageAfterShield: number; absorbed: number } {
+  let remaining = Math.max(0, incomingDamage);
+  if (remaining <= 0) {
+    return { damageAfterShield: 0, absorbed: 0 };
+  }
+
+  const shields = target.statuses
+    .filter((status) => status.key === "shielded" && status.remainingTurns > 0 && status.potency > 0)
+    .sort((left, right) => left.remainingTurns - right.remainingTurns);
+
+  if (shields.length === 0) {
+    return { damageAfterShield: remaining, absorbed: 0 };
+  }
+
+  let absorbed = 0;
+  shields.forEach((shield) => {
+    if (remaining <= 0) {
+      return;
+    }
+    const block = Math.min(remaining, Math.max(0, shield.potency));
+    if (block <= 0) {
+      return;
+    }
+    shield.potency -= block;
+    absorbed += block;
+    remaining -= block;
+  });
+
+  const stillActive: BattleStatusInstance[] = [];
+  target.statuses.forEach((status) => {
+    if (status.key !== "shielded") {
+      stillActive.push(status);
+      return;
+    }
+    if (status.remainingTurns <= 0 || status.potency <= 0) {
+      const statusSource = source.id === status.sourceUnitId ? source : null;
+      recordStatusChange(replay, "removed", { ...status, potency: Math.max(0, status.potency) }, target, statusSource, timeMs);
+      return;
+    }
+    stillActive.push(status);
+  });
+  target.statuses = stillActive;
+
+  return { damageAfterShield: Math.max(0, remaining), absorbed };
+}
+
+function computeScalingValue(basePower: number, scaling: BattleActiveSkillDefinition["scaling"], actor: BattleRuntimeUnit): number {
+  const missingHp = actor.stats.maxHp - actor.currentHp;
+  return (
+    basePower +
+    actor.stats.str * (scaling.str ?? 0) +
+    actor.stats.int * (scaling.int ?? 0) +
+    actor.stats.def * (scaling.def ?? 0) +
+    actor.stats.maxHp * (scaling.maxHp ?? 0) +
+    missingHp * (scaling.missingHp ?? 0)
+  );
+}
+
+function resolveTauntTarget(actor: BattleRuntimeUnit, enemies: BattleRuntimeUnit[]): BattleRuntimeUnit | null {
+  const taunts = actor.statuses
+    .filter((status) => status.key === "taunted" && status.remainingTurns > 0)
+    .sort((left, right) => right.remainingTurns - left.remainingTurns);
+  for (const taunt of taunts) {
+    const taunter = enemies.find((enemy) => enemy.id === taunt.sourceUnitId && enemy.alive);
+    if (taunter) {
+      return taunter;
+    }
+  }
+  return null;
+}
+
 function applyDamage(
   source: BattleRuntimeUnit,
   target: BattleRuntimeUnit,
@@ -480,7 +614,12 @@ function applyDamage(
   replay: BattleReplayData,
   meta: DamageRecordMeta
 ): number {
-  const damage = Math.max(1, Math.round(value));
+  const rawDamage = Math.max(1, Math.round(value));
+  const { damageAfterShield } = resolveShieldAbsorption(target, rawDamage, source, replay, meta.timeMs);
+  const damage = Math.max(0, Math.round(damageAfterShield));
+  if (damage <= 0) {
+    return 0;
+  }
   const aliveBefore = target.alive && target.currentHp > 0;
   target.currentHp = Math.max(0, target.currentHp - damage);
   if (target.currentHp <= 0) {
@@ -564,6 +703,10 @@ function applyStatus(
   if (!application || !target.alive) {
     return logs;
   }
+  const polarity = statusPolarity(application.key);
+  if (polarity === "negative" && hasPositiveStatus(target, "immune")) {
+    return appendLog(logs, timeMs, "buff", `${target.name} 免疫了 ${application.key}`);
+  }
   if (Math.random() > application.chance) {
     return logs;
   }
@@ -572,7 +715,8 @@ function applyStatus(
   const existing = target.statuses.find((status) => status.key === application.key);
   if (existing) {
     existing.remainingTurns = Math.max(existing.remainingTurns, application.duration);
-    existing.potency = Math.max(existing.potency, potency);
+    existing.potency = application.key === "shielded" ? existing.potency + potency : Math.max(existing.potency, potency);
+    existing.sourceUnitId = source.id;
     recordStatusChange(replay, "refreshed", existing, target, source, timeMs);
   } else {
     const created: BattleStatusInstance = {
@@ -586,7 +730,12 @@ function applyStatus(
     recordStatusChange(replay, "applied", created, target, source, timeMs);
   }
 
-  return appendLog(logs, timeMs, "debuff", `${source.name} 对 ${target.name} 施加 ${application.key} (${application.duration} 回合)`);
+  return appendLog(
+    logs,
+    timeMs,
+    polarity === "negative" ? "debuff" : "buff",
+    `${source.name} 对 ${target.name} 施加 ${application.key} (${application.duration} 回合)`
+  );
 }
 
 function chooseByWeight<T>(entries: Array<{ weight: number; value: T }>): T | null {
@@ -701,6 +850,10 @@ function resolveTargets(skill: BattleActiveSkillDefinition, actor: BattleRuntime
     return allies;
   }
   if (skill.targetType === "singleEnemy") {
+    const forced = resolveTauntTarget(actor, enemies);
+    if (forced) {
+      return [forced];
+    }
     const target = chooseSingleEnemyTarget(enemies);
     return target ? [target] : [];
   }
@@ -718,16 +871,7 @@ function resolveTargets(skill: BattleActiveSkillDefinition, actor: BattleRuntime
 }
 
 function computeSkillBase(skill: BattleActiveSkillDefinition, actor: BattleRuntimeUnit): number {
-  const scaling = skill.scaling;
-  const missingHp = actor.stats.maxHp - actor.currentHp;
-  return (
-    skill.basePower +
-    actor.stats.str * (scaling.str ?? 0) +
-    actor.stats.int * (scaling.int ?? 0) +
-    actor.stats.def * (scaling.def ?? 0) +
-    actor.stats.maxHp * (scaling.maxHp ?? 0) +
-    missingHp * (scaling.missingHp ?? 0)
-  );
+  return computeScalingValue(skill.basePower, skill.scaling, actor);
 }
 
 function resolveElementTriggerBase(
@@ -994,6 +1138,96 @@ function performHealSkill(
   return nextLogs;
 }
 
+function applyExtraEffects(
+  skill: BattleActiveSkillDefinition,
+  actor: BattleRuntimeUnit,
+  targets: BattleRuntimeUnit[],
+  logs: BattleLogEntry[],
+  timeMs: number,
+  replay: BattleReplayData,
+  accumulator: TurnAccumulator
+): BattleLogEntry[] {
+  if (!skill.extraEffects || skill.extraEffects.length === 0) {
+    return logs;
+  }
+  let nextLogs = logs;
+
+  skill.extraEffects.forEach((effect: BattleSkillExtraEffect) => {
+    const effectTargets = effect.target === "self" ? [actor] : targets;
+    if (effect.type === "applyStatus") {
+      effectTargets.forEach((target) => {
+        nextLogs = applyStatus(target, actor, effect.application, timeMs, nextLogs, replay);
+        accumulator.targetUnitIds.add(target.id);
+        accumulator.targetUnitNames.add(target.name);
+      });
+      return;
+    }
+
+    if (effect.type === "actionDelta") {
+      effectTargets.forEach((target) => {
+        target.actionValue = clamp(target.actionValue + effect.delta, 0, ACTION_THRESHOLD - 1);
+        accumulator.targetUnitIds.add(target.id);
+        accumulator.targetUnitNames.add(target.name);
+        const tone = effect.delta >= 0 ? "buff" : "debuff";
+        nextLogs = appendLog(
+          nextLogs,
+          timeMs,
+          tone,
+          `${skill.name} 调整 ${target.name} 行动值 ${effect.delta >= 0 ? "+" : ""}${Math.round(effect.delta)}`
+        );
+      });
+      return;
+    }
+
+    if (effect.type === "shield") {
+      const shieldValue = Math.max(1, Math.round(computeScalingValue(effect.basePower, effect.scaling, actor)));
+      effectTargets.forEach((target) => {
+        accumulator.targetUnitIds.add(target.id);
+        accumulator.targetUnitNames.add(target.name);
+        nextLogs = applyStatus(
+          target,
+          actor,
+          {
+            key: "shielded",
+            chance: 1,
+            duration: effect.duration,
+            potency: shieldValue
+          },
+          timeMs,
+          nextLogs,
+          replay
+        );
+        nextLogs = appendLog(nextLogs, timeMs, "buff", `${target.name} 获得 ${shieldValue} 点护盾`);
+      });
+      return;
+    }
+
+    if (effect.type === "cleanse" || effect.type === "dispel") {
+      const defaultPolarity: BattleStatusEffectPolarity = effect.type === "cleanse" ? "negative" : "positive";
+      const polarity = effect.polarity ?? defaultPolarity;
+      const removeCount = Math.max(1, effect.removeCount ?? 1);
+      effectTargets.forEach((target) => {
+        accumulator.targetUnitIds.add(target.id);
+        accumulator.targetUnitNames.add(target.name);
+        const removed = removeStatusesByRule(target, actor, polarity, removeCount, replay, timeMs);
+        if (removed.length <= 0) {
+          return;
+        }
+        const removedText = removed.map((status) => status.key).join("、");
+        nextLogs = appendLog(
+          nextLogs,
+          timeMs,
+          effect.type === "cleanse" ? "buff" : "debuff",
+          `${skill.name} 从 ${target.name} ${effect.type === "cleanse" ? "净化" : "驱散"}：${removedText}`
+        );
+      });
+      return;
+    }
+  });
+
+  return nextLogs;
+}
+
 function reduceCooldownsAfterAction(actor: BattleRuntimeUnit, usedSkillId: string | null): void {
   Object.keys(actor.cooldowns).forEach((skillId) => {
     if (skillId === usedSkillId) {
@@ -1100,6 +1334,8 @@ function processActorTurn(runtime: BattleRuntimeState, actorIndex: number): Batt
   } else {
     logs = performHealSkill(selectedSkill, actor, targets, logs, timeMs, replay, accumulator);
   }
+
+  logs = applyExtraEffects(selectedSkill, actor, targets, logs, timeMs, replay, accumulator);
 
   if (selectedSkill.selfStatus) {
     logs = applyStatus(actor, actor, selectedSkill.selfStatus, timeMs, logs, replay);

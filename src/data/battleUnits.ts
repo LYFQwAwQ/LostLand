@@ -28,14 +28,30 @@ export function getDefaultHeroLoadout(hero: Hero): BattleLoadout {
   if (hero.heroClass === "paladin") {
     return createBattleLoadout(
       "talent_oathbound_guard",
-      ["paladin_holy_blade", "paladin_shield_slam", "paladin_prayer", "paladin_command", "basic_attack"],
+      [
+        "paladin_holy_blade",
+        "paladin_shield_slam",
+        "paladin_war_provoke",
+        "paladin_bulwark_vow",
+        "paladin_prayer",
+        "paladin_command",
+        "basic_attack"
+      ],
       ["passive_plate_mastery", "passive_resolute_heart"]
     );
   }
 
   return createBattleLoadout(
     "talent_starweaver",
-    ["mage_flame_wave", "mage_arcane_bolt", "mage_frost_nova", "mage_mana_current", "mage_emergency_barrier"],
+    [
+      "mage_flame_wave",
+      "mage_arcane_bolt",
+      "mage_frost_nova",
+      "mage_null_field",
+      "mage_clear_mind",
+      "mage_mana_current",
+      "mage_emergency_barrier"
+    ],
     ["passive_arcane_flow", "passive_frost_focus"]
   );
 }

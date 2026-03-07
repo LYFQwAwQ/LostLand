@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { MageGearBoard } from "../components/hero/MageGearBoard";
 import { PaladinGearBoard } from "../components/hero/PaladinGearBoard";
 import { battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
+import { defaultHeroMemoryByClass, heroMemoryOptionsByClass } from "../data/heroMemories";
 import {
   EQUIPMENT_SLOT_LABELS,
   EQUIPMENT_SUBTYPE_LABELS,
@@ -1008,24 +1009,37 @@ function HeroSkillsContent({
   );
 }
 
-function HeroMemoryContent({ hero }: { hero: Hero }) {
-  const title = hero.heroClass === "paladin" ? "破碎的王座" : "凛冬的群星";
-  const quote =
-    hero.heroClass === "paladin"
-      ? "那是连光都被吞噬的黎明前夜。"
-      : "她在群星坠落前，记住了每一道法则裂痕。";
-  const effect =
-    hero.heroClass === "paladin"
-      ? "获得 [孤傲]：孤军奋战时伤害 +50%"
-      : "获得 [法涌]：法力值越高，法术穿透越高";
+function HeroMemoryContent({
+  hero,
+  memoryId,
+  onChangeMemory
+}: {
+  hero: Hero;
+  memoryId: string | null;
+  onChangeMemory: (nextMemoryId: string) => void;
+}) {
+  const options = heroMemoryOptionsByClass[hero.heroClass];
+  const fallback = options.find((item) => item.id === defaultHeroMemoryByClass[hero.heroClass]) ?? options[0];
+  const selected = options.find((item) => item.id === memoryId) ?? fallback;
 
   return (
     <div className="hero-memory-view">
       <aside className="memory-info-card">
         <SectionTitle title="记忆碎片效果" />
-        <h4>{title}</h4>
-        <p className="memory-quote">“{quote}”</p>
-        <div className="memory-effect">{effect}</div>
+        <h4>{selected?.title ?? "记忆占位"}</h4>
+        <p className="memory-quote">“{selected?.quote ?? "暂无记忆文本"}”</p>
+        <div className="memory-effect">{selected?.effect ?? "暂无效果描述"}</div>
+        <label className="hero-skill-select-row" style={{ marginTop: "10px" }}>
+          <span>记忆</span>
+          <select value={selected?.id ?? ""} onChange={(event) => onChangeMemory(event.target.value)}>
+            {options.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.title}
+              </option>
+            ))}
+          </select>
+          <small className="hero-skill-weight-tag">占位</small>
+        </label>
       </aside>
 
       <div className="memory-stage">
@@ -1046,8 +1060,9 @@ export function HeroPage() {
   const currentTab = (searchParams.get("tab") as HeroTab) || "stats";
   const hero = heroes.find((item) => item.id === heroId) ?? heroes[0];
   const { items, itemMap, equippedByHero, refreshItems, equipItem, unequipItem, getItemOwners } = useEquipmentInventory();
-  const { getHeroLoadout, setHeroLoadout, resetHeroLoadout } = useBattleSetup();
+  const { getHeroLoadout, setHeroLoadout, resetHeroLoadout, heroMemories, setHeroMemory } = useBattleSetup();
   const heroLoadout = getHeroLoadout(hero.id);
+  const selectedMemoryId = heroMemories[hero.id] ?? defaultHeroMemoryByClass[hero.heroClass];
 
   const [selectedSlotByHero, setSelectedSlotByHero] = useState<Record<string, string>>({});
 
@@ -1126,7 +1141,9 @@ export function HeroPage() {
                   onResetHeroLoadout={resetHeroLoadout}
                 />
               )}
-              {currentTab === "memory" && <HeroMemoryContent hero={hero} />}
+              {currentTab === "memory" && (
+                <HeroMemoryContent hero={hero} memoryId={selectedMemoryId} onChangeMemory={(nextMemoryId) => setHeroMemory(hero.id, nextMemoryId)} />
+              )}
             </div>
 
             <button className="hero-next-tab" type="button" onClick={() => setTab(nextTab(currentTab))}>

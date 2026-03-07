@@ -1,11 +1,13 @@
 import type { OrganizationBuildingDefinition, OrganizationGridCell } from "../types/organization";
 
 export const ORGANIZATION_CONFIG = {
-  gridSize: 40,
+  gridSize: 96,
+  initialTerritorySize: 40,
   maxRank: 10,
   rankExpBase: 220,
   rankExpGrowth: 150,
-  boardCellSize: 24,
+  boardCellSize: 40,
+  expansionPatchSize: 7,
   minZoom: 0.45,
   maxZoom: 2.6,
   zoomStep: 0.12

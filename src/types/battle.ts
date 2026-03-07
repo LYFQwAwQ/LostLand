@@ -21,7 +21,16 @@ export type BattleElement =
   | "undead"
   | "dark";
 
-export type BattleStatusKey = "frozen" | "stunned" | "poisoned" | "burning" | "guarded" | "weakened";
+export type BattleStatusKey =
+  | "frozen"
+  | "stunned"
+  | "poisoned"
+  | "burning"
+  | "guarded"
+  | "weakened"
+  | "shielded"
+  | "immune"
+  | "taunted";
 
 export type BattleTargetType =
   | "self"
@@ -102,6 +111,10 @@ export interface BattleStatusApplication {
   potency?: number;
 }
 
+export type BattleSkillEffectTarget = "self" | "targets";
+
+export type BattleStatusEffectPolarity = "positive" | "negative" | "all";
+
 export interface BattleSkillScaling {
   str?: number;
   int?: number;
@@ -109,6 +122,47 @@ export interface BattleSkillScaling {
   maxHp?: number;
   missingHp?: number;
 }
+
+export interface BattleSkillApplyStatusEffect {
+  type: "applyStatus";
+  target: BattleSkillEffectTarget;
+  application: BattleStatusApplication;
+}
+
+export interface BattleSkillActionDeltaEffect {
+  type: "actionDelta";
+  target: BattleSkillEffectTarget;
+  delta: number;
+}
+
+export interface BattleSkillShieldEffect {
+  type: "shield";
+  target: BattleSkillEffectTarget;
+  duration: number;
+  basePower: number;
+  scaling: BattleSkillScaling;
+}
+
+export interface BattleSkillCleanseEffect {
+  type: "cleanse";
+  target: BattleSkillEffectTarget;
+  removeCount?: number;
+  polarity?: BattleStatusEffectPolarity;
+}
+
+export interface BattleSkillDispelEffect {
+  type: "dispel";
+  target: BattleSkillEffectTarget;
+  removeCount?: number;
+  polarity?: BattleStatusEffectPolarity;
+}
+
+export type BattleSkillExtraEffect =
+  | BattleSkillApplyStatusEffect
+  | BattleSkillActionDeltaEffect
+  | BattleSkillShieldEffect
+  | BattleSkillCleanseEffect
+  | BattleSkillDispelEffect;
 
 export interface BattleActiveSkillDefinition {
   id: string;
@@ -134,6 +188,7 @@ export interface BattleActiveSkillDefinition {
   targetStatus?: BattleStatusApplication;
   actionDeltaSelf?: number;
   actionDeltaTarget?: number;
+  extraEffects?: BattleSkillExtraEffect[];
   weightTuning?: BattleSkillWeightTuning;
 }
 
@@ -307,7 +362,7 @@ export interface BattleReplayActionSnapshot {
   healDone: number;
 }
 
-export type BattleReplayStatusChangeAction = "applied" | "refreshed" | "expired";
+export type BattleReplayStatusChangeAction = "applied" | "refreshed" | "expired" | "removed";
 
 export interface BattleReplayStatusChange {
   id: string;

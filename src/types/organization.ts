@@ -35,3 +35,15 @@ export interface OrganizationPlacementCheckResult {
   reason: string | null;
   cells: OrganizationGridCell[];
 }
+
+export interface OrganizationTerritoryExpandResult {
+  ok: boolean;
+  message: string;
+  revealedCount: number;
+}
+
+export interface OrganizationTerritoryExpandCheckResult {
+  ok: boolean;
+  reason: string | null;
+  cells: OrganizationGridCell[];
+}

@@ -10,6 +10,11 @@ export interface EquippedOwner {
   slotId: string;
 }
 
+export interface EquipmentInventorySnapshot {
+  seed: string;
+  equippedByHero: Record<string, Record<string, string>>;
+}
+
 interface EquipmentInventoryContextValue {
   items: GeneratedEquipment[];
   itemMap: Map<string, GeneratedEquipment>;
@@ -24,6 +29,8 @@ interface EquipmentInventoryContextValue {
   unequipItem: (heroId: string, slotId: string) => void;
   getItemOwner: (itemUid: string) => EquippedOwner | null;
   getItemOwners: (itemUid: string) => EquippedOwner[];
+  exportSnapshot: () => EquipmentInventorySnapshot;
+  importSnapshot: (snapshot: EquipmentInventorySnapshot) => void;
 }
 
 const DEFAULT_SEED = "global-inventory-seed";
@@ -213,6 +220,31 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     });
   };
 
+  const exportSnapshot = (): EquipmentInventorySnapshot => {
+    const cloned = Object.entries(equippedByHero).reduce<Record<string, Record<string, string>>>((acc, [heroId, slots]) => {
+      acc[heroId] = { ...slots };
+      return acc;
+    }, {});
+    return {
+      seed,
+      equippedByHero: cloned
+    };
+  };
+
+  const importSnapshot = (snapshot: EquipmentInventorySnapshot) => {
+    setSeed(typeof snapshot.seed === "string" && snapshot.seed.length > 0 ? snapshot.seed : DEFAULT_SEED);
+    const next = Object.entries(snapshot.equippedByHero ?? {}).reduce<Record<string, Record<string, string>>>((acc, [heroId, slots]) => {
+      acc[heroId] = Object.entries(slots ?? {}).reduce<Record<string, string>>((slotAcc, [slotId, uid]) => {
+        if (typeof uid === "string" && uid.length > 0) {
+          slotAcc[slotId] = uid;
+        }
+        return slotAcc;
+      }, {});
+      return acc;
+    }, {});
+    setEquippedByHero(next);
+  };
+
   const value = useMemo<EquipmentInventoryContextValue>(
     () => ({
       items,
@@ -227,9 +259,11 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       },
       getItemOwners(itemUid) {
         return ownerMap.get(itemUid) ?? [];
-      }
+      },
+      exportSnapshot,
+      importSnapshot
     }),
-    [equippedByHero, itemMap, items, ownerMap]
+    [equippedByHero, itemMap, items, ownerMap, seed]
   );
 
   return <EquipmentInventoryContext.Provider value={value}>{children}</EquipmentInventoryContext.Provider>;
