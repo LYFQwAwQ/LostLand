@@ -1,4 +1,5 @@
 ﻿import { Navigate, Link, useParams } from "react-router-dom";
+import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
 import { canAccessAction, mapNodeTypeLabel } from "../lib/mapRules";
 import { useMapSystem } from "../state/MapSystemProvider";
 
@@ -22,9 +23,10 @@ export function RitualPage() {
   }
 
   const { node, region } = context;
+  const mapQuery = buildWorldMapSearchParams(selectionFromRegion(region)).toString();
 
   if (!canAccessAction(node, "ritual")) {
-    return <Navigate to={`/node/${node.id}?region=${region.id}&warn=blocked`} replace />;
+    return <Navigate to={`/node/${node.id}?${mapQuery}&warn=blocked`} replace />;
   }
 
   return (
@@ -36,7 +38,7 @@ export function RitualPage() {
         </p>
       </header>
 
-      <Link className="back-link" to={`/node/${node.id}?region=${region.id}`}>
+      <Link className="back-link" to={`/node/${node.id}?${mapQuery}`}>
         返回地点主界面
       </Link>
 
@@ -57,3 +59,4 @@ export function RitualPage() {
     </section>
   );
 }
+

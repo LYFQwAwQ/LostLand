@@ -6,7 +6,17 @@
   randomEnvironmentByArchetype,
   randomNameByArchetype
 } from "./archetypes";
-import type { Faction, InfluenceBreakdown, NodeArchetype, RegionEdge, RegionNode, RegionTopology } from "../types/game";
+import { settleRegionOneMonth } from "./monthlySimulation";
+import type {
+  DominionStaticConfig,
+  Faction,
+  FactionWeight,
+  InfluenceBreakdown,
+  NodeArchetype,
+  RegionEdge,
+  RegionNode,
+  RegionTopology
+} from "../types/game";
 
 interface Point {
   x: number;
@@ -17,13 +27,21 @@ interface BuildRegionOptions {
   regionId: string;
   continentId: RegionTopology["continentId"];
   continentName: string;
+  dominionId: string;
   dominionName: string;
   regionName: string;
+  neighborRegionIds: string[];
+  dominionConfig: DominionStaticConfig;
   seed: number;
   basePointCount?: number;
   minDistance?: number;
   complexity?: number;
   maxRadius?: number;
+  factionWeights?: FactionWeight[];
+  initialStrongFieldCount?: number;
+  fullFactionChance?: number;
+  preGrowthMonths?: number;
+  pathWeightRange?: [number, number];
 }
 
 interface Triangle {
@@ -428,26 +446,253 @@ function createInitialNodeState(archetype: NodeArchetype, random: () => number):
   };
 }
 
-function ensureKeyArchetypes(nodes: RegionNode[], random: () => number): void {
-  const active = nodes.filter((node) => node.state === "active");
-  if (active.length < 3) {
+interface WeightedEdgeIndex extends EdgeIndex {
+  weight: number;
+}
+
+function applyArchetypePreset(node: RegionNode, archetype: NodeArchetype, faction: Faction, random: () => number): void {
+  const profile = ARCHETYPE_PROFILES[archetype];
+  node.state = "active";
+  node.archetype = archetype;
+  node.faction = faction;
+  node.name = randomNameByArchetype(archetype, random);
+  node.environment = randomEnvironmentByArchetype(archetype, random);
+  node.stayBuff = randomBuffByArchetype(archetype, random);
+  node.difficulty = mapArchetypeDifficulty(archetype);
+  node.sim = createInitialNodeState(archetype, random);
+  node.field.orderAura = clamp(0.15 + profile.orderScale + random() * 0.1, 0.05, 1);
+  node.field.expansionAura = clamp(0.15 + profile.expansionScale + random() * 0.1, 0.05, 1);
+  node.field.pulse = clamp(0.35 + random() * 0.6, 0.2, 1);
+}
+
+function buildDistanceMatrix(nodeCount: number, edges: WeightedEdgeIndex[]): number[][] {
+  const matrix = Array.from({ length: nodeCount }, (_, i) =>
+    Array.from({ length: nodeCount }, (_, j) => (i === j ? 0 : Number.POSITIVE_INFINITY))
+  );
+
+  edges.forEach((edge) => {
+    if (edge.weight < matrix[edge.from][edge.to]) {
+      matrix[edge.from][edge.to] = edge.weight;
+      matrix[edge.to][edge.from] = edge.weight;
+    }
+  });
+
+  for (let k = 0; k < nodeCount; k += 1) {
+    for (let i = 0; i < nodeCount; i += 1) {
+      for (let j = 0; j < nodeCount; j += 1) {
+        const candidate = matrix[i][k] + matrix[k][j];
+        if (candidate < matrix[i][j]) {
+          matrix[i][j] = candidate;
+        }
+      }
+    }
+  }
+
+  return matrix;
+}
+
+function assignFactionsByWeight(weights: FactionWeight[], seedCount: number): Faction[] {
+  if (seedCount <= 0) {
+    return [];
+  }
+
+  const normalized = [...weights]
+    .sort((left, right) => right.weight - left.weight)
+    .map((item) => ({ faction: item.faction, quota: (item.weight / 100) * seedCount, assigned: 0 }));
+
+  if (normalized.length === 0) {
+    return Array.from({ length: seedCount }, () => "Neutral");
+  }
+
+  const result: Faction[] = [];
+  for (let i = 0; i < seedCount; i += 1) {
+    normalized.sort((left, right) => {
+      const leftGap = left.quota - left.assigned;
+      const rightGap = right.quota - right.assigned;
+      if (rightGap === leftGap) {
+        return right.quota - left.quota;
+      }
+      return rightGap - leftGap;
+    });
+    normalized[0].assigned += 1;
+    result.push(normalized[0].faction);
+  }
+
+  return result;
+}
+
+function pickCradleSeedIndices(
+  points: Point[],
+  distances: number[][],
+  seedCount: number,
+  random: () => number
+): number[] {
+  if (points.length === 0 || seedCount <= 0) {
+    return [];
+  }
+
+  const center = { x: 50, y: 50 };
+  const centralCandidates = points
+    .map((point, index) => ({ index, d: dist(point, center) }))
+    .sort((left, right) => left.d - right.d);
+
+  const firstPoolSize = Math.max(1, Math.floor(centralCandidates.length * 0.35));
+  const firstSeed = centralCandidates[Math.floor(random() * firstPoolSize)].index;
+  const selected = [firstSeed];
+
+  while (selected.length < Math.min(seedCount, points.length)) {
+    let bestIndex = -1;
+    let bestDistance = Number.NEGATIVE_INFINITY;
+
+    for (let i = 0; i < points.length; i += 1) {
+      if (selected.includes(i)) {
+        continue;
+      }
+
+      const nearest = selected.reduce((min, selectedIndex) => Math.min(min, distances[i][selectedIndex]), Number.POSITIVE_INFINITY);
+      if (nearest > bestDistance) {
+        bestDistance = nearest;
+        bestIndex = i;
+      }
+    }
+
+    if (bestIndex < 0) {
+      break;
+    }
+    selected.push(bestIndex);
+  }
+
+  return selected;
+}
+
+function applyStaticSeeding(
+  nodes: RegionNode[],
+  points: Point[],
+  weightedEdges: WeightedEdgeIndex[],
+  options: BuildRegionOptions,
+  random: () => number
+): void {
+  const factionWeights = options.factionWeights ?? options.dominionConfig.factionWeights;
+  const desiredSeeds = Math.max(1, Math.min(options.initialStrongFieldCount ?? options.dominionConfig.initialStrongFieldCount, nodes.length));
+  const distances = buildDistanceMatrix(points.length, weightedEdges);
+  const cradleIndices = pickCradleSeedIndices(points, distances, desiredSeeds, random);
+  const seedFactions = assignFactionsByWeight(factionWeights, cradleIndices.length);
+
+  cradleIndices.forEach((nodeIndex, idx) => {
+    const faction = seedFactions[idx] ?? factionWeights[0]?.faction ?? "Neutral";
+    applyArchetypePreset(nodes[nodeIndex], "ST1", faction, random);
+  });
+
+  if (cradleIndices.length === 0) {
     return;
   }
 
-  const force: NodeArchetype[] = ["ST1", "BL3", "ST2"];
+  const shouldForceFullFaction = random() < (options.fullFactionChance ?? options.dominionConfig.fullFactionChance);
+  if (!shouldForceFullFaction) {
+    return;
+  }
 
-  force.forEach((archetype, index) => {
-    const node = active[index];
-    node.archetype = archetype;
-    node.faction = inferFaction(archetype, random);
-    node.name = randomNameByArchetype(archetype, random);
-    node.environment = randomEnvironmentByArchetype(archetype, random);
-    node.stayBuff = randomBuffByArchetype(archetype, random);
-    node.difficulty = mapArchetypeDifficulty(archetype);
-    node.sim = createInitialNodeState(archetype, random);
-    node.field.orderAura = clamp(0.15 + ARCHETYPE_PROFILES[archetype].orderScale, 0.08, 0.95);
-    node.field.expansionAura = clamp(0.15 + ARCHETYPE_PROFILES[archetype].expansionScale, 0.08, 0.95);
+  const occupied = new Set<number>(cradleIndices);
+  const seededFactions = new Set(seedFactions);
+  const sovereignFaction =
+    [...factionWeights].sort((left, right) => right.weight - left.weight)[0]?.faction ?? "Human";
+  const sovereignSeeds = cradleIndices.filter((index) => nodes[index].faction === sovereignFaction);
+  const anchorSeeds = sovereignSeeds.length > 0 ? sovereignSeeds : cradleIndices;
+
+  factionWeights.forEach((item) => {
+    if (seededFactions.has(item.faction)) {
+      return;
+    }
+
+    let chosenIndex = -1;
+    let chosenDistance = Number.NEGATIVE_INFINITY;
+
+    for (let i = 0; i < nodes.length; i += 1) {
+      if (occupied.has(i)) {
+        continue;
+      }
+
+      const nearest = anchorSeeds.reduce((min, seedIndex) => Math.min(min, distances[i][seedIndex]), Number.POSITIVE_INFINITY);
+      const passRadius = nearest > (options.maxRadius ?? options.dominionConfig.maxRadius);
+      if (!passRadius) {
+        continue;
+      }
+      if (nearest > chosenDistance) {
+        chosenDistance = nearest;
+        chosenIndex = i;
+      }
+    }
+
+    if (chosenIndex < 0) {
+      for (let i = 0; i < nodes.length; i += 1) {
+        if (occupied.has(i)) {
+          continue;
+        }
+        chosenIndex = i;
+        break;
+      }
+    }
+
+    if (chosenIndex < 0) {
+      return;
+    }
+
+    occupied.add(chosenIndex);
+    applyArchetypePreset(nodes[chosenIndex], "ST2", item.faction, random);
   });
+}
+
+function preGrowRegion(region: RegionTopology, rounds: number): RegionTopology {
+  if (rounds <= 0) {
+    return region;
+  }
+
+  let working: RegionTopology = {
+    ...region,
+    id: `${region.id}__pregrowth`,
+    currentMonth: 1,
+    lastMonthReport: undefined
+  };
+
+  for (let i = 0; i < rounds; i += 1) {
+    working = settleRegionOneMonth(working).region;
+  }
+
+  return {
+    ...working,
+    id: region.id,
+    currentMonth: 1,
+    lastMonthReport: undefined
+  };
+}
+
+function applyHistoryShake(nodes: RegionNode[], random: () => number): RegionNode[] {
+  return nodes.map((node) => {
+    const shake = 1 + (random() * 2 - 1) * 0.1;
+    const profile = ARCHETYPE_PROFILES[node.archetype];
+    return {
+      ...node,
+      sim: {
+        ...node.sim,
+        prosperity: Number(clamp(node.sim.prosperity * shake, -1800, profile.initialStrength * 20).toFixed(2))
+      }
+    };
+  });
+}
+
+function estimateMapSuppression(nodes: RegionNode[]): number {
+  const active = nodes.filter((node) => node.state === "active");
+  const stableCount = active.filter((node) => node.archetype.startsWith("ST")).length;
+  const chaosCount = active.filter((node) => node.archetype.startsWith("BL")).length;
+  const avgProsperity = active.length > 0 ? active.reduce((sum, node) => sum + node.sim.prosperity, 0) / active.length : 0;
+
+  const score =
+    (stableCount / Math.max(stableCount + chaosCount, 1)) * 72 +
+    clamp(avgProsperity / 16, -18, 18) -
+    chaosCount * 0.7 +
+    26;
+
+  return Math.round(clamp(score, 0, 100));
 }
 
 export function buildRegionTopology(options: BuildRegionOptions): RegionTopology {
@@ -455,12 +700,17 @@ export function buildRegionTopology(options: BuildRegionOptions): RegionTopology
   const baseCount = options.basePointCount ?? 30;
   const minDistance = options.minDistance ?? 11;
   const complexity = clamp(options.complexity ?? 0.45, 0.05, 0.95);
-  const maxRadius = options.maxRadius ?? 5;
+  const maxRadius = options.maxRadius ?? options.dominionConfig.maxRadius;
+  const pathWeightRange = options.pathWeightRange ?? options.dominionConfig.pathWeightRange;
 
   const points = generatePoissonPoints(100, 100, minDistance, 28, baseCount, random);
   const triangles = bowyerWatson(points);
   const allEdges = extractEdgesFromTriangles(triangles);
   const edges = pruneEdges(points, allEdges, complexity, random);
+  const weightedEdges: WeightedEdgeIndex[] = edges.map((edge) => ({
+    ...edge,
+    weight: Number((dist(points[edge.from], points[edge.to]) * (pathWeightRange[0] + random() * (pathWeightRange[1] - pathWeightRange[0]))).toFixed(3))
+  }));
 
   const nodeIds = points.map((_, i) => `${options.regionId}-n${String(i + 1).padStart(2, "0")}`);
   const stateSlots = points.map((_, index) => index);
@@ -486,6 +736,8 @@ export function buildRegionTopology(options: BuildRegionOptions): RegionTopology
     const profile = ARCHETYPE_PROFILES[archetype];
     const fogCurrent = Math.round(random() * 160);
     const fogTarget = 240;
+    const trait = options.dominionConfig.environmentTraits.length > 0 ? pickRandom(options.dominionConfig.environmentTraits, random) : null;
+    const baseEnvironment = randomEnvironmentByArchetype(archetype, random);
 
     return {
       id: nodeIds[index],
@@ -496,7 +748,7 @@ export function buildRegionTopology(options: BuildRegionOptions): RegionTopology
       state,
       archetype,
       faction: inferFaction(archetype, random),
-      environment: randomEnvironmentByArchetype(archetype, random),
+      environment: trait ? `${baseEnvironment} · ${trait}` : baseEnvironment,
       stayBuff: randomBuffByArchetype(archetype, random),
       difficulty: mapArchetypeDifficulty(archetype),
       field: {
@@ -513,11 +765,11 @@ export function buildRegionTopology(options: BuildRegionOptions): RegionTopology
     };
   });
 
-  ensureKeyArchetypes(nodes, random);
+  applyStaticSeeding(nodes, points, weightedEdges, options, random);
 
   const nodeById = Object.fromEntries(nodes.map((node) => [node.id, node]));
 
-  const regionEdges: RegionEdge[] = edges.map((edge, index) => {
+  const regionEdges: RegionEdge[] = weightedEdges.map((edge, index) => {
     const fromId = nodeIds[edge.from];
     const toId = nodeIds[edge.to];
     const fromNode = nodeById[fromId];
@@ -527,7 +779,7 @@ export function buildRegionTopology(options: BuildRegionOptions): RegionTopology
       id: `${options.regionId}-e${index + 1}`,
       from: fromId,
       to: toId,
-      weight: Number(dist(points[edge.from], points[edge.to]).toFixed(3)),
+      weight: edge.weight,
       fieldFlux: {
         order: Number(((fromNode.field.orderAura + toNode.field.orderAura) / 2).toFixed(3)),
         expansion: Number(((fromNode.field.expansionAura + toNode.field.expansionAura) / 2).toFixed(3))
@@ -535,16 +787,37 @@ export function buildRegionTopology(options: BuildRegionOptions): RegionTopology
     };
   });
 
-  return {
+  const baseRegion: RegionTopology = {
     id: options.regionId,
     continentId: options.continentId,
     continentName: options.continentName,
+    dominionId: options.dominionId,
     dominionName: options.dominionName,
     regionName: options.regionName,
+    neighborRegionIds: [...options.neighborRegionIds],
+    dominionConfig: {
+      ...options.dominionConfig,
+      environmentTraits: [...options.dominionConfig.environmentTraits],
+      factionWeights: options.dominionConfig.factionWeights.map((item) => ({ ...item })),
+      scaleRange: [...options.dominionConfig.scaleRange] as [number, number],
+      pathWeightRange: [...options.dominionConfig.pathWeightRange] as [number, number]
+    },
     mapSuppression: Math.round(30 + random() * 45),
     nodes,
     edges: regionEdges,
     currentMonth: 1,
     maxRadius
+  };
+
+  const preGrowthRounds = Math.max(0, options.preGrowthMonths ?? 0);
+  const preGrownRegion = preGrowRegion(baseRegion, preGrowthRounds);
+  const shakenNodes = applyHistoryShake(preGrownRegion.nodes, random);
+
+  return {
+    ...preGrownRegion,
+    nodes: shakenNodes,
+    mapSuppression: estimateMapSuppression(shakenNodes),
+    currentMonth: 1,
+    lastMonthReport: undefined
   };
 }

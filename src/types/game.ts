@@ -26,6 +26,11 @@ export type NodeArchetype = "ST1" | "ST2" | "ST3" | "BL1" | "BL2" | "BL3" | "NOD
 
 export type Faction = "Human" | "Beast" | "Neutral";
 
+export interface FactionWeight {
+  faction: Faction;
+  weight: number;
+}
+
 export type NodeAction =
   | "detail"
   | "shop"
@@ -122,12 +127,30 @@ export interface RegionMonthReport {
   playback: RegionPlaybackFrame[];
 }
 
+export interface DominionStaticConfig {
+  environmentTraits: string[];
+  factionWeights: FactionWeight[];
+  baseRegionScale: number;
+  scaleRange: [number, number];
+  complexityBase: number;
+  complexitySwing: number;
+  initialStrongFieldCount: number;
+  initEvolutionMonthCap: number;
+  weightSwing: number;
+  maxRadius: number;
+  fullFactionChance: number;
+  pathWeightRange: [number, number];
+}
+
 export interface RegionTopology {
   id: string;
   continentId: ContinentId;
   continentName: string;
+  dominionId: string;
   dominionName: string;
   regionName: string;
+  neighborRegionIds: string[];
+  dominionConfig: DominionStaticConfig;
   mapSuppression: number;
   nodes: RegionNode[];
   edges: RegionEdge[];

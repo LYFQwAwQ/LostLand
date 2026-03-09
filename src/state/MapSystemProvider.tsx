@@ -1,6 +1,7 @@
-﻿import { createContext, useContext, useMemo, useState } from "react";
+﻿import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { createInitialRegions, initialLogs } from "../data/mockData";
+import { initialLogs } from "../data/mockData";
+import { createRegionTopologyById } from "../data/worldMapData";
 import { settleRegionOneMonth } from "../lib/monthlySimulation";
 import type { RegionNode, RegionTopology } from "../types/game";
 
@@ -8,53 +9,84 @@ interface MapSystemContextValue {
   regions: RegionTopology[];
   worldMonth: number;
   worldLogs: string[];
-  advanceOneMonth: () => void;
-  getRegionById: (regionId?: string | null) => RegionTopology;
+  ensureRegionLoaded: (regionId: string) => RegionTopology;
+  advanceOneMonth: (regionId: string) => void;
+  getRegionById: (regionId?: string | null) => RegionTopology | undefined;
   findNodeById: (nodeId?: string) => { region: RegionTopology; node: RegionNode } | null;
 }
 
 const MapSystemContext = createContext<MapSystemContextValue | null>(null);
 
 export function MapSystemProvider({ children }: { children: ReactNode }) {
-  const [regions, setRegions] = useState<RegionTopology[]>(() => createInitialRegions());
+  const [regionsById, setRegionsById] = useState<Record<string, RegionTopology>>({});
   const [worldMonth, setWorldMonth] = useState(1);
   const [worldLogs, setWorldLogs] = useState<string[]>(initialLogs);
 
-  const advanceOneMonth = () => {
-    const targetMonth = worldMonth + 1;
+  const regions = useMemo(() => Object.values(regionsById), [regionsById]);
 
-    setRegions((prev) => {
-      const settled = prev.map((region) => settleRegionOneMonth(region));
+  const ensureRegionLoaded = useCallback(
+    (regionId: string): RegionTopology => {
+      const existing = regionsById[regionId];
+      if (existing) {
+        return existing;
+      }
 
-      const monthLogs = settled
-        .flatMap((item) => item.report.events.map((event) => `${item.region.regionName}：${event}`))
-        .slice(-18);
-
-      setWorldLogs((old) => {
-        const base = old.slice(0, 6);
-        if (monthLogs.length === 0) {
-          return [`第 ${targetMonth} 月结算完成，无重大事件。`, ...base].slice(0, 18);
+      const created = createRegionTopologyById(regionId);
+      setRegionsById((prev) => {
+        if (prev[regionId]) {
+          return prev;
         }
-        return [...monthLogs.reverse(), ...base].slice(0, 18);
+        return { ...prev, [regionId]: created };
       });
+      return created;
+    },
+    [regionsById]
+  );
 
-      return settled.map((item) => item.region);
-    });
+  const advanceOneMonth = useCallback(
+    (regionId: string) => {
+      setWorldMonth((prevWorldMonth) => {
+        const targetMonth = prevWorldMonth + 1;
 
-    setWorldMonth(targetMonth);
-  };
+        setRegionsById((prev) => {
+          const baseRegion = prev[regionId] ?? createRegionTopologyById(regionId);
+          const settled = settleRegionOneMonth(baseRegion);
+
+          setWorldLogs((old) => {
+            const regionName = settled.region.regionName;
+            const monthLogs = settled.report.events.slice(0, 6).map((event) => `${regionName}：${event}`);
+
+            if (monthLogs.length === 0) {
+              return [`第 ${targetMonth} 月结算完成（${regionName}），无重大事件。`, ...old].slice(0, 18);
+            }
+
+            return [...monthLogs.reverse(), ...old].slice(0, 18);
+          });
+
+          return {
+            ...prev,
+            [regionId]: settled.region
+          };
+        });
+
+        return targetMonth;
+      });
+    },
+    []
+  );
 
   const value = useMemo<MapSystemContextValue>(
     () => ({
       regions,
       worldMonth,
       worldLogs,
+      ensureRegionLoaded,
       advanceOneMonth,
       getRegionById(regionId) {
         if (!regionId) {
-          return regions[0];
+          return undefined;
         }
-        return regions.find((region) => region.id === regionId) ?? regions[0];
+        return regionsById[regionId];
       },
       findNodeById(nodeId) {
         if (!nodeId) {
@@ -71,7 +103,7 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
         return null;
       }
     }),
-    [regions, worldLogs, worldMonth]
+    [advanceOneMonth, ensureRegionLoaded, regions, regionsById, worldLogs, worldMonth]
   );
 
   return <MapSystemContext.Provider value={value}>{children}</MapSystemContext.Provider>;

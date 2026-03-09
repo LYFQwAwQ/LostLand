@@ -1,7 +1,7 @@
 ﻿import { Coins, Hammer, ScrollText, Shield, ShoppingBag, Sparkles, Sword, Users } from "lucide-react";
 import { Navigate, Link, useParams } from "react-router-dom";
-import {
-  bulletinNotice,
+import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
+import { bulletinNotice,
   getBulletinMissions,
   getForgeRecipes,
   getMarketInventory,
@@ -48,13 +48,14 @@ export function NodeActionPage() {
   }
 
   const { node, region } = context;
+  const mapQuery = buildWorldMapSearchParams(selectionFromRegion(region)).toString();
 
   if (!isNodeAction(action) || action === "ritual") {
-    return <Navigate to={`/node/${node.id}?region=${region.id}&warn=blocked`} replace />;
+    return <Navigate to={`/node/${node.id}?${mapQuery}&warn=blocked`} replace />;
   }
 
   if (!canAccessAction(node, action)) {
-    return <Navigate to={`/node/${node.id}?region=${region.id}&warn=blocked`} replace />;
+    return <Navigate to={`/node/${node.id}?${mapQuery}&warn=blocked`} replace />;
   }
 
   const meta = ACTION_META[action];
@@ -68,7 +69,7 @@ export function NodeActionPage() {
         </p>
       </header>
 
-      <Link className="back-link" to={`/node/${node.id}?region=${region.id}`}>
+      <Link className="back-link" to={`/node/${node.id}?${mapQuery}`}>
         返回地点主界面
       </Link>
 
@@ -93,7 +94,7 @@ export function NodeActionPage() {
           <HeaderInfo title="讨伐准备">
             <p>战斗系统已接入实时模拟，可直接作为后续正式战斗模板。</p>
             <p>队伍规则：双方 1-6 人，前后排各最多 3 人。</p>
-            <Link to={`/battle/${node.id}?region=${region.id}`} className="secondary-btn-link">
+            <Link to={`/battle/${node.id}?${mapQuery}`} className="secondary-btn-link">
               <Shield size={14} />
               进入实时战斗
             </Link>
@@ -103,7 +104,7 @@ export function NodeActionPage() {
             <p>当前地图压制：{region.mapSuppression}%（影响掉落强度与数量）。</p>
             <p>推荐压制值：{Math.max(45, region.mapSuppression)}%</p>
             {node.archetype === "BL3" ? (
-              <Link to={`/node/${node.id}/ritual?region=${region.id}`} className="secondary-btn-link">
+              <Link to={`/node/${node.id}/ritual?${mapQuery}`} className="secondary-btn-link">
                 挑战 / 开启仪式
               </Link>
             ) : null}
@@ -272,3 +273,5 @@ export function NodeActionPage() {
     </section>
   );
 }
+
+

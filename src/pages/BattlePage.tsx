@@ -1,7 +1,8 @@
-import { FastForward, Gauge, Pause, Play, RotateCcw, Shield, Swords, X } from "lucide-react";
+﻿import { FastForward, Gauge, Pause, Play, RotateCcw, Shield, Swords, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { heroes } from "../data/mockData";
+import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
 import { buildAllyTeamTemplates, buildEnemyTeamTemplates } from "../lib/battleAdapters";
 import { endBattle, createBattleRuntime, setBattleRunning, setBattleSpeed, stepBattle } from "../lib/battleEngine";
 import { EQUIPMENT_SLOT_LABELS, EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
@@ -333,7 +334,8 @@ export function BattlePage() {
     );
   }
 
-  const backLink = `/node/${context.node.id}?region=${context.region.id}`;
+  const mapQuery = buildWorldMapSearchParams(selectionFromRegion(context.region)).toString();
+  const backLink = `/node/${context.node.id}?${mapQuery}`;
   const isRunning = runtime.status === "running";
   const isFinished = runtime.status === "finished";
   const canChainToNextRound = isFinished && runtime.winner === "ally" && runtime.units.some((unit) => unit.side === "ally" && unit.alive);
@@ -794,3 +796,4 @@ export function BattlePage() {
     </section>
   );
 }
+

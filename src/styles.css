@@ -169,6 +169,167 @@ body {
   color: var(--gold);
 }
 
+.continent-tabs button {
+  min-width: 96px;
+}
+
+.map-empty-selection {
+  margin-top: 14px;
+  border: 1px dashed #5f4d38;
+  border-radius: 12px;
+  background: rgb(26 20 15 / 72%);
+  padding: 14px;
+}
+
+.map-empty-selection h2 {
+  margin: 0;
+  color: #efce96;
+  font-size: 18px;
+}
+
+.map-empty-selection p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.neighbor-switch-card {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 10px 12px;
+}
+
+.neighbor-switch-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.neighbor-switch-card h3 {
+  margin: 0;
+  color: #e8cc98;
+  font-size: 14px;
+}
+
+.neighbor-switch-card small {
+  color: #af9670;
+}
+
+.neighbor-switch-list {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.neighbor-switch-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.neighbor-switch-list button {
+  border: 1px solid #6c553d;
+  border-radius: 999px;
+  background: #221a13;
+  color: #e4c995;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.neighbor-switch-list button:hover {
+  border-color: #dab46d;
+  color: #f3ddb1;
+}
+
+.world-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgb(8 6 5 / 62%);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+
+.world-picker-modal {
+  width: min(680px, 100%);
+  max-height: 84vh;
+  overflow: auto;
+  border: 1px solid #6a563f;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #231b13 0%, #18120d 100%);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.world-picker-modal header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.world-picker-modal h2 {
+  margin: 0;
+  color: #f0d4a5;
+  font-size: 18px;
+}
+
+.world-picker-modal p {
+  margin: 0;
+  color: #bea27b;
+  font-size: 13px;
+}
+
+.world-picker-modal header button {
+  border: 1px solid #6a553c;
+  border-radius: 8px;
+  background: #1c150f;
+  color: #d2b286;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.world-picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.world-picker-list button {
+  border: 1px solid #5f4b37;
+  border-radius: 10px;
+  background: #22180f;
+  color: #dfc28f;
+  text-align: left;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.world-picker-list button:hover {
+  border-color: #cda264;
+  background: #2a1e13;
+}
+
+.world-picker-list button strong {
+  font-size: 14px;
+  color: #f0d8ad;
+}
+
+.world-picker-list button span {
+  font-size: 12px;
+  color: #ad926f;
+}
+
 .map-stage {
   margin-top: 14px;
   height: min(65vh, 620px);

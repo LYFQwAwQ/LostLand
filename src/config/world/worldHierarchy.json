@@ -1,0 +1,302 @@
+﻿{
+  "continents": [
+    {
+      "id": "central",
+      "name": "中央大陆",
+      "feature": "古道与王城交汇的中枢板块。",
+      "topDropPoolKey": "central-legend-pool",
+      "dominionIds": ["holy-heartland", "iron-frontier"]
+    },
+    {
+      "id": "north",
+      "name": "北方大陆",
+      "feature": "冰原与裂谷交错，补给线稀薄。",
+      "topDropPoolKey": "north-frost-pool",
+      "dominionIds": ["frostwolf-range", "glacier-march"]
+    },
+    {
+      "id": "south",
+      "name": "南方大陆",
+      "feature": "熔岩带与干热峡谷并存。",
+      "topDropPoolKey": "south-flame-pool",
+      "dominionIds": ["embersand-core", "sunscar-coast"]
+    },
+    {
+      "id": "west",
+      "name": "西方大陆",
+      "feature": "潮汐风暴常年侵袭的群岬地带。",
+      "topDropPoolKey": "west-tempest-pool",
+      "dominionIds": ["storm-basin", "tidal-cliff"]
+    },
+    {
+      "id": "east",
+      "name": "东方大陆",
+      "feature": "古林与雾泽层叠，视野受限。",
+      "topDropPoolKey": "east-verdant-pool",
+      "dominionIds": ["verdant-arc", "mistwood-belt"]
+    }
+  ],
+  "dominions": [
+    {
+      "id": "holy-heartland",
+      "continentId": "central",
+      "name": "圣辉疆域",
+      "environmentTraits": ["圣辉残响", "旧王道补给线"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 62 },
+        { "faction": "Beast", "weight": 24 },
+        { "faction": "Neutral", "weight": 14 }
+      ],
+      "baseRegionScale": 31,
+      "scaleRange": [0.86, 1.18],
+      "complexityBase": 0.47,
+      "complexitySwing": 0.18,
+      "initialStrongFieldCount": 4,
+      "initEvolutionMonthCap": 7,
+      "weightSwing": 0.15,
+      "maxRadius": 5,
+      "fullFactionChance": 0.74,
+      "pathWeightRange": [0.92, 1.15],
+      "regionIds": ["dawn-border", "silver-lake", "quiet-plain"]
+    },
+    {
+      "id": "iron-frontier",
+      "continentId": "central",
+      "name": "钢岚疆域",
+      "environmentTraits": ["高炉烟尘", "铁轨枢纽"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 52 },
+        { "faction": "Beast", "weight": 31 },
+        { "faction": "Neutral", "weight": 17 }
+      ],
+      "baseRegionScale": 29,
+      "scaleRange": [0.82, 1.14],
+      "complexityBase": 0.51,
+      "complexitySwing": 0.2,
+      "initialStrongFieldCount": 4,
+      "initEvolutionMonthCap": 8,
+      "weightSwing": 0.16,
+      "maxRadius": 5,
+      "fullFactionChance": 0.68,
+      "pathWeightRange": [0.94, 1.2],
+      "regionIds": ["furnace-pass", "ember-harbor", "rust-ridge"]
+    },
+    {
+      "id": "frostwolf-range",
+      "continentId": "north",
+      "name": "霜狼疆域",
+      "environmentTraits": ["极夜冻雾", "冰脊回廊"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 46 },
+        { "faction": "Beast", "weight": 39 },
+        { "faction": "Neutral", "weight": 15 }
+      ],
+      "baseRegionScale": 30,
+      "scaleRange": [0.84, 1.16],
+      "complexityBase": 0.53,
+      "complexitySwing": 0.2,
+      "initialStrongFieldCount": 4,
+      "initEvolutionMonthCap": 8,
+      "weightSwing": 0.17,
+      "maxRadius": 5,
+      "fullFactionChance": 0.66,
+      "pathWeightRange": [0.96, 1.22],
+      "regionIds": ["whitefrost-front", "wolfbone-ridge", "aurora-steppe"]
+    },
+    {
+      "id": "glacier-march",
+      "continentId": "north",
+      "name": "冰川疆域",
+      "environmentTraits": ["蓝冰断层", "寒潮逆风"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 41 },
+        { "faction": "Beast", "weight": 43 },
+        { "faction": "Neutral", "weight": 16 }
+      ],
+      "baseRegionScale": 28,
+      "scaleRange": [0.8, 1.1],
+      "complexityBase": 0.56,
+      "complexitySwing": 0.22,
+      "initialStrongFieldCount": 3,
+      "initEvolutionMonthCap": 9,
+      "weightSwing": 0.18,
+      "maxRadius": 5,
+      "fullFactionChance": 0.63,
+      "pathWeightRange": [0.98, 1.24],
+      "regionIds": ["riftwatch", "icefield-crossing", "frozen-port"]
+    },
+    {
+      "id": "embersand-core",
+      "continentId": "south",
+      "name": "焰砂疆域",
+      "environmentTraits": ["热浪涌动", "玄武岩裂谷"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 44 },
+        { "faction": "Beast", "weight": 42 },
+        { "faction": "Neutral", "weight": 14 }
+      ],
+      "baseRegionScale": 32,
+      "scaleRange": [0.88, 1.2],
+      "complexityBase": 0.49,
+      "complexitySwing": 0.19,
+      "initialStrongFieldCount": 4,
+      "initEvolutionMonthCap": 8,
+      "weightSwing": 0.15,
+      "maxRadius": 5,
+      "fullFactionChance": 0.7,
+      "pathWeightRange": [0.9, 1.16],
+      "regionIds": ["molten-canyon", "ashfall-delta", "sunforge-gate"]
+    },
+    {
+      "id": "sunscar-coast",
+      "continentId": "south",
+      "name": "烈痕疆域",
+      "environmentTraits": ["盐风灼蚀", "断崖海雾"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 48 },
+        { "faction": "Beast", "weight": 33 },
+        { "faction": "Neutral", "weight": 19 }
+      ],
+      "baseRegionScale": 27,
+      "scaleRange": [0.82, 1.12],
+      "complexityBase": 0.52,
+      "complexitySwing": 0.2,
+      "initialStrongFieldCount": 3,
+      "initEvolutionMonthCap": 7,
+      "weightSwing": 0.14,
+      "maxRadius": 5,
+      "fullFactionChance": 0.65,
+      "pathWeightRange": [0.94, 1.18],
+      "regionIds": ["scorch-bay", "red-reef", "cinder-dunes"]
+    },
+    {
+      "id": "storm-basin",
+      "continentId": "west",
+      "name": "风暴疆域",
+      "environmentTraits": ["旋潮低压", "雷暴走廊"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 43 },
+        { "faction": "Beast", "weight": 37 },
+        { "faction": "Neutral", "weight": 20 }
+      ],
+      "baseRegionScale": 30,
+      "scaleRange": [0.84, 1.14],
+      "complexityBase": 0.54,
+      "complexitySwing": 0.21,
+      "initialStrongFieldCount": 4,
+      "initEvolutionMonthCap": 8,
+      "weightSwing": 0.17,
+      "maxRadius": 5,
+      "fullFactionChance": 0.67,
+      "pathWeightRange": [0.95, 1.21],
+      "regionIds": ["broken-tide-coast", "thunder-fjord", "maelstrom-key"]
+    },
+    {
+      "id": "tidal-cliff",
+      "continentId": "west",
+      "name": "断潮疆域",
+      "environmentTraits": ["礁壁逆流", "潮汐断面"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 40 },
+        { "faction": "Beast", "weight": 41 },
+        { "faction": "Neutral", "weight": 19 }
+      ],
+      "baseRegionScale": 26,
+      "scaleRange": [0.8, 1.08],
+      "complexityBase": 0.57,
+      "complexitySwing": 0.23,
+      "initialStrongFieldCount": 3,
+      "initEvolutionMonthCap": 9,
+      "weightSwing": 0.18,
+      "maxRadius": 5,
+      "fullFactionChance": 0.61,
+      "pathWeightRange": [0.98, 1.24],
+      "regionIds": ["cliffmouth", "salt-wharf", "gale-needle"]
+    },
+    {
+      "id": "verdant-arc",
+      "continentId": "east",
+      "name": "古林疆域",
+      "environmentTraits": ["林冠遮蔽", "藤蔓隧道"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 45 },
+        { "faction": "Beast", "weight": 35 },
+        { "faction": "Neutral", "weight": 20 }
+      ],
+      "baseRegionScale": 31,
+      "scaleRange": [0.86, 1.16],
+      "complexityBase": 0.5,
+      "complexitySwing": 0.2,
+      "initialStrongFieldCount": 4,
+      "initEvolutionMonthCap": 8,
+      "weightSwing": 0.16,
+      "maxRadius": 5,
+      "fullFactionChance": 0.72,
+      "pathWeightRange": [0.92, 1.17],
+      "regionIds": ["umbral-grove", "jade-mire", "hollow-bloom"]
+    },
+    {
+      "id": "mistwood-belt",
+      "continentId": "east",
+      "name": "雾木疆域",
+      "environmentTraits": ["沼雾回响", "古树裂隙"],
+      "factionWeights": [
+        { "faction": "Human", "weight": 38 },
+        { "faction": "Beast", "weight": 44 },
+        { "faction": "Neutral", "weight": 18 }
+      ],
+      "baseRegionScale": 27,
+      "scaleRange": [0.8, 1.1],
+      "complexityBase": 0.55,
+      "complexitySwing": 0.22,
+      "initialStrongFieldCount": 3,
+      "initEvolutionMonthCap": 9,
+      "weightSwing": 0.18,
+      "maxRadius": 5,
+      "fullFactionChance": 0.62,
+      "pathWeightRange": [0.96, 1.23],
+      "regionIds": ["deep-moss", "fogstep-wood", "silkroot-pass"]
+    }
+  ],
+  "regions": [
+    { "id": "dawn-border", "dominionId": "holy-heartland", "name": "晨星边境", "seed": 101, "neighbors": ["silver-lake", "quiet-plain", "furnace-pass"] },
+    { "id": "silver-lake", "dominionId": "holy-heartland", "name": "银月湖区", "seed": 102, "neighbors": ["dawn-border", "quiet-plain", "ember-harbor"] },
+    { "id": "quiet-plain", "dominionId": "holy-heartland", "name": "静风平原", "seed": 103, "neighbors": ["dawn-border", "silver-lake"] },
+
+    { "id": "furnace-pass", "dominionId": "iron-frontier", "name": "熔铁隘口", "seed": 111, "neighbors": ["dawn-border", "ember-harbor", "rust-ridge"] },
+    { "id": "ember-harbor", "dominionId": "iron-frontier", "name": "余烬港湾", "seed": 112, "neighbors": ["furnace-pass", "rust-ridge", "silver-lake"] },
+    { "id": "rust-ridge", "dominionId": "iron-frontier", "name": "锈脊高地", "seed": 113, "neighbors": ["furnace-pass", "ember-harbor"] },
+
+    { "id": "whitefrost-front", "dominionId": "frostwolf-range", "name": "白霜前线", "seed": 201, "neighbors": ["wolfbone-ridge", "aurora-steppe", "riftwatch"] },
+    { "id": "wolfbone-ridge", "dominionId": "frostwolf-range", "name": "狼骸脊线", "seed": 202, "neighbors": ["whitefrost-front", "aurora-steppe", "icefield-crossing"] },
+    { "id": "aurora-steppe", "dominionId": "frostwolf-range", "name": "极光荒原", "seed": 203, "neighbors": ["whitefrost-front", "wolfbone-ridge"] },
+
+    { "id": "riftwatch", "dominionId": "glacier-march", "name": "裂谷哨站", "seed": 211, "neighbors": ["whitefrost-front", "icefield-crossing", "frozen-port"] },
+    { "id": "icefield-crossing", "dominionId": "glacier-march", "name": "冰原渡口", "seed": 212, "neighbors": ["riftwatch", "frozen-port", "wolfbone-ridge"] },
+    { "id": "frozen-port", "dominionId": "glacier-march", "name": "冻潮港", "seed": 213, "neighbors": ["riftwatch", "icefield-crossing"] },
+
+    { "id": "molten-canyon", "dominionId": "embersand-core", "name": "熔砂峡谷", "seed": 301, "neighbors": ["ashfall-delta", "sunforge-gate", "scorch-bay"] },
+    { "id": "ashfall-delta", "dominionId": "embersand-core", "name": "灰烬河三角洲", "seed": 302, "neighbors": ["molten-canyon", "sunforge-gate", "red-reef"] },
+    { "id": "sunforge-gate", "dominionId": "embersand-core", "name": "铸阳关", "seed": 303, "neighbors": ["molten-canyon", "ashfall-delta"] },
+
+    { "id": "scorch-bay", "dominionId": "sunscar-coast", "name": "灼湾", "seed": 311, "neighbors": ["molten-canyon", "red-reef", "cinder-dunes"] },
+    { "id": "red-reef", "dominionId": "sunscar-coast", "name": "赤礁海", "seed": 312, "neighbors": ["scorch-bay", "cinder-dunes", "ashfall-delta"] },
+    { "id": "cinder-dunes", "dominionId": "sunscar-coast", "name": "余烬沙丘", "seed": 313, "neighbors": ["scorch-bay", "red-reef"] },
+
+    { "id": "broken-tide-coast", "dominionId": "storm-basin", "name": "断潮海岸", "seed": 401, "neighbors": ["thunder-fjord", "maelstrom-key", "cliffmouth"] },
+    { "id": "thunder-fjord", "dominionId": "storm-basin", "name": "雷裂峡湾", "seed": 402, "neighbors": ["broken-tide-coast", "maelstrom-key", "salt-wharf"] },
+    { "id": "maelstrom-key", "dominionId": "storm-basin", "name": "旋涡礁钥", "seed": 403, "neighbors": ["broken-tide-coast", "thunder-fjord"] },
+
+    { "id": "cliffmouth", "dominionId": "tidal-cliff", "name": "崖口要塞", "seed": 411, "neighbors": ["broken-tide-coast", "salt-wharf", "gale-needle"] },
+    { "id": "salt-wharf", "dominionId": "tidal-cliff", "name": "盐潮码头", "seed": 412, "neighbors": ["cliffmouth", "gale-needle", "thunder-fjord"] },
+    { "id": "gale-needle", "dominionId": "tidal-cliff", "name": "风针海岬", "seed": 413, "neighbors": ["cliffmouth", "salt-wharf"] },
+
+    { "id": "umbral-grove", "dominionId": "verdant-arc", "name": "幽木密林", "seed": 501, "neighbors": ["jade-mire", "hollow-bloom", "deep-moss"] },
+    { "id": "jade-mire", "dominionId": "verdant-arc", "name": "翡翠沼泽", "seed": 502, "neighbors": ["umbral-grove", "hollow-bloom", "fogstep-wood"] },
+    { "id": "hollow-bloom", "dominionId": "verdant-arc", "name": "空花林谷", "seed": 503, "neighbors": ["umbral-grove", "jade-mire"] },
+
+    { "id": "deep-moss", "dominionId": "mistwood-belt", "name": "深苔泽", "seed": 511, "neighbors": ["umbral-grove", "fogstep-wood", "silkroot-pass"] },
+    { "id": "fogstep-wood", "dominionId": "mistwood-belt", "name": "雾行林道", "seed": 512, "neighbors": ["deep-moss", "silkroot-pass", "jade-mire"] },
+    { "id": "silkroot-pass", "dominionId": "mistwood-belt", "name": "丝根隘", "seed": 513, "neighbors": ["deep-moss", "fogstep-wood"] }
+  ]
+}

@@ -1,5 +1,4 @@
-﻿import { buildRegionTopology } from "../lib/topology";
-import type { ContinentId, Hero, RegionTopology } from "../types/game";
+﻿import type { Hero } from "../types/game";
 
 export const initialLogs: string[] = [
   "侦察队已完成北侧荒野测绘，新增 3 条可达路线。",
@@ -28,30 +27,3 @@ export const heroes: Hero[] = [
     stats: { hp: "4,200", mp: "4,500", str: "42", int: "380", agi: "156", def: "120" }
   }
 ];
-
-export const continents: Array<{ id: ContinentId; name: string; dominion: string; region: string; seed: number }> = [
-  { id: "central", name: "中央大陆", dominion: "圣辉疆域", region: "晨星边境", seed: 101 },
-  { id: "north", name: "北方大陆", dominion: "霜狼疆域", region: "白霜前线", seed: 202 },
-  { id: "south", name: "南方大陆", dominion: "焰砂疆域", region: "熔砂峡谷", seed: 303 },
-  { id: "west", name: "西方大陆", dominion: "风暴疆域", region: "断潮海岸", seed: 404 },
-  { id: "east", name: "东方大陆", dominion: "古林疆域", region: "幽木密林", seed: 505 }
-];
-
-export const defaultRegionId = continents[0].id;
-
-export function createInitialRegions(): RegionTopology[] {
-  return continents.map((entry) =>
-    buildRegionTopology({
-      regionId: entry.id,
-      continentId: entry.id,
-      continentName: entry.name,
-      dominionName: entry.dominion,
-      regionName: entry.region,
-      seed: entry.seed,
-      basePointCount: 30,
-      minDistance: 10.2,
-      complexity: 0.45,
-      maxRadius: 5
-    })
-  );
-}

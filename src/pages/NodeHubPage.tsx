@@ -1,5 +1,6 @@
 ﻿import { AlertTriangle, Info, Sparkles } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
 import { ACTION_META, getNodeActions, mapFactionLabel, mapNodeTypeLabel, mapStateLabel } from "../lib/mapRules";
 import { useMapSystem } from "../state/MapSystemProvider";
 
@@ -26,7 +27,8 @@ export function NodeHubPage() {
   const { node, region } = context;
   const warn = searchParams.get("warn");
   const actions = getNodeActions(node);
-  const backToMap = `/?region=${region.id}`;
+  const mapQuery = buildWorldMapSearchParams(selectionFromRegion(region)).toString();
+  const backToMap = `/?${mapQuery}`;
 
   return (
     <section className="page node-hub-page">
@@ -108,7 +110,7 @@ export function NodeHubPage() {
                 const meta = ACTION_META[action];
                 const to = action === "ritual" ? `/node/${node.id}/ritual` : `/node/${node.id}/${action}`;
                 return (
-                  <Link key={action} to={`${to}?region=${region.id}`} className="action-card-link">
+                  <Link key={action} to={`${to}?${mapQuery}`} className="action-card-link">
                     <article className="action-card">
                       <h3>{meta.label}</h3>
                       <p>{meta.description}</p>
