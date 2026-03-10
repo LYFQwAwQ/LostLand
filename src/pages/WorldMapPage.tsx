@@ -7,7 +7,8 @@ import {
   getContinentMeta,
   getDominionMeta,
   getDominionsByContinent,
-  getNeighborRegions,
+  getDominionRegionLinks,
+  getIntraDominionNeighborRegions,
   getRegionMeta,
   getRegionsByDominion,
   parseWorldSelection,
@@ -15,6 +16,7 @@ import {
   selectionFromRegion,
   WORLD_CONTINENTS
 } from "../data/worldMapData";
+import type { RegionMeta } from "../data/worldMapData";
 import { defaultFieldHooks } from "../lib/fieldVisual";
 import { useMapSystem } from "../state/MapSystemProvider";
 import type { ContinentId, RegionEdge, RegionNode } from "../types/game";
@@ -27,6 +29,11 @@ interface LabelOffset {
 interface ShortestRoute {
   distance: number;
   edgeIds: string[];
+}
+
+interface PickerPosition {
+  x: number;
+  y: number;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -193,6 +200,45 @@ function buildShortestRoute(edges: RegionEdge[], fromId: string, toId: string): 
   return { distance: totalDistance, edgeIds };
 }
 
+function computeRegionPickerPositions(regions: RegionMeta[]): Record<string, PickerPosition> {
+  const map: Record<string, PickerPosition> = {};
+  const count = regions.length;
+
+  regions.forEach((item, index) => {
+    if (item.pickerPosition) {
+      map[item.id] = { x: item.pickerPosition[0], y: item.pickerPosition[1] };
+      return;
+    }
+
+    if (count === 1) {
+      map[item.id] = { x: 50, y: 50 };
+      return;
+    }
+    if (count === 2) {
+      map[item.id] = index === 0 ? { x: 30, y: 56 } : { x: 70, y: 44 };
+      return;
+    }
+    if (count === 3) {
+      const presets: PickerPosition[] = [
+        { x: 22, y: 68 },
+        { x: 50, y: 28 },
+        { x: 78, y: 68 }
+      ];
+      map[item.id] = presets[index] ?? presets[presets.length - 1];
+      return;
+    }
+
+    const angle = (Math.PI * 2 * index) / count - Math.PI / 2;
+    const radius = 34;
+    map[item.id] = {
+      x: 50 + Math.cos(angle) * radius,
+      y: 50 + Math.sin(angle) * radius
+    };
+  });
+
+  return map;
+}
+
 export function WorldMapPage() {
   const { getRegionById, ensureRegionLoaded, advanceOneMonth, worldMonth } = useMapSystem();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -232,10 +278,16 @@ export function WorldMapPage() {
 
   const activeContinentId = pickerContinentId ?? selection?.continentId ?? WORLD_CONTINENTS[0].id;
   const activeDominionOptions = useMemo(() => getDominionsByContinent(activeContinentId), [activeContinentId]);
-  const activeRegionOptions = useMemo(
-    () => (pickerDominionId ? getRegionsByDominion(pickerDominionId) : []),
-    [pickerDominionId]
-  );
+  const regionPickerGraph = useMemo(() => {
+    if (!pickerDominionId) {
+      return null;
+    }
+
+    const regions = getRegionsByDominion(pickerDominionId);
+    const positions = computeRegionPickerPositions(regions);
+    const links = getDominionRegionLinks(pickerDominionId);
+    return { regions, positions, links };
+  }, [pickerDominionId]);
 
   useEffect(() => {
     if (!selection || explicitSelection) {
@@ -260,7 +312,7 @@ export function WorldMapPage() {
     if (!region) {
       return [];
     }
-    return getNeighborRegions(region.id);
+    return getIntraDominionNeighborRegions(region.id);
   }, [region]);
 
   const nodeById = useMemo(
@@ -804,14 +856,48 @@ export function WorldMapPage() {
                 关闭
               </button>
             </header>
-            <p>选择地区后将进入对应拓扑地图。</p>
-            <div className="world-picker-list">
-              {activeRegionOptions.map((item) => (
-                <button key={item.id} type="button" onClick={() => chooseRegion(item.id)}>
-                  <strong>{item.name}</strong>
-                  <span>种子 {item.seed}</span>
-                </button>
-              ))}
+            <p>点击地区节点进入地图；虚线表示该疆域内可直接切换的相邻地区。</p>
+            <div className="region-picker-map">
+              <svg className="region-picker-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                {(regionPickerGraph?.links ?? []).map((link) => {
+                  const from = regionPickerGraph?.positions[link.from];
+                  const to = regionPickerGraph?.positions[link.to];
+                  if (!from || !to) {
+                    return null;
+                  }
+                  return (
+                    <line
+                      key={`${link.from}-${link.to}`}
+                      x1={from.x}
+                      y1={from.y}
+                      x2={to.x}
+                      y2={to.y}
+                      stroke="#8c7352"
+                      strokeWidth={1.4}
+                      strokeDasharray="4 3"
+                      strokeOpacity={0.9}
+                    />
+                  );
+                })}
+              </svg>
+              {(regionPickerGraph?.regions ?? []).map((item) => {
+                const pos = regionPickerGraph?.positions[item.id];
+                if (!pos) {
+                  return null;
+                }
+                const isCurrent = selection?.regionId === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`region-picker-node ${isCurrent ? "active" : ""}`}
+                    style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+                    onClick={() => chooseRegion(item.id)}
+                  >
+                    <span>{item.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

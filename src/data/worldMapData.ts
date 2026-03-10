@@ -40,6 +40,7 @@ interface RawRegion {
   name: string;
   seed: number;
   neighbors: string[];
+  pickerPosition?: [number, number];
 }
 
 interface WorldHierarchyRaw {
@@ -62,6 +63,11 @@ export interface RegionMeta extends RawRegion {
   continentId: ContinentId;
   continentName: string;
   dominionName: string;
+}
+
+export interface RegionLink {
+  from: string;
+  to: string;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -229,6 +235,45 @@ export function getNeighborRegions(regionId: string): RegionMeta[] {
   return region.neighbors
     .map((neighborId) => regionById.get(neighborId))
     .filter((item): item is RegionMeta => !!item);
+}
+
+export function getIntraDominionNeighborRegions(regionId: string): RegionMeta[] {
+  const region = regionById.get(regionId);
+  if (!region) {
+    return [];
+  }
+  const links = getDominionRegionLinks(region.dominionId);
+  const connectedIds = links
+    .filter((link) => link.from === region.id || link.to === region.id)
+    .map((link) => (link.from === region.id ? link.to : link.from));
+
+  return connectedIds
+    .map((neighborId) => regionById.get(neighborId))
+    .filter((item): item is RegionMeta => !!item);
+}
+
+export function getDominionRegionLinks(dominionId: string): RegionLink[] {
+  const dominionRegions = getRegionsByDominion(dominionId);
+  const allowed = new Set(dominionRegions.map((item) => item.id));
+  const seen = new Set<string>();
+  const links: RegionLink[] = [];
+
+  dominionRegions.forEach((region) => {
+    region.neighbors.forEach((neighborId) => {
+      if (!allowed.has(neighborId)) {
+        return;
+      }
+      const pair = [region.id, neighborId].sort();
+      const key = `${pair[0]}::${pair[1]}`;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      links.push({ from: pair[0], to: pair[1] });
+    });
+  });
+
+  return links;
 }
 
 export function parseWorldSelection(

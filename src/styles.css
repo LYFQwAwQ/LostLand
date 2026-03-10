@@ -330,6 +330,66 @@ body {
   color: #ad926f;
 }
 
+.region-picker-map {
+  position: relative;
+  height: min(56vh, 420px);
+  border: 1px solid #5f4c38;
+  border-radius: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 20% 18%, rgb(212 175 55 / 10%), transparent 34%),
+    radial-gradient(circle at 78% 22%, rgb(96 141 181 / 8%), transparent 32%),
+    linear-gradient(180deg, #261c13, #1a140f);
+}
+
+.region-picker-map::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgb(0 0 0 / 28%) 1px, transparent 1px);
+  background-size: 16px 16px;
+  opacity: 0.26;
+  pointer-events: none;
+}
+
+.region-picker-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.region-picker-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 1px solid #6f593f;
+  border-radius: 999px;
+  background: #22180f;
+  color: #dec08b;
+  padding: 7px 12px;
+  min-width: 104px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 35%);
+}
+
+.region-picker-node span {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.region-picker-node:hover {
+  border-color: #d0a25f;
+  background: #2a1d12;
+  color: #f1dab0;
+}
+
+.region-picker-node.active {
+  border-color: #e4c070;
+  color: #f8e2b7;
+  box-shadow: 0 0 0 1px rgb(228 192 112 / 40%), 0 4px 10px rgb(0 0 0 / 35%);
+}
+
 .map-stage {
   margin-top: 14px;
   height: min(65vh, 620px);

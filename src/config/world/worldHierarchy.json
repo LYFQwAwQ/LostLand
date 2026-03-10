@@ -57,7 +57,7 @@
       "maxRadius": 5,
       "fullFactionChance": 0.74,
       "pathWeightRange": [0.92, 1.15],
-      "regionIds": ["dawn-border", "silver-lake", "quiet-plain"]
+      "regionIds": ["dawn-border", "silver-lake", "quiet-plain", "sunspire-gate", "ravenwatch-field"]
     },
     {
       "id": "iron-frontier",
@@ -79,7 +79,7 @@
       "maxRadius": 5,
       "fullFactionChance": 0.68,
       "pathWeightRange": [0.94, 1.2],
-      "regionIds": ["furnace-pass", "ember-harbor", "rust-ridge"]
+      "regionIds": ["furnace-pass", "ember-harbor", "rust-ridge", "coal-vale", "blackrail-junction"]
     },
     {
       "id": "frostwolf-range",
@@ -259,13 +259,17 @@
     }
   ],
   "regions": [
-    { "id": "dawn-border", "dominionId": "holy-heartland", "name": "晨星边境", "seed": 101, "neighbors": ["silver-lake", "quiet-plain", "furnace-pass"] },
-    { "id": "silver-lake", "dominionId": "holy-heartland", "name": "银月湖区", "seed": 102, "neighbors": ["dawn-border", "quiet-plain", "ember-harbor"] },
-    { "id": "quiet-plain", "dominionId": "holy-heartland", "name": "静风平原", "seed": 103, "neighbors": ["dawn-border", "silver-lake"] },
+    { "id": "dawn-border", "dominionId": "holy-heartland", "name": "晨星边境", "seed": 101, "neighbors": ["silver-lake", "sunspire-gate", "furnace-pass"], "pickerPosition": [24, 54] },
+    { "id": "silver-lake", "dominionId": "holy-heartland", "name": "银月湖区", "seed": 102, "neighbors": ["dawn-border", "quiet-plain", "ember-harbor"], "pickerPosition": [42, 32] },
+    { "id": "quiet-plain", "dominionId": "holy-heartland", "name": "静风平原", "seed": 103, "neighbors": ["silver-lake", "ravenwatch-field"], "pickerPosition": [64, 52] },
+    { "id": "sunspire-gate", "dominionId": "holy-heartland", "name": "日穹关", "seed": 104, "neighbors": ["dawn-border", "ravenwatch-field", "coal-vale"], "pickerPosition": [26, 78] },
+    { "id": "ravenwatch-field", "dominionId": "holy-heartland", "name": "鸦望原", "seed": 105, "neighbors": ["quiet-plain", "sunspire-gate"], "pickerPosition": [66, 78] },
 
-    { "id": "furnace-pass", "dominionId": "iron-frontier", "name": "熔铁隘口", "seed": 111, "neighbors": ["dawn-border", "ember-harbor", "rust-ridge"] },
-    { "id": "ember-harbor", "dominionId": "iron-frontier", "name": "余烬港湾", "seed": 112, "neighbors": ["furnace-pass", "rust-ridge", "silver-lake"] },
-    { "id": "rust-ridge", "dominionId": "iron-frontier", "name": "锈脊高地", "seed": 113, "neighbors": ["furnace-pass", "ember-harbor"] },
+    { "id": "furnace-pass", "dominionId": "iron-frontier", "name": "熔铁隘口", "seed": 111, "neighbors": ["dawn-border", "ember-harbor", "coal-vale"], "pickerPosition": [24, 42] },
+    { "id": "ember-harbor", "dominionId": "iron-frontier", "name": "余烬港湾", "seed": 112, "neighbors": ["furnace-pass", "rust-ridge", "silver-lake", "blackrail-junction"], "pickerPosition": [45, 22] },
+    { "id": "rust-ridge", "dominionId": "iron-frontier", "name": "锈脊高地", "seed": 113, "neighbors": ["ember-harbor", "blackrail-junction"], "pickerPosition": [74, 38] },
+    { "id": "coal-vale", "dominionId": "iron-frontier", "name": "煤烬谷", "seed": 114, "neighbors": ["furnace-pass", "blackrail-junction", "sunspire-gate"], "pickerPosition": [42, 72] },
+    { "id": "blackrail-junction", "dominionId": "iron-frontier", "name": "黑轨枢站", "seed": 115, "neighbors": ["coal-vale", "rust-ridge", "ember-harbor"], "pickerPosition": [72, 70] },
 
     { "id": "whitefrost-front", "dominionId": "frostwolf-range", "name": "白霜前线", "seed": 201, "neighbors": ["wolfbone-ridge", "aurora-steppe", "riftwatch"] },
     { "id": "wolfbone-ridge", "dominionId": "frostwolf-range", "name": "狼骸脊线", "seed": 202, "neighbors": ["whitefrost-front", "aurora-steppe", "icefield-crossing"] },
