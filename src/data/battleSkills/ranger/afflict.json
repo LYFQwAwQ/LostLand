@@ -1,0 +1,30 @@
+﻿[
+  {
+    "id": "ranger_crippling_trap",
+    "name": "缚足陷阱",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "category": "afflict",
+    "description": "造成伤害并施加虚弱，延后目标行动条。",
+    "targetType": "singleEnemy",
+    "effect": "damage",
+    "damageType": "physical",
+    "element": "dark",
+    "mpCost": 18,
+    "cooldown": 3,
+    "baseWeight": 102,
+    "basePower": 82,
+    "scaling": {
+      "agi": 0.82,
+      "str": 0.2
+    },
+    "canCrit": true,
+    "targetStatus": {
+      "key": "weakened",
+      "chance": 0.45,
+      "duration": 2,
+      "potency": 0.15
+    },
+    "actionDeltaTarget": -360
+  }
+]

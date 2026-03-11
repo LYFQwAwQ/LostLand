@@ -141,11 +141,16 @@ function heroElementPreset(hero: Hero): { boost: Record<BattleElement, number>; 
     boost.life = 0.08;
     res.dark = 0.06;
     res.light = 0.08;
-  } else {
+  } else if (hero.heroClass === "mage") {
     boost.fire = 0.1;
     boost.ice = 0.1;
     res.fire = 0.04;
     res.ice = 0.06;
+  } else {
+    boost.wind = 0.14;
+    boost.dark = 0.06;
+    res.wind = 0.08;
+    res.ice = 0.04;
   }
 
   return { boost, res };
@@ -199,6 +204,9 @@ export function buildAllyTeamTemplates(
     const equippedItems = getUniqueEquippedItems(hero.id, equippedByHero, itemMap);
     const equipBonus = mapEquipmentStats(equippedItems);
     const elementPreset = heroElementPreset(hero);
+    const isPaladin = hero.heroClass === "paladin";
+    const isMage = hero.heroClass === "mage";
+    const isRanger = hero.heroClass === "ranger";
 
     const loadout = heroLoadouts[hero.id] ?? getDefaultHeroLoadout(hero);
 
@@ -217,17 +225,17 @@ export function buildAllyTeamTemplates(
         int: Math.round(baseInt + equipBonus.int),
         agi: Math.round(baseAgi + equipBonus.agi),
         def: Math.round(baseDef + equipBonus.def),
-        penetration: equipBonus.penetration + (hero.heroClass === "paladin" ? 18 : 12),
-        armorPenPct: equipBonus.armorPenPct + (hero.heroClass === "paladin" ? 0.05 : 0.02),
-        critRate: equipBonus.critRate + (hero.heroClass === "paladin" ? 0.1 : 0.15),
-        critDamage: 1.55 + equipBonus.critDamage + (hero.heroClass === "mage" ? 0.2 : 0),
-        evasion: equipBonus.evasion + (hero.heroClass === "mage" ? 0.08 : 0.04),
-        aggro: equipBonus.aggro + (hero.heroClass === "paladin" ? 120 : 65),
-        lifeSteal: equipBonus.lifeSteal + (hero.heroClass === "paladin" ? 0.02 : 0),
-        thorns: equipBonus.thorns + (hero.heroClass === "paladin" ? 0.03 : 0),
-        damageBoost: equipBonus.damageBoost + (hero.heroClass === "mage" ? 0.05 : 0.02),
-        damageReduction: equipBonus.damageReduction + (hero.heroClass === "paladin" ? 0.08 : 0.03),
-        elementalPierce: equipBonus.elementalPierce + (hero.heroClass === "mage" ? 0.08 : 0.03),
+        penetration: equipBonus.penetration + (isPaladin ? 18 : isRanger ? 20 : 12),
+        armorPenPct: equipBonus.armorPenPct + (isPaladin ? 0.05 : isRanger ? 0.04 : 0.02),
+        critRate: equipBonus.critRate + (isPaladin ? 0.1 : isRanger ? 0.18 : 0.15),
+        critDamage: 1.55 + equipBonus.critDamage + (isMage ? 0.2 : isRanger ? 0.1 : 0),
+        evasion: equipBonus.evasion + (isMage ? 0.08 : isRanger ? 0.12 : 0.04),
+        aggro: equipBonus.aggro + (isPaladin ? 120 : isRanger ? 78 : 65),
+        lifeSteal: equipBonus.lifeSteal + (isPaladin ? 0.02 : isRanger ? 0.01 : 0),
+        thorns: equipBonus.thorns + (isPaladin ? 0.03 : 0),
+        damageBoost: equipBonus.damageBoost + (isMage ? 0.05 : isRanger ? 0.06 : 0.02),
+        damageReduction: equipBonus.damageReduction + (isPaladin ? 0.08 : isRanger ? 0.04 : 0.03),
+        elementalPierce: equipBonus.elementalPierce + (isMage ? 0.08 : isRanger ? 0.04 : 0.03),
         allRes: equipBonus.allRes,
         allBoost: equipBonus.allBoost,
         elementBoost: ELEMENT_KEYS.reduce<Record<BattleElement, number>>((acc, key) => {

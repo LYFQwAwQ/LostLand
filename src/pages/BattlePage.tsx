@@ -1,5 +1,5 @@
-﻿import { FastForward, Gauge, Pause, Play, RotateCcw, Shield, Swords, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { FastForward, Gauge, Pause, Play, RotateCcw, Shield, Swords, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { heroes } from "../data/mockData";
 import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
@@ -171,11 +171,12 @@ export function BattlePage() {
   const { nodeId } = useParams<{ nodeId: string }>();
   const { findNodeById } = useMapSystem();
   const { formation, heroLoadouts } = useBattleSetup();
-  const { equippedByHero, itemMap } = useEquipmentInventory();
+  const { equippedByHero, itemMap, collectBattleDrops } = useEquipmentInventory();
   const [battleSeed, setBattleSeed] = useState(() => Date.now());
   const [chainRound, setChainRound] = useState(1);
   const [activeReplayView, setActiveReplayView] = useState("stats");
   const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
+  const battleStateRef = useRef<{ battleId: string; status: BattleRuntimeState["status"] } | null>(null);
 
   const [dropCategoryFilter, setDropCategoryFilter] = useState<"all" | BattleDropCategory>("all");
   const [dropKeyword, setDropKeyword] = useState("");
@@ -309,6 +310,17 @@ export function BattlePage() {
     }, 16);
     return () => window.clearInterval(timer);
   }, [runtime?.status]);
+
+  useEffect(() => {
+    const previous = battleStateRef.current;
+    if (runtime && runtime.status === "finished" && runtime.winner === "ally" && runtime.drops) {
+      const shouldCollect = !previous || previous.battleId !== runtime.battleId || previous.status !== "finished";
+      if (shouldCollect) {
+        collectBattleDrops(runtime.drops);
+      }
+    }
+    battleStateRef.current = runtime ? { battleId: runtime.battleId, status: runtime.status } : null;
+  }, [collectBattleDrops, runtime]);
 
   useEffect(() => {
     if (!runtime) {

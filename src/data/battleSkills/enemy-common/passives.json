@@ -1,0 +1,18 @@
+﻿[
+{
+    "id":  "passive_enemy_feral",
+    "name":  "野性",
+    "skillPool":  "enemy",
+    "allowedHeroClasses":  [
+
+                           ],
+    "description":  "敌人基础成长增益。",
+    "modifiers":  {
+                      "flat":  {
+                                   "str":  18,
+                                   "agi":  14
+                               }
+                  }
+}
+]
+

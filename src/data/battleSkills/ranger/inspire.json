@@ -1,0 +1,35 @@
+﻿[
+  {
+    "id": "ranger_hawk_signal",
+    "name": "鹰哨号令",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "category": "inspire",
+    "description": "发出鹰哨，治疗全体友军并小幅推进行动条。",
+    "targetType": "allAllies",
+    "effect": "heal",
+    "element": "life",
+    "mpCost": 20,
+    "cooldown": 4,
+    "baseWeight": 94,
+    "basePower": 58,
+    "scaling": {
+      "agi": 0.46,
+      "int": 0.2
+    },
+    "canCrit": false,
+    "extraEffects": [
+      {
+        "type": "actionDelta",
+        "target": "targets",
+        "delta": 180
+      }
+    ],
+    "weightTuning": {
+      "allyHpBelow": {
+        "threshold": 0.58,
+        "delta": 30
+      }
+    }
+  }
+]

@@ -1,0 +1,50 @@
+﻿[
+  {
+    "id": "ranger_quick_shot",
+    "name": "疾风速射",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "category": "assault",
+    "description": "以高速箭矢压制单体目标。",
+    "targetType": "singleEnemy",
+    "effect": "damage",
+    "damageType": "physical",
+    "element": "wind",
+    "mpCost": 10,
+    "cooldown": 1,
+    "baseWeight": 126,
+    "basePower": 88,
+    "scaling": {
+      "agi": 1.05,
+      "str": 0.28
+    },
+    "canCrit": true
+  },
+  {
+    "id": "ranger_split_arrow",
+    "name": "裂羽连矢",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "category": "assault",
+    "description": "对全体敌人进行分裂箭打击。",
+    "targetType": "allEnemies",
+    "effect": "damage",
+    "damageType": "physical",
+    "element": "wind",
+    "mpCost": 22,
+    "cooldown": 3,
+    "baseWeight": 108,
+    "basePower": 72,
+    "scaling": {
+      "agi": 0.9,
+      "str": 0.22
+    },
+    "canCrit": true,
+    "weightTuning": {
+      "enemyCountAtLeast": {
+        "count": 2,
+        "delta": 20
+      }
+    }
+  }
+]

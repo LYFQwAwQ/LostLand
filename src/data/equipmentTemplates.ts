@@ -247,6 +247,25 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     ]
   },
   {
+    id: "windstride-boots",
+    name: "逐风战靴",
+    slot: "shoes",
+    subtype: "rangerBoots",
+    baseWeight: 14,
+    t1Stats: [
+      { key: "agi", label: "敏捷", lvl1Base: 15, growthRate: 3 },
+      { key: "hp", label: "生命值", lvl1Base: 96, growthRate: 15 }
+    ],
+    rankWeights: { ...standardRankWeights },
+    qualityWeights: { ...standardQualityWeights },
+    affixPool: [
+      { key: "agi", label: "敏捷", min: 3, max: 11, weight: 30 },
+      { key: "evasion", label: "闪避率", min: 0.01, max: 0.05, weight: 24 },
+      { key: "critRate", label: "暴击率", min: 0.01, max: 0.05, weight: 22 },
+      { key: "penetration", label: "物理穿透", min: 6, max: 22, weight: 24 }
+    ]
+  },
+  {
     id: "fire-medium",
     name: "灼焰媒介",
     slot: "castingMedium",

@@ -1,0 +1,57 @@
+﻿[
+  {
+    "id": "talent_wind_trace_hunter",
+    "name": "风痕狩猎",
+    "rarity": "epic",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "description": "强化敏捷、暴击与风系增伤。",
+    "modifiers": {
+      "flat": {
+        "agi": 38,
+        "critRate": 0.03
+      },
+      "elementBoost": {
+        "wind": 0.14
+      }
+    }
+  },
+  {
+    "id": "talent_ambush_instinct",
+    "name": "伏猎本能",
+    "rarity": "rare",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "description": "提升闪避与破甲，偏向先手打击。",
+    "modifiers": {
+      "flat": {
+        "evasion": 0.04,
+        "penetration": 24
+      },
+      "ratio": {
+        "damageBoost": 0.05
+      }
+    }
+  },
+  {
+    "id": "talent_legend_starseeker",
+    "name": "星痕追猎",
+    "rarity": "unique",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "description": "传奇游侠专属天赋，强化暴击链与追击伤害。",
+    "modifiers": {
+      "flat": {
+        "agi": 58,
+        "critRate": 0.06,
+        "critDamage": 0.22
+      },
+      "ratio": {
+        "damageBoost": 0.08
+      },
+      "elementBoost": {
+        "wind": 0.2
+      }
+    }
+  }
+]

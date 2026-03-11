@@ -588,6 +588,7 @@ function computeScalingValue(basePower: number, scaling: BattleActiveSkillDefini
     basePower +
     actor.stats.str * (scaling.str ?? 0) +
     actor.stats.int * (scaling.int ?? 0) +
+    actor.stats.agi * (scaling.agi ?? 0) +
     actor.stats.def * (scaling.def ?? 0) +
     actor.stats.maxHp * (scaling.maxHp ?? 0) +
     missingHp * (scaling.missingHp ?? 0)

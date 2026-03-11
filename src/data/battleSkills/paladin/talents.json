@@ -1,0 +1,57 @@
+﻿[
+  {
+    "id": "talent_oathbound_guard",
+    "name": "誓约守壁",
+    "rarity": "epic",
+    "skillPool": "class",
+    "allowedHeroClasses": ["paladin"],
+    "description": "强化守护姿态与光元素输出。",
+    "modifiers": {
+      "ratio": {
+        "maxHp": 0.08,
+        "damageReduction": 0.04
+      },
+      "elementBoost": {
+        "light": 0.12
+      }
+    }
+  },
+  {
+    "id": "talent_crusade_banner",
+    "name": "远征军旗",
+    "rarity": "rare",
+    "skillPool": "class",
+    "allowedHeroClasses": ["paladin"],
+    "description": "提升全局抗性与生存，偏向持续作战。",
+    "modifiers": {
+      "flat": {
+        "allRes": 0.05
+      },
+      "ratio": {
+        "maxHp": 0.06,
+        "damageReduction": 0.03
+      }
+    }
+  },
+  {
+    "id": "talent_legend_sun_oath",
+    "name": "日耀圣誓",
+    "rarity": "unique",
+    "skillPool": "class",
+    "allowedHeroClasses": ["paladin"],
+    "description": "传奇圣骑士专属天赋，显著提升坚韧与圣光输出。",
+    "modifiers": {
+      "flat": {
+        "def": 48,
+        "aggro": 36
+      },
+      "ratio": {
+        "maxHp": 0.12,
+        "damageReduction": 0.08
+      },
+      "elementBoost": {
+        "light": 0.18
+      }
+    }
+  }
+]

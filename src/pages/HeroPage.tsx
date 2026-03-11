@@ -3,8 +3,8 @@ import { User, X, Zap } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { MageGearBoard } from "../components/hero/MageGearBoard";
 import { PaladinGearBoard } from "../components/hero/PaladinGearBoard";
+import { RangerGearBoard } from "../components/hero/RangerGearBoard";
 import { battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
-import { defaultHeroMemoryByClass, heroMemoryOptionsByClass } from "../data/heroMemories";
 import {
   EQUIPMENT_SLOT_LABELS,
   EQUIPMENT_SUBTYPE_LABELS,
@@ -24,7 +24,7 @@ import { useBattleSetup } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { heroes } from "../data/mockData";
 import type { BattleLoadout, BattleStatModifier, BattleTalentRarity } from "../types/battle";
-import type { EquipmentSlot, EquipmentStatKey, GeneratedEquipment, Hero, HeroTab } from "../types/game";
+import type { EquipmentSlot, EquipmentStatKey, GeneratedEquipment, Hero, HeroTab, InventoryMemoryStack } from "../types/game";
 
 interface ElementRow {
   id: string;
@@ -305,7 +305,7 @@ function HeroSkillLoadoutEditor({
   onApplyLoadout: (nextLoadout: BattleLoadout) => string[];
   onReset: () => void;
 }) {
-  const skillOptions = useMemo(() => getHeroSkillOptions(hero.heroClass), [hero.heroClass]);
+  const skillOptions = useMemo(() => getHeroSkillOptions(hero.heroClass, hero.learnedSkills), [hero.heroClass, hero.learnedSkills]);
   const [hoveredSkill, setHoveredSkill] = useState<{ id: string; x: number; y: number } | null>(null);
   const [importText, setImportText] = useState("");
   const [notice, setNotice] = useState<{ tone: "success" | "warn" | "error"; text: string } | null>(null);
@@ -408,7 +408,7 @@ function HeroSkillLoadoutEditor({
     <section className="hero-skill-editor">
       <header className="hero-skill-editor-head">
         <h3>战斗技能配置</h3>
-        <p>{hero.name} · 1 天赋 / 10 主动 / 10 被动（公用池 + 职业池，重复技能视为冲突）</p>
+        <p>{hero.name} · 1 天赋 / 10 主动 / 10 被动（仅显示已学技能，重复技能视为冲突）</p>
       </header>
 
       {notice ? <p className={`hero-skill-editor-notice ${notice.tone}`}>{notice.text}</p> : null}
@@ -694,7 +694,11 @@ function HeroGearContent({
     .filter((item): item is GeneratedEquipment => Boolean(item));
 
   const hpBonus = sumEquipmentStat(equippedItems, "hp");
-  const coreBonus = hero.heroClass === "paladin" ? sumEquipmentStat(equippedItems, "def") : sumEquipmentStat(equippedItems, "int");
+  const coreBonusKey: EquipmentStatKey =
+    hero.heroClass === "paladin" ? "def" : hero.heroClass === "mage" ? "int" : "agi";
+  const coreBonus = sumEquipmentStat(equippedItems, coreBonusKey);
+  const coreBonusLabel =
+    hero.heroClass === "paladin" ? "装备总防御" : hero.heroClass === "mage" ? "装备总智力" : "装备总敏捷";
   const affixTotal = equippedItems.reduce((sum, item) => sum + item.affixCount, 0);
   const typeList = HERO_EQUIP_TYPE_SUMMARY[hero.heroClass];
 
@@ -733,7 +737,7 @@ function HeroGearContent({
             <SectionTitle title="属性汇总" />
             <div className="hero-stat-list">
               <StatRow label="装备总生命" value={formatSignedNumber(hpBonus)} />
-              <StatRow label={hero.heroClass === "paladin" ? "装备总防御" : "装备总智力"} value={formatSignedNumber(coreBonus)} />
+              <StatRow label={coreBonusLabel} value={formatSignedNumber(coreBonus)} />
               <StatRow label="词条总数" value={formatSignedNumber(affixTotal)} />
             </div>
           </section>
@@ -761,6 +765,16 @@ function HeroGearContent({
         <div className="gear-right-stage">
           {hero.heroClass === "mage" ? (
             <MageGearBoard
+              equippedBySlot={equippedBySlot}
+              selectedSlotId={selectedSlotId}
+              onSelectSlot={(slotId) => {
+                onSelectSlot(hero.id, slotId);
+                setHoveredPreview(null);
+                setIsPickerOpen(true);
+              }}
+            />
+          ) : hero.heroClass === "ranger" ? (
+            <RangerGearBoard
               equippedBySlot={equippedBySlot}
               selectedSlotId={selectedSlotId}
               onSelectSlot={(slotId) => {
@@ -991,7 +1005,8 @@ function HeroSkillsContent({
         ...nextLoadout,
         talentSlot: loadout.talentSlot
       },
-      loadout.talentSlot
+      loadout.talentSlot,
+      hero.learnedSkills
     );
     onSetHeroLoadout(hero.id, normalized.loadout);
     return normalized.issues;
@@ -1012,34 +1027,56 @@ function HeroSkillsContent({
 function HeroMemoryContent({
   hero,
   memoryId,
+  options,
+  getOwnerName,
   onChangeMemory
 }: {
   hero: Hero;
   memoryId: string | null;
-  onChangeMemory: (nextMemoryId: string) => void;
+  options: InventoryMemoryStack[];
+  getOwnerName: (memoryId: string) => string | null;
+  onChangeMemory: (nextMemoryId: string | null) => boolean;
 }) {
-  const options = heroMemoryOptionsByClass[hero.heroClass];
-  const fallback = options.find((item) => item.id === defaultHeroMemoryByClass[hero.heroClass]) ?? options[0];
-  const selected = options.find((item) => item.id === memoryId) ?? fallback;
+  const selected = options.find((item) => item.id === memoryId) ?? null;
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    setNotice("");
+  }, [hero.id]);
+
+  const equipMemory = (nextMemoryId: string | null) => {
+    const ok = onChangeMemory(nextMemoryId);
+    if (ok) {
+      if (nextMemoryId) {
+        const nextMemory = options.find((item) => item.id === nextMemoryId);
+        setNotice(`已装备：${nextMemory?.title ?? nextMemoryId}`);
+      } else {
+        setNotice("已卸下记忆。");
+      }
+      setIsPickerOpen(false);
+      return;
+    }
+    setNotice("装备失败：该记忆可能未拥有，或已被其他英雄装备。");
+  };
 
   return (
     <div className="hero-memory-view">
       <aside className="memory-info-card">
         <SectionTitle title="记忆碎片效果" />
-        <h4>{selected?.title ?? "记忆占位"}</h4>
-        <p className="memory-quote">“{selected?.quote ?? "暂无记忆文本"}”</p>
-        <div className="memory-effect">{selected?.effect ?? "暂无效果描述"}</div>
-        <label className="hero-skill-select-row" style={{ marginTop: "10px" }}>
-          <span>记忆</span>
-          <select value={selected?.id ?? ""} onChange={(event) => onChangeMemory(event.target.value)}>
-            {options.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.title}
-              </option>
-            ))}
-          </select>
-          <small className="hero-skill-weight-tag">占位</small>
-        </label>
+        <h4>{selected?.title ?? "未穿戴记忆"}</h4>
+        <p className="memory-quote">“{selected?.quote ?? "当前未激活记忆效果"}”</p>
+        <div className="memory-effect">{selected?.effect ?? "请从背包中的记忆里选择后穿戴。"}</div>
+        <div className="memory-actions">
+          <button type="button" className="ghost-btn" onClick={() => setIsPickerOpen(true)}>
+            查看记忆库存
+          </button>
+          <button type="button" className="ghost-btn" onClick={() => equipMemory(null)} disabled={!memoryId}>
+            卸下记忆
+          </button>
+          <small>每个记忆全局唯一，不可重复装备。</small>
+        </div>
+        {notice ? <p className="memory-notice">{notice}</p> : null}
       </aside>
 
       <div className="memory-stage">
@@ -1049,7 +1086,49 @@ function HeroMemoryContent({
         <div className="memory-stage-title">
           <span>FRAGILE MEMORIES</span>
         </div>
+        <div className="memory-stage-subtitle">{selected?.title ?? "未穿戴记忆"}</div>
       </div>
+
+      {isPickerOpen ? (
+        <div className="hero-memory-picker-backdrop" role="presentation" onClick={() => setIsPickerOpen(false)}>
+          <article className="hero-memory-picker-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <header className="hero-memory-picker-head">
+              <div>
+                <h3>记忆库存</h3>
+                <p>{hero.name} · 当前职业 {hero.heroClass}</p>
+              </div>
+              <button type="button" aria-label="关闭" onClick={() => setIsPickerOpen(false)}>
+                <X size={16} />
+              </button>
+            </header>
+
+            {options.length > 0 ? (
+              <div className="hero-memory-picker-list custom-scrollbar">
+                {options.map((option) => {
+                  const ownerName = getOwnerName(option.id);
+                  const isCurrent = option.id === memoryId;
+                  const canEquip = !ownerName || isCurrent;
+                  return (
+                    <article key={option.id} className={`hero-memory-picker-item ${isCurrent ? "active" : ""} ${canEquip ? "" : "disabled"}`}>
+                      <h4>{option.title}</h4>
+                      <p className="memory-quote">“{option.quote}”</p>
+                      <p className="memory-effect">{option.effect}</p>
+                      <div className="memory-owned-meta">
+                        <small>{ownerName && !isCurrent ? `已装备：${ownerName}` : isCurrent ? "当前已装备" : "可装备"}</small>
+                        <button type="button" className="ghost-btn small-btn" disabled={!canEquip} onClick={() => equipMemory(option.id)}>
+                          {isCurrent ? "已装备" : "装备"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="memory-empty-panel">该职业当前没有可用记忆。请先获取对应记忆后再装备。</div>
+            )}
+          </article>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1059,10 +1138,26 @@ export function HeroPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = (searchParams.get("tab") as HeroTab) || "stats";
   const hero = heroes.find((item) => item.id === heroId) ?? heroes[0];
-  const { items, itemMap, equippedByHero, refreshItems, equipItem, unequipItem, getItemOwners } = useEquipmentInventory();
-  const { getHeroLoadout, setHeroLoadout, resetHeroLoadout, heroMemories, setHeroMemory } = useBattleSetup();
+  const {
+    items,
+    itemMap,
+    equippedByHero,
+    refreshItems,
+    equipItem,
+    unequipItem,
+    getItemOwners,
+    memoryItems,
+    getMemoryOwner,
+    getHeroMemory,
+    setHeroMemory
+  } = useEquipmentInventory();
+  const { getHeroLoadout, setHeroLoadout, resetHeroLoadout } = useBattleSetup();
   const heroLoadout = getHeroLoadout(hero.id);
-  const selectedMemoryId = heroMemories[hero.id] ?? defaultHeroMemoryByClass[hero.heroClass];
+  const selectedMemoryId = getHeroMemory(hero.id);
+  const heroMemoryOptions = useMemo(
+    () => memoryItems.filter((item) => item.heroClass === hero.heroClass),
+    [hero.heroClass, memoryItems]
+  );
 
   const [selectedSlotByHero, setSelectedSlotByHero] = useState<Record<string, string>>({});
 
@@ -1142,7 +1237,21 @@ export function HeroPage() {
                 />
               )}
               {currentTab === "memory" && (
-                <HeroMemoryContent hero={hero} memoryId={selectedMemoryId} onChangeMemory={(nextMemoryId) => setHeroMemory(hero.id, nextMemoryId)} />
+                <HeroMemoryContent
+                  hero={hero}
+                  memoryId={selectedMemoryId}
+                  options={heroMemoryOptions}
+                  getOwnerName={(memoryId) => {
+                    const ownerHeroId = getMemoryOwner(memoryId);
+                    if (!ownerHeroId || ownerHeroId === hero.id) {
+                      return null;
+                    }
+                    return HERO_NAME_MAP[ownerHeroId] ?? ownerHeroId;
+                  }}
+                  onChangeMemory={(nextMemoryId) => {
+                    return setHeroMemory(hero.id, nextMemoryId);
+                  }}
+                />
               )}
             </div>
 

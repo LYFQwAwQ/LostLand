@@ -9,7 +9,7 @@ import type {
 import type { HeroClass } from "../types/game";
 
 const HERO_SKILL_SLOT_COUNT = 10;
-const HERO_CLASSES: HeroClass[] = ["paladin", "mage"];
+const HERO_CLASSES: HeroClass[] = ["paladin", "mage", "ranger"];
 
 type HeroSelectableSkill = {
   id: string;
@@ -30,6 +30,12 @@ export interface HeroSkillOptionSet {
   talents: BattleTalentDefinition[];
   activeSkills: BattleActiveSkillDefinition[];
   passiveSkills: BattlePassiveSkillDefinition[];
+}
+
+export interface HeroLearnedSkillSet {
+  talentIds?: string[] | null;
+  activeSkillIds?: string[] | null;
+  passiveSkillIds?: string[] | null;
 }
 
 export interface NormalizeHeroLoadoutResult {
@@ -118,22 +124,48 @@ export function ensureBattleLoadoutShape(loadout: BattleLoadout): BattleLoadout 
   };
 }
 
-export function getHeroSkillOptions(heroClass: HeroClass): HeroSkillOptionSet {
+function normalizeLearnedSkillSet(learnedSkills?: HeroLearnedSkillSet): {
+  talentIds: Set<string> | null;
+  activeSkillIds: Set<string> | null;
+  passiveSkillIds: Set<string> | null;
+} {
+  const toSet = (input?: string[] | null): Set<string> | null => {
+    if (!Array.isArray(input)) {
+      return null;
+    }
+    return new Set(input.filter((item): item is string => typeof item === "string" && item.length > 0));
+  };
   return {
-    talents: Object.values(battleTalents).filter((skill) => isSelectableForHeroClass(skill, heroClass)),
-    activeSkills: Object.values(battleActiveSkills).filter((skill) => isSelectableForHeroClass(skill, heroClass)),
-    passiveSkills: Object.values(battlePassiveSkills).filter((skill) => isSelectableForHeroClass(skill, heroClass))
+    talentIds: toSet(learnedSkills?.talentIds),
+    activeSkillIds: toSet(learnedSkills?.activeSkillIds),
+    passiveSkillIds: toSet(learnedSkills?.passiveSkillIds)
+  };
+}
+
+export function getHeroSkillOptions(heroClass: HeroClass, learnedSkills?: HeroLearnedSkillSet): HeroSkillOptionSet {
+  const learned = normalizeLearnedSkillSet(learnedSkills);
+  return {
+    talents: Object.values(battleTalents).filter(
+      (skill) => isSelectableForHeroClass(skill, heroClass) && (!learned.talentIds || learned.talentIds.has(skill.id))
+    ),
+    activeSkills: Object.values(battleActiveSkills).filter(
+      (skill) => isSelectableForHeroClass(skill, heroClass) && (!learned.activeSkillIds || learned.activeSkillIds.has(skill.id))
+    ),
+    passiveSkills: Object.values(battlePassiveSkills).filter(
+      (skill) => isSelectableForHeroClass(skill, heroClass) && (!learned.passiveSkillIds || learned.passiveSkillIds.has(skill.id))
+    )
   };
 }
 
 export function normalizeHeroLoadout(
   heroClass: HeroClass,
   loadout: BattleLoadout,
-  fallbackTalentId: string | null
+  fallbackTalentId: string | null,
+  learnedSkills?: HeroLearnedSkillSet
 ): NormalizeHeroLoadoutResult {
   const issues: string[] = [];
   const shaped = ensureBattleLoadoutShape(loadout);
-  const options = getHeroSkillOptions(heroClass);
+  const options = getHeroSkillOptions(heroClass, learnedSkills);
   const talentMap = new Map(options.talents.map((skill) => [skill.id, skill]));
   const activeMap = new Map(options.activeSkills.map((skill) => [skill.id, skill]));
   const passiveMap = new Map(options.passiveSkills.map((skill) => [skill.id, skill]));
@@ -141,7 +173,7 @@ export function normalizeHeroLoadout(
   let talentSlot = shaped.talentSlot;
   if (talentSlot && !talentMap.has(talentSlot)) {
     const originName = battleTalents[talentSlot]?.name ?? talentSlot;
-    issues.push(`天赋 ${originName} 不符合当前职业，已移除。`);
+    issues.push(`天赋 ${originName} 不在当前可用列表（职业/已学限制），已移除。`);
     talentSlot = null;
   }
 
@@ -162,7 +194,7 @@ export function normalizeHeroLoadout(
     const found = activeMap.get(skillId);
     if (!found) {
       const originName = battleActiveSkills[skillId]?.name ?? skillId;
-      issues.push(`主动槽 A${index + 1} 的技能 ${originName} 不符合当前职业，已移除。`);
+      issues.push(`主动槽 A${index + 1} 的技能 ${originName} 不在当前可用列表（职业/已学限制），已移除。`);
       return null;
     }
     if (activeSeen.has(skillId)) {
@@ -181,7 +213,7 @@ export function normalizeHeroLoadout(
     const found = passiveMap.get(skillId);
     if (!found) {
       const originName = battlePassiveSkills[skillId]?.name ?? skillId;
-      issues.push(`被动槽 P${index + 1} 的技能 ${originName} 不符合当前职业，已移除。`);
+      issues.push(`被动槽 P${index + 1} 的技能 ${originName} 不在当前可用列表（职业/已学限制），已移除。`);
       return null;
     }
     if (passiveSeen.has(skillId)) {

@@ -1,0 +1,32 @@
+﻿[
+{
+    "id":  "paladin_holy_blade",
+    "name":  "圣辉斩",
+    "skillPool":  "class",
+    "allowedHeroClasses":  [
+                               "paladin"
+                           ],
+    "category":  "assault",
+    "description":  "附带光元素的高伤害斩击。",
+    "targetType":  "singleEnemy",
+    "effect":  "damage",
+    "damageType":  "physical",
+    "element":  "light",
+    "mpCost":  22,
+    "cooldown":  3,
+    "baseWeight":  125,
+    "basePower":  132,
+    "scaling":  {
+                    "str":  0.9,
+                    "int":  0.2
+                },
+    "canCrit":  true,
+    "weightTuning":  {
+                         "enemyHpBelow":  {
+                                              "threshold":  0.35,
+                                              "delta":  28
+                                          }
+                     }
+}
+]
+

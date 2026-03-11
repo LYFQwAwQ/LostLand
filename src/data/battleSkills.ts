@@ -1,4 +1,3 @@
-import rawConfig from "./battleSkills.config.json";
 import type {
   BattleActiveSkillDefinition,
   BattleDamageType,
@@ -17,7 +16,7 @@ import type {
 } from "../types/battle";
 import type { HeroClass } from "../types/game";
 
-const HERO_CLASSES: HeroClass[] = ["paladin", "mage"];
+const HERO_CLASSES: HeroClass[] = ["paladin", "mage", "ranger"];
 const SKILL_POOLS: BattleSkillPool[] = ["common", "class", "enemy"];
 const SKILL_CATEGORIES: BattleSkillCategory[] = ["assault", "defend", "inspire", "afflict", "succor"];
 const TARGET_TYPES: BattleTargetType[] = ["self", "singleEnemy", "allEnemies", "singleAlly", "allAllies", "lowestHpAlly"];
@@ -36,6 +35,7 @@ const STATUS_KEYS: BattleStatusKey[] = [
 ];
 const TALENT_RARITIES: BattleTalentRarity[] = ["common", "rare", "epic", "legendary", "unique"];
 const STATUS_EFFECT_POLARITIES: BattleStatusEffectPolarity[] = ["positive", "negative", "all"];
+const ACTIVE_CATEGORY_FILE_NAMES = new Set<string>(["assault.json", "defend.json", "inspire.json", "afflict.json", "succor.json"]);
 const FLAT_KEYS = [
   "maxHp",
   "maxMp",
@@ -63,7 +63,7 @@ const FALLBACK_BASIC_ATTACK: BattleActiveSkillDefinition = {
   name: "基础攻击",
   kind: "active",
   skillPool: "common",
-  allowedHeroClasses: ["paladin", "mage"],
+  allowedHeroClasses: ["paladin", "mage", "ranger"],
   category: "assault",
   description: "配置缺失时的保底技能。",
   targetType: "singleEnemy",
@@ -118,6 +118,7 @@ function parseScaling(value: unknown): BattleSkillScaling {
   return {
     str: typeof value.str === "number" ? value.str : undefined,
     int: typeof value.int === "number" ? value.int : undefined,
+    agi: typeof value.agi === "number" ? value.agi : undefined,
     def: typeof value.def === "number" ? value.def : undefined,
     maxHp: typeof value.maxHp === "number" ? value.maxHp : undefined,
     missingHp: typeof value.missingHp === "number" ? value.missingHp : undefined
@@ -374,31 +375,45 @@ function buildById<T extends { id: string }>(items: T[]): Record<string, T> {
   }, {});
 }
 
-function parseConfigRoot(config: unknown) {
-  if (!isObject(config)) {
-    return {
-      defaultActiveSkillId: FALLBACK_BASIC_ATTACK.id,
-      activeSkills: [FALLBACK_BASIC_ATTACK],
-      passiveSkills: [] as BattlePassiveSkillDefinition[],
-      talents: [] as BattleTalentDefinition[]
-    };
-  }
+function parseConfigFromFiles(skillFiles: Record<string, unknown>) {
+  const activeRawItems: unknown[] = [];
+  const passiveRawItems: unknown[] = [];
+  const talentRawItems: unknown[] = [];
+  let configuredDefault = FALLBACK_BASIC_ATTACK.id;
 
-  const activeSkills = Array.isArray(config.activeSkills)
-    ? config.activeSkills.map(parseActiveSkill).filter((item): item is BattleActiveSkillDefinition => Boolean(item))
-    : [];
-  const passiveSkills = Array.isArray(config.passiveSkills)
-    ? config.passiveSkills.map(parsePassiveSkill).filter((item): item is BattlePassiveSkillDefinition => Boolean(item))
-    : [];
-  const talents = Array.isArray(config.talents)
-    ? config.talents.map(parseTalentSkill).filter((item): item is BattleTalentDefinition => Boolean(item))
-    : [];
+  Object.entries(skillFiles)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .forEach(([path, value]) => {
+    const fileName = path.split("/").pop()?.toLowerCase() ?? "";
+    if (fileName === "meta.json" && isObject(value)) {
+      configuredDefault = parseString(value.defaultActiveSkillId, configuredDefault);
+      return;
+    }
+    if (ACTIVE_CATEGORY_FILE_NAMES.has(fileName)) {
+      if (Array.isArray(value)) {
+        activeRawItems.push(...value);
+      }
+      return;
+    }
+    if (fileName === "passives.json") {
+      if (Array.isArray(value)) {
+        passiveRawItems.push(...value);
+      }
+      return;
+    }
+    if (fileName === "talents.json" && Array.isArray(value)) {
+      talentRawItems.push(...value);
+    }
+  });
+
+  const activeSkills = activeRawItems.map(parseActiveSkill).filter((item): item is BattleActiveSkillDefinition => Boolean(item));
+  const passiveSkills = passiveRawItems.map(parsePassiveSkill).filter((item): item is BattlePassiveSkillDefinition => Boolean(item));
+  const talents = talentRawItems.map(parseTalentSkill).filter((item): item is BattleTalentDefinition => Boolean(item));
 
   if (!activeSkills.some((skill) => skill.id === FALLBACK_BASIC_ATTACK.id)) {
     activeSkills.unshift(FALLBACK_BASIC_ATTACK);
   }
 
-  const configuredDefault = parseString(config.defaultActiveSkillId, FALLBACK_BASIC_ATTACK.id);
   const resolvedDefault = activeSkills.some((skill) => skill.id === configuredDefault)
     ? configuredDefault
     : FALLBACK_BASIC_ATTACK.id;
@@ -411,7 +426,8 @@ function parseConfigRoot(config: unknown) {
   };
 }
 
-const parsedConfig = parseConfigRoot(rawConfig as unknown);
+const rawSkillFileModules = import.meta.glob("./battleSkills/*/*.json", { eager: true, import: "default" }) as Record<string, unknown>;
+const parsedConfig = parseConfigFromFiles(rawSkillFileModules);
 
 export const DEFAULT_ACTIVE_SKILL_ID = parsedConfig.defaultActiveSkillId;
 export const battleActiveSkills: Record<string, BattleActiveSkillDefinition> = buildById(parsedConfig.activeSkills);

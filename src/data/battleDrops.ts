@@ -41,6 +41,13 @@ export interface GenerateBattleDropsParams {
   enemies: BattleDropEnemyContext[];
 }
 
+export interface BattleDropMaterialCatalogEntry {
+  id: string;
+  name: string;
+  rarity: BattleMaterialRarity;
+  sourceEnemyPrototypeIds: string[];
+}
+
 const templateMap = new Map<string, EquipmentTemplate>(equipmentTemplates.map((template) => [template.id, template]));
 
 const lowTierEnvironment: EquipmentGenerationEnvironment = {
@@ -261,6 +268,57 @@ const DEFAULT_DROP_TABLE: EnemyDropTable = {
     }
   ]
 };
+
+function buildMaterialDropCatalog(): BattleDropMaterialCatalogEntry[] {
+  const sourceMap = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      rarity: BattleMaterialRarity;
+      sourceEnemyPrototypeIds: Set<string>;
+    }
+  >();
+
+  const appendRules = (sourceEnemyPrototypeId: string, rules: MaterialDropRule[]) => {
+    rules.forEach((rule) => {
+      const existing = sourceMap.get(rule.id);
+      if (existing) {
+        existing.sourceEnemyPrototypeIds.add(sourceEnemyPrototypeId);
+        return;
+      }
+      sourceMap.set(rule.id, {
+        id: rule.id,
+        name: rule.name,
+        rarity: rule.rarity,
+        sourceEnemyPrototypeIds: new Set([sourceEnemyPrototypeId])
+      });
+    });
+  };
+
+  Object.entries(ENEMY_DROP_TABLES).forEach(([enemyPrototypeId, table]) => {
+    appendRules(enemyPrototypeId, table.materials);
+  });
+  appendRules("default", DEFAULT_DROP_TABLE.materials);
+
+  return [...sourceMap.values()]
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      rarity: item.rarity,
+      sourceEnemyPrototypeIds: [...item.sourceEnemyPrototypeIds].sort((left, right) => left.localeCompare(right, "en-US"))
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"));
+}
+
+const MATERIAL_DROP_CATALOG = buildMaterialDropCatalog();
+
+export function getMaterialDropCatalog(): BattleDropMaterialCatalogEntry[] {
+  return MATERIAL_DROP_CATALOG.map((item) => ({
+    ...item,
+    sourceEnemyPrototypeIds: [...item.sourceEnemyPrototypeIds]
+  }));
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));

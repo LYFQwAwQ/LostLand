@@ -1,0 +1,45 @@
+﻿[
+  {
+    "id": "passive_keen_eye",
+    "name": "鹰眼",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "description": "提升暴击率、暴击伤害和穿透。",
+    "modifiers": {
+      "flat": {
+        "critRate": 0.06,
+        "critDamage": 0.15,
+        "penetration": 20
+      }
+    }
+  },
+  {
+    "id": "passive_fleet_foot",
+    "name": "疾足",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "description": "提升敏捷、闪避和行动效率。",
+    "modifiers": {
+      "flat": {
+        "agi": 30,
+        "evasion": 0.05
+      },
+      "ratio": {
+        "damageBoost": 0.04
+      }
+    }
+  },
+  {
+    "id": "passive_trapper",
+    "name": "猎手陷阵",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "description": "强化控制类技能命中后的压制能力。",
+    "modifiers": {
+      "flat": {
+        "penetration": 14,
+        "allBoost": 0.03
+      }
+    }
+  }
+]

@@ -1,0 +1,46 @@
+﻿[
+  {
+    "id": "passive_arcane_flow",
+    "name": "奥术潮汐",
+    "skillPool": "class",
+    "allowedHeroClasses": ["mage"],
+    "description": "提升法力和法术强度。",
+    "modifiers": {
+      "flat": {
+        "maxMp": 240,
+        "int": 25,
+        "elementalPierce": 0.05
+      }
+    }
+  },
+  {
+    "id": "passive_frost_focus",
+    "name": "冰霜专注",
+    "skillPool": "class",
+    "allowedHeroClasses": ["mage"],
+    "description": "提升暴击率与寒冰加成。",
+    "modifiers": {
+      "flat": {
+        "critRate": 0.05
+      },
+      "elementBoost": {
+        "ice": 0.12
+      }
+    }
+  },
+  {
+    "id": "passive_spell_echo",
+    "name": "法术回响",
+    "skillPool": "class",
+    "allowedHeroClasses": ["mage"],
+    "description": "提升法术伤害并增强风系机动。",
+    "modifiers": {
+      "ratio": {
+        "damageBoost": 0.05
+      },
+      "elementBoost": {
+        "wind": 0.1
+      }
+    }
+  }
+]

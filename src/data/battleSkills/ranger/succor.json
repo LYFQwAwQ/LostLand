@@ -1,0 +1,36 @@
+﻿[
+  {
+    "id": "ranger_field_mend",
+    "name": "野战包扎",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "category": "succor",
+    "description": "治疗最低血量友军并净化负面状态。",
+    "targetType": "lowestHpAlly",
+    "effect": "heal",
+    "element": "life",
+    "mpCost": 18,
+    "cooldown": 2,
+    "baseWeight": 104,
+    "basePower": 96,
+    "scaling": {
+      "agi": 0.42,
+      "int": 0.34
+    },
+    "canCrit": false,
+    "extraEffects": [
+      {
+        "type": "cleanse",
+        "target": "targets",
+        "removeCount": 1,
+        "polarity": "negative"
+      }
+    ],
+    "weightTuning": {
+      "allyHpBelow": {
+        "threshold": 0.5,
+        "delta": 38
+      }
+    }
+  }
+]

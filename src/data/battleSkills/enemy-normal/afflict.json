@@ -1,0 +1,32 @@
+﻿[
+{
+    "id":  "enemy_poison_spit",
+    "name":  "毒液喷吐",
+    "skillPool":  "enemy",
+    "allowedHeroClasses":  [
+
+                           ],
+    "category":  "afflict",
+    "description":  "对单体目标施加中毒。",
+    "targetType":  "singleEnemy",
+    "effect":  "damage",
+    "damageType":  "magic",
+    "element":  "dark",
+    "mpCost":  10,
+    "cooldown":  2,
+    "baseWeight":  108,
+    "basePower":  74,
+    "scaling":  {
+                    "int":  0.45,
+                    "str":  0.4
+                },
+    "canCrit":  true,
+    "targetStatus":  {
+                         "key":  "poisoned",
+                         "chance":  0.45,
+                         "duration":  3,
+                         "potency":  0.035
+                     }
+}
+]
+

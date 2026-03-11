@@ -1,0 +1,35 @@
+﻿[
+  {
+    "id": "ranger_smoke_step",
+    "name": "烟幕错步",
+    "skillPool": "class",
+    "allowedHeroClasses": ["ranger"],
+    "category": "defend",
+    "description": "短暂后撤并恢复生命，推进自身行动条。",
+    "targetType": "self",
+    "effect": "heal",
+    "element": "wind",
+    "mpCost": 16,
+    "cooldown": 3,
+    "baseWeight": 96,
+    "basePower": 74,
+    "scaling": {
+      "agi": 0.5,
+      "maxHp": 0.015
+    },
+    "canCrit": false,
+    "actionDeltaSelf": 420,
+    "selfStatus": {
+      "key": "guarded",
+      "chance": 1,
+      "duration": 1,
+      "potency": 0.18
+    },
+    "weightTuning": {
+      "selfHpBelow": {
+        "threshold": 0.45,
+        "delta": 34
+      }
+    }
+  }
+]

@@ -160,7 +160,7 @@ export function TeamPage() {
     <section className="page">
       <header className="page-header">
         <h1>队伍配置</h1>
-        <p>支持拖拽编队与 10 套全量预设（站位/技能槽位/装备/记忆占位）。</p>
+        <p>支持拖拽编队与 10 套全量预设（站位/技能槽位/装备/记忆穿戴）。</p>
       </header>
 
       <div className="team-layout">

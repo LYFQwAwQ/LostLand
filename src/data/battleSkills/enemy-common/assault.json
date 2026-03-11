@@ -1,0 +1,24 @@
+﻿[
+{
+    "id":  "enemy_claw",
+    "name":  "撕裂爪击",
+    "skillPool":  "enemy",
+    "allowedHeroClasses":  [
+
+                           ],
+    "category":  "assault",
+    "description":  "野兽的基础爪击。",
+    "targetType":  "singleEnemy",
+    "effect":  "damage",
+    "damageType":  "physical",
+    "mpCost":  0,
+    "cooldown":  0,
+    "baseWeight":  100,
+    "basePower":  68,
+    "scaling":  {
+                    "str":  0.9
+                },
+    "canCrit":  true
+}
+]
+

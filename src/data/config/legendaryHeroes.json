@@ -1,0 +1,68 @@
+﻿{
+  "heroes": [
+    {
+      "id": "legendary-paladin-auric",
+      "name": "奥里克·圣钉",
+      "title": "辉印裁决者",
+      "heroClass": "paladin",
+      "image": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=900",
+      "stats": { "hp": 14600, "mp": 980, "str": 286, "int": 118, "agi": 124, "def": 528 },
+      "loadout": {
+        "talentId": "talent_legend_sun_oath",
+        "activeSkillIds": [
+          "paladin_holy_blade",
+          "paladin_shield_slam",
+          "paladin_war_provoke",
+          "paladin_bulwark_vow",
+          "paladin_prayer",
+          "paladin_command",
+          "basic_attack"
+        ],
+        "passiveSkillIds": ["passive_plate_mastery", "passive_resolute_heart"]
+      }
+    },
+    {
+      "id": "legendary-mage-lyra",
+      "name": "莉拉·星熵",
+      "title": "禁环观测者",
+      "heroClass": "mage",
+      "image": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&q=80&w=900",
+      "stats": { "hp": 5200, "mp": 5600, "str": 66, "int": 462, "agi": 180, "def": 142 },
+      "loadout": {
+        "talentId": "talent_legend_arcane_singularity",
+        "activeSkillIds": [
+          "mage_flame_wave",
+          "mage_arcane_bolt",
+          "mage_frost_nova",
+          "mage_null_field",
+          "mage_clear_mind",
+          "mage_mana_current",
+          "mage_emergency_barrier",
+          "basic_attack"
+        ],
+        "passiveSkillIds": ["passive_arcane_flow", "passive_frost_focus"]
+      }
+    },
+    {
+      "id": "legendary-ranger-sera",
+      "name": "赛拉·风脉",
+      "title": "终夜狩星者",
+      "heroClass": "ranger",
+      "image": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=900",
+      "stats": { "hp": 8900, "mp": 2100, "str": 218, "int": 126, "agi": 338, "def": 286 },
+      "loadout": {
+        "talentId": "talent_legend_starseeker",
+        "activeSkillIds": [
+          "ranger_quick_shot",
+          "ranger_split_arrow",
+          "ranger_crippling_trap",
+          "ranger_hawk_signal",
+          "ranger_smoke_step",
+          "ranger_field_mend",
+          "basic_attack"
+        ],
+        "passiveSkillIds": ["passive_keen_eye", "passive_fleet_foot"]
+      }
+    }
+  ]
+}

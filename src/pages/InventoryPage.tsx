@@ -10,11 +10,17 @@ import type {
   EquipmentRank,
   EquipmentSlot,
   EquipmentSubtype,
-  GeneratedEquipment
+  GeneratedEquipment,
+  InventoryConsumableStack,
+  InventoryMaterialStack,
+  InventoryMemoryStack,
+  InventoryResourceRarity
 } from "../types/game";
 
-type InventoryTab = "equipment" | "consumable" | "material";
+type InventoryTab = "equipment" | "consumable" | "material" | "memory";
 type SortBy = "scoreDesc" | "qualityDesc" | "rankDesc" | "affixDesc" | "nameAsc" | "nameDesc";
+type ResourceSortBy = "quantityDesc" | "rarityDesc" | "nameAsc" | "nameDesc";
+type MemorySortBy = "equippedFirst" | "nameAsc" | "nameDesc";
 type TagGroupKey = "quality" | "rank" | "slot";
 
 const qualityOrder: Record<EquipmentQuality, number> = {
@@ -33,6 +39,26 @@ const rankOrder: Record<EquipmentRank, number> = {
   perfect: 3
 };
 
+const resourceRarityOrder: Record<InventoryResourceRarity, number> = {
+  common: 0,
+  uncommon: 1,
+  rare: 2,
+  epic: 3
+};
+
+const resourceRarityLabels: Record<InventoryResourceRarity, string> = {
+  common: "普通",
+  uncommon: "优秀",
+  rare: "稀有",
+  epic: "史诗"
+};
+
+const heroClassLabels: Record<InventoryMemoryStack["heroClass"], string> = {
+  paladin: "圣骑士",
+  mage: "法师",
+  ranger: "游侠"
+};
+
 function formatStatValue(value: number): string {
   if (Math.abs(value) > 0 && Math.abs(value) < 1) {
     return `${(value * 100).toFixed(2)}%`;
@@ -48,8 +74,65 @@ function initialsBySubtype(subtype: EquipmentSubtype): string {
   return text.length >= 2 ? text.slice(0, 2) : text;
 }
 
+function formatMaterialSources(sourceEnemyPrototypeIds: string[]): string {
+  if (sourceEnemyPrototypeIds.length <= 0) {
+    return "未知";
+  }
+  return sourceEnemyPrototypeIds
+    .map((id) => {
+      if (id === "default") {
+        return "通用掉落";
+      }
+      if (id === "unknown") {
+        return "未知来源";
+      }
+      return id;
+    })
+    .join(" / ");
+}
+
+function sortResourceEntries<T extends { name: string; rarity: InventoryResourceRarity; quantity: number }>(
+  entries: T[],
+  sortBy: ResourceSortBy
+): T[] {
+  return [...entries].sort((left, right) => {
+    if (sortBy === "quantityDesc") {
+      if (right.quantity !== left.quantity) {
+        return right.quantity - left.quantity;
+      }
+      return left.name.localeCompare(right.name, "zh-CN");
+    }
+    if (sortBy === "rarityDesc") {
+      if (resourceRarityOrder[right.rarity] !== resourceRarityOrder[left.rarity]) {
+        return resourceRarityOrder[right.rarity] - resourceRarityOrder[left.rarity];
+      }
+      if (right.quantity !== left.quantity) {
+        return right.quantity - left.quantity;
+      }
+      return left.name.localeCompare(right.name, "zh-CN");
+    }
+    if (sortBy === "nameAsc") {
+      return left.name.localeCompare(right.name, "zh-CN");
+    }
+    return right.name.localeCompare(left.name, "zh-CN");
+  });
+}
+
+function buildRaritySummary(items: Array<{ rarity: InventoryResourceRarity }>): Record<InventoryResourceRarity, number> {
+  const summary: Record<InventoryResourceRarity, number> = {
+    common: 0,
+    uncommon: 0,
+    rare: 0,
+    epic: 0
+  };
+  items.forEach((item) => {
+    summary[item.rarity] += 1;
+  });
+  return summary;
+}
+
 export function InventoryPage() {
-  const { items, refreshItems, getItemOwner } = useEquipmentInventory();
+  const { items, refreshItems, getItemOwner, materialItems, consumableItems, memoryItems, getMemoryOwner } = useEquipmentInventory();
   const [tab, setTab] = useState<InventoryTab>("equipment");
   const [selected, setSelected] = useState<GeneratedEquipment | null>(null);
 
@@ -63,6 +146,13 @@ export function InventoryPage() {
     rank: true,
     slot: false
   });
+
+  const [resourceKeyword, setResourceKeyword] = useState("");
+  const [resourceRarityFilters, setResourceRarityFilters] = useState<InventoryResourceRarity[]>([]);
+  const [resourceSortBy, setResourceSortBy] = useState<ResourceSortBy>("quantityDesc");
+  const [memoryKeyword, setMemoryKeyword] = useState("");
+  const [memoryClassFilters, setMemoryClassFilters] = useState<Array<InventoryMemoryStack["heroClass"]>>([]);
+  const [memorySortBy, setMemorySortBy] = useState<MemorySortBy>("equippedFirst");
 
   const heroNameMap = useMemo(
     () =>
@@ -140,6 +230,86 @@ export function InventoryPage() {
     });
   }, [entries, keyword, qualityFilters, rankFilters, slotFilters, sortBy]);
 
+  const visibleMaterialItems = useMemo(() => {
+    const key = resourceKeyword.trim().toLowerCase();
+    const filtered = materialItems.filter((item) => {
+      if (item.quantity <= 0) {
+        return false;
+      }
+      if (resourceRarityFilters.length > 0 && !resourceRarityFilters.includes(item.rarity)) {
+        return false;
+      }
+      if (key.length <= 0) {
+        return true;
+      }
+      return (
+        item.name.toLowerCase().includes(key) ||
+        formatMaterialSources(item.sourceEnemyPrototypeIds).toLowerCase().includes(key) ||
+        item.id.toLowerCase().includes(key)
+      );
+    });
+    return sortResourceEntries(filtered, resourceSortBy);
+  }, [materialItems, resourceKeyword, resourceRarityFilters, resourceSortBy]);
+
+  const visibleConsumableItems = useMemo(() => {
+    const key = resourceKeyword.trim().toLowerCase();
+    const filtered = consumableItems.filter((item) => {
+      if (resourceRarityFilters.length > 0 && !resourceRarityFilters.includes(item.rarity)) {
+        return false;
+      }
+      if (key.length <= 0) {
+        return true;
+      }
+      return (
+        item.name.toLowerCase().includes(key) ||
+        item.effectSummary.toLowerCase().includes(key) ||
+        item.source.toLowerCase().includes(key) ||
+        item.id.toLowerCase().includes(key)
+      );
+    });
+    return sortResourceEntries(filtered, resourceSortBy);
+  }, [consumableItems, resourceKeyword, resourceRarityFilters, resourceSortBy]);
+
+  const visibleMemoryEntries = useMemo(() => {
+    const keyword = memoryKeyword.trim().toLowerCase();
+    const filtered = memoryItems
+      .map((item) => ({
+        item,
+        ownerHeroId: getMemoryOwner(item.id)
+      }))
+      .filter(({ item }) => {
+        if (memoryClassFilters.length > 0 && !memoryClassFilters.includes(item.heroClass)) {
+          return false;
+        }
+        if (keyword.length <= 0) {
+          return true;
+        }
+        return (
+          item.title.toLowerCase().includes(keyword) ||
+          item.quote.toLowerCase().includes(keyword) ||
+          item.effect.toLowerCase().includes(keyword) ||
+          item.id.toLowerCase().includes(keyword)
+        );
+      });
+
+    return [...filtered].sort((left, right) => {
+      if (memorySortBy === "equippedFirst") {
+        const leftEquipped = left.ownerHeroId ? 1 : 0;
+        const rightEquipped = right.ownerHeroId ? 1 : 0;
+        if (rightEquipped !== leftEquipped) {
+          return rightEquipped - leftEquipped;
+        }
+        return left.item.title.localeCompare(right.item.title, "zh-CN");
+      }
+      if (memorySortBy === "nameAsc") {
+        return left.item.title.localeCompare(right.item.title, "zh-CN");
+      }
+      return right.item.title.localeCompare(left.item.title, "zh-CN");
+    });
+  }, [getMemoryOwner, memoryClassFilters, memoryItems, memoryKeyword, memorySortBy]);
+
+  const activeResourceItems = tab === "material" ? visibleMaterialItems : tab === "consumable" ? visibleConsumableItems : [];
+
   const qualitySummary = useMemo(() => {
     const map = {
       common: 0,
@@ -154,6 +324,34 @@ export function InventoryPage() {
     });
     return map;
   }, [visibleEntries]);
+
+  const activeResourceSummary = useMemo(() => {
+    return buildRaritySummary(activeResourceItems);
+  }, [activeResourceItems]);
+
+  const activeResourceQuantity = useMemo(() => {
+    return activeResourceItems.reduce((sum, item) => sum + item.quantity, 0);
+  }, [activeResourceItems]);
+
+  const memorySummary = useMemo(() => {
+    const byClass: Record<InventoryMemoryStack["heroClass"], number> = {
+      paladin: 0,
+      mage: 0,
+      ranger: 0
+    };
+    let equippedCount = 0;
+    visibleMemoryEntries.forEach((entry) => {
+      byClass[entry.item.heroClass] += 1;
+      if (entry.ownerHeroId) {
+        equippedCount += 1;
+      }
+    });
+    return {
+      total: visibleMemoryEntries.length,
+      equippedCount,
+      byClass
+    };
+  }, [visibleMemoryEntries]);
 
   useEffect(() => {
     if (!selected) {
@@ -176,6 +374,12 @@ export function InventoryPage() {
       setSelected(null);
     }
   }, [items, selected]);
+
+  useEffect(() => {
+    if (tab !== "equipment" && selected) {
+      setSelected(null);
+    }
+  }, [selected, tab]);
 
   const toggleQuality = (quality: EquipmentQuality) => {
     setQualityFilters((prev) => (prev.includes(quality) ? prev.filter((item) => item !== quality) : [...prev, quality]));
@@ -204,13 +408,33 @@ export function InventoryPage() {
     }));
   };
 
+  const toggleResourceRarity = (rarity: InventoryResourceRarity) => {
+    setResourceRarityFilters((prev) => (prev.includes(rarity) ? prev.filter((item) => item !== rarity) : [...prev, rarity]));
+  };
+
+  const clearResourceFilters = () => {
+    setResourceKeyword("");
+    setResourceRarityFilters([]);
+    setResourceSortBy("quantityDesc");
+  };
+
+  const toggleMemoryClass = (heroClass: InventoryMemoryStack["heroClass"]) => {
+    setMemoryClassFilters((prev) => (prev.includes(heroClass) ? prev.filter((item) => item !== heroClass) : [...prev, heroClass]));
+  };
+
+  const clearMemoryFilters = () => {
+    setMemoryKeyword("");
+    setMemoryClassFilters([]);
+    setMemorySortBy("equippedFirst");
+  };
+
   const selectedOwner = selected ? getItemOwner(selected.uid) : null;
 
   return (
     <section className="page inventory-page">
       <header className="page-header">
         <h1>背包</h1>
-        <p>装备页已支持筛选、排序与详情分模块展示。</p>
+        <p>装备、材料、消耗品与记忆统一使用全局背包状态，支持分类筛选与排序。</p>
       </header>
 
       <section className="inventory-shell">
@@ -224,8 +448,11 @@ export function InventoryPage() {
           <button type="button" className={tab === "material" ? "active" : ""} onClick={() => setTab("material")}>
             材料
           </button>
-          <button type="button" className="ghost-btn" onClick={refreshItems}>
-            刷新样本
+          <button type="button" className={tab === "memory" ? "active" : ""} onClick={() => setTab("memory")}>
+            记忆
+          </button>
+          <button type="button" className="ghost-btn" onClick={refreshItems} disabled={tab !== "equipment"}>
+            刷新装备样本
           </button>
         </div>
 
@@ -363,10 +590,199 @@ export function InventoryPage() {
               </div>
             </div>
           </div>
+        ) : tab === "memory" ? (
+          <div className="inventory-content">
+            <aside className="inventory-summary-card">
+              <h3>记忆概览</h3>
+              <p>
+                条目：{memorySummary.total} · 已装备：{memorySummary.equippedCount}
+              </p>
+              <div className="inventory-quality-grid">
+                {(Object.keys(memorySummary.byClass) as Array<keyof typeof memorySummary.byClass>).map((heroClass) => (
+                  <div key={heroClass}>
+                    <span className="rank-badge">{heroClassLabels[heroClass]}</span>
+                    <strong>{memorySummary.byClass[heroClass]}</strong>
+                  </div>
+                ))}
+              </div>
+            </aside>
+
+            <div className="inventory-main">
+              <div className="inventory-toolbar">
+                <label>
+                  关键词
+                  <input
+                    type="text"
+                    value={memoryKeyword}
+                    onChange={(event) => setMemoryKeyword(event.target.value)}
+                    placeholder="标题 / 描述 / 效果"
+                  />
+                </label>
+                <label>
+                  排序
+                  <select value={memorySortBy} onChange={(event) => setMemorySortBy(event.target.value as MemorySortBy)}>
+                    <option value="equippedFirst">已装备优先</option>
+                    <option value="nameAsc">名称 A-Z</option>
+                    <option value="nameDesc">名称 Z-A</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="inventory-tag-groups">
+                <section className="inventory-tag-group">
+                  <button type="button" className="inventory-tag-group-toggle">
+                    <span>职业</span>
+                    <small>{memoryClassFilters.length} 已选</small>
+                  </button>
+                  <div className="inventory-tag-row">
+                    {(Object.keys(heroClassLabels) as InventoryMemoryStack["heroClass"][]).map((heroClass) => (
+                      <button
+                        key={heroClass}
+                        type="button"
+                        className={`inventory-tag-chip ${memoryClassFilters.includes(heroClass) ? "active" : ""}`}
+                        onClick={() => toggleMemoryClass(heroClass)}
+                      >
+                        {heroClassLabels[heroClass]}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <div className="inventory-tag-actions">
+                  <button type="button" className="ghost-btn" onClick={clearMemoryFilters}>
+                    一键清空
+                  </button>
+                </div>
+              </div>
+
+              {visibleMemoryEntries.length > 0 ? (
+                <div className="inventory-memory-grid">
+                  {visibleMemoryEntries.map(({ item, ownerHeroId }) => (
+                    <article key={item.id} className={`inventory-memory-card ${ownerHeroId ? "equipped" : ""}`}>
+                      <header>
+                        <h4>{item.title}</h4>
+                        <span className="rank-badge">{heroClassLabels[item.heroClass]}</span>
+                      </header>
+                      <p className="inventory-resource-effect">“{item.quote}”</p>
+                      <p className="inventory-resource-meta">{item.effect}</p>
+                      <p className="inventory-memory-owner">
+                        {ownerHeroId ? `已装备：${heroNameMap[ownerHeroId] ?? ownerHeroId}` : "未装备"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="inventory-placeholder">
+                  <h3>记忆结果为空</h3>
+                  <p>当前筛选条件下没有可显示条目。</p>
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
-          <div className="inventory-placeholder">
-            <h3>{tab === "consumable" ? "消耗品" : "材料"}子界面</h3>
-            <p>该子界面当前为占位，后续可接入实际背包分类与筛选逻辑。</p>
+          <div className="inventory-content">
+            <aside className="inventory-summary-card">
+              <h3>{tab === "consumable" ? "消耗品概览" : "材料概览"}</h3>
+              <p>
+                条目：{activeResourceItems.length} · 总库存：{activeResourceQuantity}
+              </p>
+              <div className="inventory-quality-grid">
+                {(Object.keys(activeResourceSummary) as InventoryResourceRarity[]).map((rarity) => (
+                  <div key={rarity}>
+                    <span className={`quality-badge quality-${rarity}`}>{resourceRarityLabels[rarity]}</span>
+                    <strong>{activeResourceSummary[rarity]}</strong>
+                  </div>
+                ))}
+              </div>
+            </aside>
+
+            <div className="inventory-main">
+              <div className="inventory-toolbar">
+                <label>
+                  关键词
+                  <input
+                    type="text"
+                    value={resourceKeyword}
+                    onChange={(event) => setResourceKeyword(event.target.value)}
+                    placeholder={tab === "material" ? "材料名 / 来源怪物" : "名称 / 效果 / 来源"}
+                  />
+                </label>
+                <label>
+                  排序
+                  <select value={resourceSortBy} onChange={(event) => setResourceSortBy(event.target.value as ResourceSortBy)}>
+                    <option value="quantityDesc">库存优先</option>
+                    <option value="rarityDesc">稀有度优先</option>
+                    <option value="nameAsc">名称 A-Z</option>
+                    <option value="nameDesc">名称 Z-A</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="inventory-tag-groups">
+                <section className="inventory-tag-group">
+                  <button type="button" className="inventory-tag-group-toggle">
+                    <span>稀有度</span>
+                    <small>{resourceRarityFilters.length} 已选</small>
+                  </button>
+                  <div className="inventory-tag-row">
+                    {(Object.keys(resourceRarityLabels) as InventoryResourceRarity[]).map((rarity) => (
+                      <button
+                        key={rarity}
+                        type="button"
+                        className={`inventory-tag-chip ${resourceRarityFilters.includes(rarity) ? "active" : ""}`}
+                        onClick={() => toggleResourceRarity(rarity)}
+                      >
+                        {resourceRarityLabels[rarity]}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <div className="inventory-tag-actions">
+                  <button type="button" className="ghost-btn" onClick={clearResourceFilters}>
+                    一键清空
+                  </button>
+                </div>
+              </div>
+
+              {tab === "consumable" ? (
+                <div className="inventory-todo-note">TODO：消耗品当前为示例库存，待接入正式产出与消耗逻辑。</div>
+              ) : null}
+
+              {activeResourceItems.length > 0 ? (
+                <div className="inventory-resource-grid">
+                  {tab === "material"
+                    ? (activeResourceItems as InventoryMaterialStack[]).map((item) => (
+                        <article key={item.id} className="inventory-resource-card">
+                          <h4>{item.name}</h4>
+                          <p className="inventory-resource-quantity">库存 x{item.quantity}</p>
+                          <p className="inventory-resource-meta">来源怪物：{formatMaterialSources(item.sourceEnemyPrototypeIds)}</p>
+                          <div className="inventory-badges">
+                            <span className={`quality-badge quality-${item.rarity}`}>{resourceRarityLabels[item.rarity]}</span>
+                            <span className="rank-badge">ID: {item.id}</span>
+                          </div>
+                        </article>
+                      ))
+                    : (activeResourceItems as InventoryConsumableStack[]).map((item) => (
+                        <article key={item.id} className="inventory-resource-card">
+                          <h4>{item.name}</h4>
+                          <p className="inventory-resource-effect">{item.effectSummary}</p>
+                          <p className="inventory-resource-quantity">
+                            库存 x{item.quantity} / 上限 {item.maxStack}
+                          </p>
+                          <p className="inventory-resource-meta">来源：{item.source}</p>
+                          <div className="inventory-badges">
+                            <span className={`quality-badge quality-${item.rarity}`}>{resourceRarityLabels[item.rarity]}</span>
+                            <span className="rank-badge">ID: {item.id}</span>
+                          </div>
+                        </article>
+                      ))}
+                </div>
+              ) : (
+                <div className="inventory-placeholder">
+                  <h3>{tab === "consumable" ? "消耗品" : "材料"}结果为空</h3>
+                  <p>当前筛选条件下没有可显示条目。</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>

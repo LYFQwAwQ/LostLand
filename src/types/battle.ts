@@ -1,4 +1,4 @@
-import type { GeneratedEquipment, HeroClass } from "./game";
+import type { GeneratedEquipment, HeroClass, InventoryResourceRarity } from "./game";
 
 export type BattleSide = "ally" | "enemy";
 export type BattleLine = "front" | "back";
@@ -9,7 +9,7 @@ export type BattleSkillPool = "common" | "class" | "enemy";
 export type BattleTalentRarity = "common" | "rare" | "epic" | "legendary" | "unique";
 export type BattleLogTone = "system" | "damage" | "heal" | "buff" | "debuff" | "miss" | "drop";
 export type BattleDropCategory = "equipment" | "material";
-export type BattleMaterialRarity = "common" | "uncommon" | "rare" | "epic";
+export type BattleMaterialRarity = InventoryResourceRarity;
 
 export type BattleElement =
   | "fire"
@@ -118,6 +118,7 @@ export type BattleStatusEffectPolarity = "positive" | "negative" | "all";
 export interface BattleSkillScaling {
   str?: number;
   int?: number;
+  agi?: number;
   def?: number;
   maxHp?: number;
   missingHp?: number;

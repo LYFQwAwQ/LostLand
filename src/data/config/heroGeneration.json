@@ -1,0 +1,134 @@
+﻿{
+  "randomHeroCountPerStartup": 2,
+  "legendarySpawnChance": 0.04,
+  "classRollWeights": {
+    "paladin": 32,
+    "mage": 30,
+    "ranger": 38
+  },
+  "namePools": {
+    "familyNames": [
+      "艾尔",
+      "维恩",
+      "洛萨",
+      "卡莲",
+      "莱恩",
+      "瑟兰",
+      "菲奥",
+      "德雷",
+      "诺斯",
+      "希瓦"
+    ],
+    "givenNames": [
+      "晨锋",
+      "逐影",
+      "霜羽",
+      "炽刃",
+      "幽歌",
+      "星痕",
+      "暮矢",
+      "银心",
+      "风岚",
+      "夜烬"
+    ]
+  },
+  "titlePoolByClass": {
+    "paladin": [
+      "誓钢壁垒",
+      "圣痕守卫",
+      "黎明重骑"
+    ],
+    "mage": [
+      "星穹咏者",
+      "潮汐祷言师",
+      "霜焰观测者"
+    ],
+    "ranger": [
+      "林境巡猎",
+      "风痕追猎者",
+      "暮林箭卫"
+    ]
+  },
+  "imagePoolByClass": {
+    "paladin": [
+      "https://images.unsplash.com/photo-1614726310457-53ba02aa64c5?auto=format&fit=crop&q=80&w=900",
+      "https://images.unsplash.com/photo-1542727313-4f3e99aa2568?auto=format&fit=crop&q=80&w=900"
+    ],
+    "mage": [
+      "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&q=80&w=900",
+      "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=900"
+    ],
+    "ranger": [
+      "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=900",
+      "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=900"
+    ]
+  },
+  "statProfileByClass": {
+    "paladin": {
+      "base": { "hp": 11800, "mp": 860, "str": 232, "int": 96, "agi": 108, "def": 430 },
+      "variance": { "hp": 1800, "mp": 180, "str": 45, "int": 24, "agi": 18, "def": 70 }
+    },
+    "mage": {
+      "base": { "hp": 4500, "mp": 4300, "str": 52, "int": 352, "agi": 162, "def": 128 },
+      "variance": { "hp": 900, "mp": 700, "str": 14, "int": 65, "agi": 30, "def": 26 }
+    },
+    "ranger": {
+      "base": { "hp": 7200, "mp": 1700, "str": 182, "int": 112, "agi": 286, "def": 238 },
+      "variance": { "hp": 1400, "mp": 260, "str": 34, "int": 24, "agi": 50, "def": 40 }
+    }
+  },
+  "standardLoadoutPools": {
+    "paladin": {
+      "talentIds": ["talent_oathbound_guard", "talent_crusade_banner"],
+      "activeSkillIds": [
+        "paladin_holy_blade",
+        "paladin_shield_slam",
+        "paladin_war_provoke",
+        "paladin_bulwark_vow",
+        "paladin_prayer",
+        "paladin_command",
+        "basic_attack"
+      ],
+      "fixedGuaranteedActiveSkillId": "paladin_holy_blade",
+      "passiveSkillIds": ["passive_plate_mastery", "passive_resolute_heart", "passive_guardian_pace"],
+      "activePickCountRange": { "min": 4, "max": 6 },
+      "passivePickCountRange": { "min": 1, "max": 2 },
+      "totalCountWeightDecay": 0.55
+    },
+    "mage": {
+      "talentIds": ["talent_starweaver", "talent_mana_orbit"],
+      "activeSkillIds": [
+        "mage_flame_wave",
+        "mage_arcane_bolt",
+        "mage_frost_nova",
+        "mage_null_field",
+        "mage_clear_mind",
+        "mage_mana_current",
+        "mage_emergency_barrier",
+        "basic_attack"
+      ],
+      "fixedGuaranteedActiveSkillId": "mage_arcane_bolt",
+      "passiveSkillIds": ["passive_arcane_flow", "passive_frost_focus", "passive_spell_echo"],
+      "activePickCountRange": { "min": 4, "max": 6 },
+      "passivePickCountRange": { "min": 1, "max": 2 },
+      "totalCountWeightDecay": 0.55
+    },
+    "ranger": {
+      "talentIds": ["talent_wind_trace_hunter", "talent_ambush_instinct"],
+      "activeSkillIds": [
+        "ranger_quick_shot",
+        "ranger_split_arrow",
+        "ranger_crippling_trap",
+        "ranger_hawk_signal",
+        "ranger_smoke_step",
+        "ranger_field_mend",
+        "basic_attack"
+      ],
+      "fixedGuaranteedActiveSkillId": "ranger_quick_shot",
+      "passiveSkillIds": ["passive_keen_eye", "passive_fleet_foot", "passive_trapper"],
+      "activePickCountRange": { "min": 4, "max": 6 },
+      "passivePickCountRange": { "min": 1, "max": 2 },
+      "totalCountWeightDecay": 0.55
+    }
+  }
+}

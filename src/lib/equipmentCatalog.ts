@@ -42,6 +42,7 @@ export const EQUIPMENT_SUBTYPE_LABELS: Record<EquipmentSubtype, string> = {
   frostMedium: "霜语符文",
   stormMedium: "风暴符文",
   fireCore: "余烬核心",
+  rangerBoots: "游侠战靴",
   ring: "戒指",
   necklace: "项链",
   bracelet: "手镯"
@@ -75,14 +76,27 @@ const MAGE_EQUIP_SLOTS: HeroEquipSlotDefinition[] = [
   { id: "core-1", label: "施法核心", slot: "castingCore" }
 ];
 
+const RANGER_EQUIP_SLOTS: HeroEquipSlotDefinition[] = [
+  { id: "ranger-hand-1", label: "主手", slot: "oneHand" },
+  { id: "ranger-hand-2", label: "副手", slot: "oneHand" },
+  { id: "ranger-armor-1", label: "护甲", slot: "armor" },
+  { id: "ranger-shoes-1", label: "战靴", slot: "shoes" },
+  { id: "ranger-accessory-1", label: "饰品-1", slot: "accessory" },
+  { id: "ranger-accessory-2", label: "饰品-2", slot: "accessory" },
+  { id: "ranger-accessory-3", label: "饰品-3", slot: "accessory" },
+  { id: "ranger-accessory-4", label: "饰品-4", slot: "accessory" }
+];
+
 const HERO_EQUIP_SLOTS: Record<HeroClass, HeroEquipSlotDefinition[]> = {
   paladin: PALADIN_EQUIP_SLOTS,
-  mage: MAGE_EQUIP_SLOTS
+  mage: MAGE_EQUIP_SLOTS,
+  ranger: RANGER_EQUIP_SLOTS
 };
 
 export const HERO_EQUIP_TYPE_SUMMARY: Record<HeroClass, string[]> = {
   paladin: ["头盔 x1", "护甲 x1", "护腿 x2", "护手 x2", "手部 x2", "饰品（戒指/项链/手镯）x3"],
-  mage: ["施法核心 x1", "符文 x5", "头盔 x1", "护甲 x1", "饰品（戒指/项链/手镯）x3"]
+  mage: ["施法核心 x1", "符文 x5", "头盔 x1", "护甲 x1", "饰品（戒指/项链/手镯）x3"],
+  ranger: ["手部 x2", "护甲 x1", "战靴 x1", "饰品（戒指/项链/手镯）x4"]
 };
 
 export function getHeroEquipSlots(heroClass: HeroClass): HeroEquipSlotDefinition[] {

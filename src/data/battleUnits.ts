@@ -25,6 +25,14 @@ export function createBattleLoadout(
 }
 
 export function getDefaultHeroLoadout(hero: Hero): BattleLoadout {
+  if (hero.loadoutPreset) {
+    return createBattleLoadout(
+      hero.loadoutPreset.talentId,
+      hero.loadoutPreset.activeSkillIds,
+      hero.loadoutPreset.passiveSkillIds
+    );
+  }
+
   if (hero.heroClass === "paladin") {
     return createBattleLoadout(
       "talent_oathbound_guard",
@@ -41,18 +49,35 @@ export function getDefaultHeroLoadout(hero: Hero): BattleLoadout {
     );
   }
 
+  if (hero.heroClass === "mage") {
+    return createBattleLoadout(
+      "talent_starweaver",
+      [
+        "mage_flame_wave",
+        "mage_arcane_bolt",
+        "mage_frost_nova",
+        "mage_null_field",
+        "mage_clear_mind",
+        "mage_mana_current",
+        "mage_emergency_barrier",
+        "basic_attack"
+      ],
+      ["passive_arcane_flow", "passive_frost_focus"]
+    );
+  }
+
   return createBattleLoadout(
-    "talent_starweaver",
+    "talent_wind_trace_hunter",
     [
-      "mage_flame_wave",
-      "mage_arcane_bolt",
-      "mage_frost_nova",
-      "mage_null_field",
-      "mage_clear_mind",
-      "mage_mana_current",
-      "mage_emergency_barrier"
+      "ranger_quick_shot",
+      "ranger_split_arrow",
+      "ranger_crippling_trap",
+      "ranger_hawk_signal",
+      "ranger_smoke_step",
+      "ranger_field_mend",
+      "basic_attack"
     ],
-    ["passive_arcane_flow", "passive_frost_focus"]
+    ["passive_keen_eye", "passive_fleet_foot"]
   );
 }
 

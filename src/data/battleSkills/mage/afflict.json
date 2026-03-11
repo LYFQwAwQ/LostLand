@@ -1,0 +1,66 @@
+﻿[
+    {
+        "id":  "mage_frost_nova",
+        "name":  "霜环爆发",
+        "skillPool":  "class",
+        "allowedHeroClasses":  [
+                                   "mage"
+                               ],
+        "category":  "afflict",
+        "description":  "寒冰爆发攻击全体敌人，并有概率冻结。",
+        "targetType":  "allEnemies",
+        "effect":  "damage",
+        "damageType":  "magic",
+        "element":  "ice",
+        "mpCost":  26,
+        "cooldown":  4,
+        "baseWeight":  108,
+        "basePower":  72,
+        "scaling":  {
+                        "int":  0.8
+                    },
+        "canCrit":  true,
+        "targetStatus":  {
+                             "key":  "frozen",
+                             "chance":  0.22,
+                             "duration":  1
+                         },
+        "weightTuning":  {
+                             "enemyCountAtLeast":  {
+                                                       "count":  3,
+                                                       "delta":  30
+                                                   }
+                         }
+    },
+    {
+        "id":  "mage_null_field",
+        "name":  "虚空裁定",
+        "skillPool":  "class",
+        "allowedHeroClasses":  [
+                                   "mage"
+                               ],
+        "category":  "afflict",
+        "description":  "对单体造成法术伤害并驱散其正面状态。",
+        "targetType":  "singleEnemy",
+        "effect":  "damage",
+        "damageType":  "magic",
+        "element":  "dark",
+        "mpCost":  22,
+        "cooldown":  3,
+        "baseWeight":  106,
+        "basePower":  82,
+        "scaling":  {
+                        "int":  0.86
+                    },
+        "canCrit":  true,
+        "extraEffects":  [
+                             {
+                                 "type":  "dispel",
+                                 "target":  "targets",
+                                 "removeCount":  2,
+                                 "polarity":  "positive"
+                             }
+                         ]
+    }
+]
+

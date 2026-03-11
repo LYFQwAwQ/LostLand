@@ -1,0 +1,30 @@
+﻿[
+{
+    "id":  "mage_mana_current",
+    "name":  "潮汐导引",
+    "skillPool":  "class",
+    "allowedHeroClasses":  [
+                               "mage"
+                           ],
+    "category":  "inspire",
+    "description":  "召唤流水回路，为全体友军回复生命。",
+    "targetType":  "allAllies",
+    "effect":  "heal",
+    "element":  "water",
+    "mpCost":  22,
+    "cooldown":  4,
+    "baseWeight":  92,
+    "basePower":  64,
+    "scaling":  {
+                    "int":  0.65
+                },
+    "canCrit":  false,
+    "weightTuning":  {
+                         "allyHpBelow":  {
+                                             "threshold":  0.58,
+                                             "delta":  35
+                                         }
+                     }
+}
+]
+

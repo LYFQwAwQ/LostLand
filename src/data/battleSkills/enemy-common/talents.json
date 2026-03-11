@@ -1,0 +1,18 @@
+﻿[
+{
+    "id":  "talent_enemy_predator",
+    "name":  "掠食本能",
+    "rarity":  "common",
+    "skillPool":  "enemy",
+    "allowedHeroClasses":  [
+
+                           ],
+    "description":  "提升敌方攻击倾向。",
+    "modifiers":  {
+                      "ratio":  {
+                                    "damageBoost":  0.06
+                                }
+                  }
+}
+]
+

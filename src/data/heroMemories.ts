@@ -35,10 +35,37 @@ export const heroMemoryOptionsByClass: Record<HeroClass, HeroMemoryOption[]> = {
       quote: "每一次潮涨都在替她重写咒式。",
       effect: "获得 [潮律]：治疗技能额外附带 5% 护盾"
     }
+  ],
+  ranger: [
+    {
+      id: "ranger_wild_hunt",
+      title: "荒野回响",
+      quote: "风向会替箭矢选择归途。",
+      effect: "获得 [猎意]：攻击生命低于 40% 的目标时伤害 +12%"
+    },
+    {
+      id: "ranger_moon_trail",
+      title: "月痕密语",
+      quote: "她总能先于夜色一步。",
+      effect: "获得 [夜行]：首个行动条额外推进 600 点"
+    }
   ]
 };
 
-export const defaultHeroMemoryByClass: Record<HeroClass, string> = {
-  paladin: heroMemoryOptionsByClass.paladin[0].id,
-  mage: heroMemoryOptionsByClass.mage[0].id
-};
+export interface HeroMemoryCatalogEntry extends HeroMemoryOption {
+  heroClass: HeroClass;
+}
+
+export const heroMemoryCatalog: HeroMemoryCatalogEntry[] = (Object.entries(heroMemoryOptionsByClass) as Array<
+  [HeroClass, HeroMemoryOption[]]
+>)
+  .flatMap(([heroClass, options]) => options.map((option) => ({ ...option, heroClass })))
+  .sort((left, right) => left.title.localeCompare(right.title, "zh-CN"));
+
+export const heroMemoryMap = new Map(heroMemoryCatalog.map((item) => [item.id, item]));
+
+export const initialOwnedHeroMemoryIds: string[] = (Object.entries(heroMemoryOptionsByClass) as Array<
+  [HeroClass, HeroMemoryOption[]]
+>)
+  .map(([, options]) => options[0]?.id ?? null)
+  .filter((id): id is string => typeof id === "string" && id.length > 0);

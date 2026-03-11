@@ -1,0 +1,56 @@
+﻿[
+  {
+    "id": "talent_starweaver",
+    "name": "群星织法",
+    "rarity": "legendary",
+    "skillPool": "class",
+    "allowedHeroClasses": ["mage"],
+    "description": "强化元素增伤与暴击。",
+    "modifiers": {
+      "flat": {
+        "critRate": 0.04,
+        "allBoost": 0.08,
+        "elementalPierce": 0.05
+      }
+    }
+  },
+  {
+    "id": "talent_mana_orbit",
+    "name": "法环共振",
+    "rarity": "rare",
+    "skillPool": "class",
+    "allowedHeroClasses": ["mage"],
+    "description": "提升法力上限与恢复效率，偏向续航。",
+    "modifiers": {
+      "flat": {
+        "maxMp": 260,
+        "int": 24
+      },
+      "ratio": {
+        "damageBoost": 0.04
+      }
+    }
+  },
+  {
+    "id": "talent_legend_arcane_singularity",
+    "name": "奥术奇点",
+    "rarity": "unique",
+    "skillPool": "class",
+    "allowedHeroClasses": ["mage"],
+    "description": "传奇法师专属天赋，大幅强化元素穿透和爆发系数。",
+    "modifiers": {
+      "flat": {
+        "int": 68,
+        "critRate": 0.05,
+        "elementalPierce": 0.12
+      },
+      "ratio": {
+        "damageBoost": 0.1
+      },
+      "elementBoost": {
+        "fire": 0.14,
+        "ice": 0.14
+      }
+    }
+  }
+]

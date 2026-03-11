@@ -1,4 +1,4 @@
-﻿export type HeroClass = "paladin" | "mage";
+﻿export type HeroClass = "paladin" | "mage" | "ranger";
 
 export type HeroTab = "stats" | "gear" | "skills" | "memory";
 
@@ -8,6 +8,18 @@ export interface Hero {
   title: string;
   heroClass: HeroClass;
   image: string;
+  rarity?: "standard" | "legendary";
+  origin?: "fixed" | "generated";
+  learnedSkills?: {
+    talentIds: string[];
+    activeSkillIds: string[];
+    passiveSkillIds: string[];
+  };
+  loadoutPreset?: {
+    talentId: string | null;
+    activeSkillIds: string[];
+    passiveSkillIds: string[];
+  };
   stats: {
     hp: string;
     mp: string;
@@ -198,6 +210,7 @@ export type EquipmentSubtype =
   | "frostMedium"
   | "stormMedium"
   | "fireCore"
+  | "rangerBoots"
   | "ring"
   | "necklace"
   | "bracelet";
@@ -297,3 +310,33 @@ export interface GeneratedEquipment {
   source: string;
   environmentId: string;
 }
+
+export type InventoryResourceRarity = "common" | "uncommon" | "rare" | "epic";
+
+export interface InventoryConsumableStack {
+  id: string;
+  name: string;
+  rarity: InventoryResourceRarity;
+  effectSummary: string;
+  maxStack: number;
+  quantity: number;
+  source: string;
+}
+
+export interface InventoryMaterialStack {
+  id: string;
+  name: string;
+  rarity: InventoryResourceRarity;
+  quantity: number;
+  sourceEnemyPrototypeIds: string[];
+}
+
+export interface InventoryMemoryStack {
+  id: string;
+  heroClass: HeroClass;
+  title: string;
+  quote: string;
+  effect: string;
+}
+
+
