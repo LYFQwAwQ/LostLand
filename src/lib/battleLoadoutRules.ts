@@ -9,7 +9,7 @@ import type {
 import type { HeroClass } from "../types/game";
 
 const HERO_SKILL_SLOT_COUNT = 10;
-const HERO_CLASSES: HeroClass[] = ["paladin", "mage", "ranger"];
+const HERO_CLASSES: HeroClass[] = ["paladin", "mage", "ranger", "priest"];
 
 type HeroSelectableSkill = {
   id: string;

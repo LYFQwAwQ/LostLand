@@ -14,12 +14,13 @@ import type {
   BattleTalentRarity,
   BattleTargetType
 } from "../types/battle";
+import legendaryHeroSkillsConfigJson from "./config/legendaryHeroSkills.json";
 import type { HeroClass } from "../types/game";
 
-const HERO_CLASSES: HeroClass[] = ["paladin", "mage", "ranger"];
+const HERO_CLASSES: HeroClass[] = ["paladin", "mage", "ranger", "priest"];
 const SKILL_POOLS: BattleSkillPool[] = ["common", "class", "enemy"];
 const SKILL_CATEGORIES: BattleSkillCategory[] = ["assault", "defend", "inspire", "afflict", "succor"];
-const TARGET_TYPES: BattleTargetType[] = ["self", "singleEnemy", "allEnemies", "singleAlly", "allAllies", "lowestHpAlly"];
+const TARGET_TYPES: BattleTargetType[] = ["self", "singleEnemy", "allEnemies", "randomEnemies", "singleAlly", "allAllies", "lowestHpAlly"];
 const DAMAGE_TYPES: BattleDamageType[] = ["physical", "magic"];
 const ELEMENTS: BattleElement[] = ["fire", "water", "ice", "wind", "life", "light", "undead", "dark"];
 const STATUS_KEYS: BattleStatusKey[] = [
@@ -63,7 +64,7 @@ const FALLBACK_BASIC_ATTACK: BattleActiveSkillDefinition = {
   name: "基础攻击",
   kind: "active",
   skillPool: "common",
-  allowedHeroClasses: ["paladin", "mage", "ranger"],
+  allowedHeroClasses: ["paladin", "mage", "ranger", "priest"],
   category: "assault",
   description: "配置缺失时的保底技能。",
   targetType: "singleEnemy",
@@ -235,6 +236,16 @@ function parseExtraEffects(value: unknown): BattleSkillExtraEffect[] | undefined
         removeCount: Math.max(1, Math.round(parseNumber(entry.removeCount, 1))),
         polarity: parseEnum(entry.polarity, STATUS_EFFECT_POLARITIES, "positive")
       });
+      return;
+    }
+    if (entry.type === "healAlliesOnKill") {
+      const ratio = parseNumber(entry.ratio, 0);
+      if (ratio > 0) {
+        effects.push({
+          type: "healAlliesOnKill",
+          ratio
+        });
+      }
     }
   });
   return effects.length > 0 ? effects : undefined;
@@ -284,6 +295,7 @@ function parseActiveSkill(value: unknown): BattleActiveSkillDefinition | null {
     return null;
   }
   const effect = parseEnum(value.effect, ["damage", "heal"], "damage");
+  const targetType = parseEnum(value.targetType, TARGET_TYPES, "singleEnemy");
   return {
     id,
     name,
@@ -293,7 +305,11 @@ function parseActiveSkill(value: unknown): BattleActiveSkillDefinition | null {
     conflictSkillIds: parseStringArray(value.conflictSkillIds),
     category: parseEnum(value.category, SKILL_CATEGORIES, "assault"),
     description: parseString(value.description, ""),
-    targetType: parseEnum(value.targetType, TARGET_TYPES, "singleEnemy"),
+    targetType,
+    targetCount:
+      targetType === "randomEnemies" && typeof value.targetCount === "number"
+        ? Math.max(1, Math.round(value.targetCount))
+        : undefined,
     effect,
     damageType: effect === "damage" ? parseEnum(value.damageType, DAMAGE_TYPES, "physical") : undefined,
     element: value.element ? parseEnum(value.element, ELEMENTS, "fire") : undefined,
@@ -375,7 +391,13 @@ function buildById<T extends { id: string }>(items: T[]): Record<string, T> {
   }, {});
 }
 
-function parseConfigFromFiles(skillFiles: Record<string, unknown>) {
+interface LegendaryHeroSkillsConfig {
+  activeSkills?: unknown;
+  passiveSkills?: unknown;
+  talents?: unknown;
+}
+
+function parseConfigFromFiles(skillFiles: Record<string, unknown>, legendaryConfig?: LegendaryHeroSkillsConfig) {
   const activeRawItems: unknown[] = [];
   const passiveRawItems: unknown[] = [];
   const talentRawItems: unknown[] = [];
@@ -406,6 +428,18 @@ function parseConfigFromFiles(skillFiles: Record<string, unknown>) {
     }
   });
 
+  if (legendaryConfig) {
+    if (Array.isArray(legendaryConfig.activeSkills)) {
+      activeRawItems.push(...legendaryConfig.activeSkills);
+    }
+    if (Array.isArray(legendaryConfig.passiveSkills)) {
+      passiveRawItems.push(...legendaryConfig.passiveSkills);
+    }
+    if (Array.isArray(legendaryConfig.talents)) {
+      talentRawItems.push(...legendaryConfig.talents);
+    }
+  }
+
   const activeSkills = activeRawItems.map(parseActiveSkill).filter((item): item is BattleActiveSkillDefinition => Boolean(item));
   const passiveSkills = passiveRawItems.map(parsePassiveSkill).filter((item): item is BattlePassiveSkillDefinition => Boolean(item));
   const talents = talentRawItems.map(parseTalentSkill).filter((item): item is BattleTalentDefinition => Boolean(item));
@@ -427,7 +461,7 @@ function parseConfigFromFiles(skillFiles: Record<string, unknown>) {
 }
 
 const rawSkillFileModules = import.meta.glob("./battleSkills/*/*.json", { eager: true, import: "default" }) as Record<string, unknown>;
-const parsedConfig = parseConfigFromFiles(rawSkillFileModules);
+const parsedConfig = parseConfigFromFiles(rawSkillFileModules, legendaryHeroSkillsConfigJson as LegendaryHeroSkillsConfig);
 
 export const DEFAULT_ACTIVE_SKILL_ID = parsedConfig.defaultActiveSkillId;
 export const battleActiveSkills: Record<string, BattleActiveSkillDefinition> = buildById(parsedConfig.activeSkills);

@@ -12,6 +12,7 @@ import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { useMapSystem } from "../state/MapSystemProvider";
 import type {
   BattleDropCategory,
+  BattleLogEntry,
   BattleLine,
   BattleRuntimeState,
   BattleRuntimeUnit,
@@ -174,9 +175,11 @@ export function BattlePage() {
   const { equippedByHero, itemMap, collectBattleDrops } = useEquipmentInventory();
   const [battleSeed, setBattleSeed] = useState(() => Date.now());
   const [chainRound, setChainRound] = useState(1);
+  const [campaignLogs, setCampaignLogs] = useState<BattleLogEntry[]>([]);
   const [activeReplayView, setActiveReplayView] = useState("stats");
   const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
   const battleStateRef = useRef<{ battleId: string; status: BattleRuntimeState["status"] } | null>(null);
+  const campaignLogCursorRef = useRef<{ battleId: string; consumed: number } | null>(null);
 
   const [dropCategoryFilter, setDropCategoryFilter] = useState<"all" | BattleDropCategory>("all");
   const [dropKeyword, setDropKeyword] = useState("");
@@ -256,7 +259,50 @@ export function BattlePage() {
   useEffect(() => {
     setChainRound(1);
     setRuntime(initialRuntime);
+    setCampaignLogs([]);
+    campaignLogCursorRef.current = null;
   }, [initialRuntime]);
+
+  useEffect(() => {
+    if (!runtime) {
+      return;
+    }
+
+    setCampaignLogs((prev) => {
+      let next = prev;
+      const cursor = campaignLogCursorRef.current;
+      if (!cursor || cursor.battleId !== runtime.battleId) {
+        next = [
+          ...next,
+          {
+            id: `campaign-start-${runtime.battleId}`,
+            timeMs: runtime.elapsedMs,
+            tone: "system",
+            text: `==== 第 ${chainRound} 场开始 ====`
+          }
+        ];
+        campaignLogCursorRef.current = {
+          battleId: runtime.battleId,
+          consumed: 0
+        };
+      }
+
+      const consumed = campaignLogCursorRef.current?.consumed ?? 0;
+      if (runtime.logs.length <= consumed) {
+        return next;
+      }
+
+      const delta = runtime.logs.slice(consumed).map((entry) => ({
+        ...entry,
+        id: `${runtime.battleId}-${entry.id}`
+      }));
+      campaignLogCursorRef.current = {
+        battleId: runtime.battleId,
+        consumed: runtime.logs.length
+      };
+      return [...next, ...delta];
+    });
+  }, [chainRound, runtime]);
 
   useEffect(() => {
     if (!runtime || runtime.status !== "finished") {
@@ -354,7 +400,7 @@ export function BattlePage() {
   const shouldShowReplayUi = isFinished && !canChainToNextRound;
   const allyAlive = runtime.units.filter((unit) => unit.side === "ally" && unit.alive).length;
   const enemyAlive = runtime.units.filter((unit) => unit.side === "enemy" && unit.alive).length;
-  const logList = runtime.logs.slice(-26).reverse();
+  const logList = useMemo(() => [...campaignLogs].reverse(), [campaignLogs]);
   const allyStats = runtime.replay.unitStats
     .filter((stat) => stat.side === "ally")
     .sort((left, right) => right.damageDealt - left.damageDealt);
@@ -474,6 +520,8 @@ export function BattlePage() {
             onClick={() => {
               setChainRound(1);
               setRuntime(initialRuntime);
+              setCampaignLogs([]);
+              campaignLogCursorRef.current = null;
             }}
           >
             <RotateCcw size={13} />

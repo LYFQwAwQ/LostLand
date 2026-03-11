@@ -1,0 +1,38 @@
+[
+  {
+    "id": "talent_priest_life_choir",
+    "name": "生命圣咏",
+    "rarity": "epic",
+    "skillPool": "class",
+    "allowedHeroClasses": ["priest"],
+    "description": "强化生命属性技能与团队稳定性。",
+    "modifiers": {
+      "flat": {
+        "int": 36,
+        "allBoost": 0.06
+      },
+      "elementBoost": {
+        "life": 0.14
+      }
+    }
+  },
+  {
+    "id": "talent_priest_sacred_guard",
+    "name": "圣徽护祷",
+    "rarity": "rare",
+    "skillPool": "class",
+    "allowedHeroClasses": ["priest"],
+    "description": "提升生存与净化能力，偏向稳态辅助。",
+    "modifiers": {
+      "flat": {
+        "allRes": 0.05,
+        "maxMp": 220
+      },
+      "ratio": {
+        "maxHp": 0.06,
+        "damageReduction": 0.04
+      }
+    }
+  }
+]
+

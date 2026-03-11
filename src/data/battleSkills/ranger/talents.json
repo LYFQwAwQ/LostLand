@@ -32,26 +32,5 @@
         "damageBoost": 0.05
       }
     }
-  },
-  {
-    "id": "talent_legend_starseeker",
-    "name": "星痕追猎",
-    "rarity": "unique",
-    "skillPool": "class",
-    "allowedHeroClasses": ["ranger"],
-    "description": "传奇游侠专属天赋，强化暴击链与追击伤害。",
-    "modifiers": {
-      "flat": {
-        "agi": 58,
-        "critRate": 0.06,
-        "critDamage": 0.22
-      },
-      "ratio": {
-        "damageBoost": 0.08
-      },
-      "elementBoost": {
-        "wind": 0.2
-      }
-    }
   }
 ]

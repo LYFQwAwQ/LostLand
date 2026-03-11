@@ -63,6 +63,22 @@
         ],
         "passiveSkillIds": ["passive_keen_eye", "passive_fleet_foot"]
       }
+    },
+    {
+      "id": "legendary-priest-miya",
+      "name": "弥亚",
+      "title": "翡翠之灵",
+      "heroClass": "priest",
+      "image": "/images/heroes/Miya.png",
+      "stats": { "hp": 7600, "mp": 6200, "str": 88, "int": 520, "agi": 166, "def": 232 },
+      "loadout": {
+        "talentId": "talent_legend_miya_pulse_of_yggdrasil",
+        "activeSkillIds": [
+          "skill_legend_miya_emerald_baptism",
+          "basic_attack"
+        ],
+        "passiveSkillIds": ["passive_legend_miya_universal_resonance"]
+      }
     }
   ]
 }

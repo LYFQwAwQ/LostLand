@@ -49,6 +49,20 @@ export const heroMemoryOptionsByClass: Record<HeroClass, HeroMemoryOption[]> = {
       quote: "她总能先于夜色一步。",
       effect: "获得 [夜行]：首个行动条额外推进 600 点"
     }
+  ],
+  priest: [
+    {
+      id: "priest_blessed_sap",
+      title: "圣树流息",
+      quote: "在根须与星潮之间，她听见万物呼吸。",
+      effect: "获得 [树灵共振]：生命属性技能治疗效果 +8%"
+    },
+    {
+      id: "priest_emerald_hymn",
+      title: "翡翠圣咏",
+      quote: "祷词落下时，创口会先一步闭合。",
+      effect: "获得 [翠光祈愿]：对生命低于 35% 的友军治疗 +12%"
+    }
   ]
 };
 

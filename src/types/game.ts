@@ -1,4 +1,4 @@
-﻿export type HeroClass = "paladin" | "mage" | "ranger";
+﻿export type HeroClass = "paladin" | "mage" | "ranger" | "priest";
 
 export type HeroTab = "stats" | "gear" | "skills" | "memory";
 

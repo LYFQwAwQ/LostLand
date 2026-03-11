@@ -30,27 +30,5 @@
         "damageBoost": 0.04
       }
     }
-  },
-  {
-    "id": "talent_legend_arcane_singularity",
-    "name": "奥术奇点",
-    "rarity": "unique",
-    "skillPool": "class",
-    "allowedHeroClasses": ["mage"],
-    "description": "传奇法师专属天赋，大幅强化元素穿透和爆发系数。",
-    "modifiers": {
-      "flat": {
-        "int": 68,
-        "critRate": 0.05,
-        "elementalPierce": 0.12
-      },
-      "ratio": {
-        "damageBoost": 0.1
-      },
-      "elementBoost": {
-        "fire": 0.14,
-        "ice": 0.14
-      }
-    }
   }
 ]

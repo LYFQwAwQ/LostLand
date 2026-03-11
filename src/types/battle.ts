@@ -36,6 +36,7 @@ export type BattleTargetType =
   | "self"
   | "singleEnemy"
   | "allEnemies"
+  | "randomEnemies"
   | "singleAlly"
   | "allAllies"
   | "lowestHpAlly";
@@ -158,12 +159,18 @@ export interface BattleSkillDispelEffect {
   polarity?: BattleStatusEffectPolarity;
 }
 
+export interface BattleSkillHealAlliesOnKillEffect {
+  type: "healAlliesOnKill";
+  ratio: number;
+}
+
 export type BattleSkillExtraEffect =
   | BattleSkillApplyStatusEffect
   | BattleSkillActionDeltaEffect
   | BattleSkillShieldEffect
   | BattleSkillCleanseEffect
-  | BattleSkillDispelEffect;
+  | BattleSkillDispelEffect
+  | BattleSkillHealAlliesOnKillEffect;
 
 export interface BattleActiveSkillDefinition {
   id: string;
@@ -175,6 +182,7 @@ export interface BattleActiveSkillDefinition {
   category: BattleSkillCategory;
   description: string;
   targetType: BattleTargetType;
+  targetCount?: number;
   effect: "damage" | "heal";
   damageType?: BattleDamageType;
   element?: BattleElement;

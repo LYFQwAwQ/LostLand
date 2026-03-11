@@ -3,6 +3,7 @@ import { User, X, Zap } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { MageGearBoard } from "../components/hero/MageGearBoard";
 import { PaladinGearBoard } from "../components/hero/PaladinGearBoard";
+import { PriestGearBoard } from "../components/hero/PriestGearBoard";
 import { RangerGearBoard } from "../components/hero/RangerGearBoard";
 import { battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
 import {
@@ -695,10 +696,18 @@ function HeroGearContent({
 
   const hpBonus = sumEquipmentStat(equippedItems, "hp");
   const coreBonusKey: EquipmentStatKey =
-    hero.heroClass === "paladin" ? "def" : hero.heroClass === "mage" ? "int" : "agi";
+    hero.heroClass === "paladin"
+      ? "def"
+      : hero.heroClass === "mage" || hero.heroClass === "priest"
+      ? "int"
+      : "agi";
   const coreBonus = sumEquipmentStat(equippedItems, coreBonusKey);
   const coreBonusLabel =
-    hero.heroClass === "paladin" ? "装备总防御" : hero.heroClass === "mage" ? "装备总智力" : "装备总敏捷";
+    hero.heroClass === "paladin"
+      ? "装备总防御"
+      : hero.heroClass === "mage" || hero.heroClass === "priest"
+      ? "装备总智力"
+      : "装备总敏捷";
   const affixTotal = equippedItems.reduce((sum, item) => sum + item.affixCount, 0);
   const typeList = HERO_EQUIP_TYPE_SUMMARY[hero.heroClass];
 
@@ -775,6 +784,16 @@ function HeroGearContent({
             />
           ) : hero.heroClass === "ranger" ? (
             <RangerGearBoard
+              equippedBySlot={equippedBySlot}
+              selectedSlotId={selectedSlotId}
+              onSelectSlot={(slotId) => {
+                onSelectSlot(hero.id, slotId);
+                setHoveredPreview(null);
+                setIsPickerOpen(true);
+              }}
+            />
+          ) : hero.heroClass === "priest" ? (
+            <PriestGearBoard
               equippedBySlot={equippedBySlot}
               selectedSlotId={selectedSlotId}
               onSelectSlot={(slotId) => {

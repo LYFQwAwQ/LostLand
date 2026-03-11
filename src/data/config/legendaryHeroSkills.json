@@ -1,0 +1,131 @@
+{
+  "talents": [
+    {
+      "id": "talent_legend_sun_oath",
+      "name": "日耀圣誓",
+      "rarity": "unique",
+      "skillPool": "class",
+      "allowedHeroClasses": ["paladin"],
+      "description": "传奇圣骑士专属天赋，显著提升坚韧与圣光输出。",
+      "modifiers": {
+        "flat": {
+          "def": 48,
+          "aggro": 36
+        },
+        "ratio": {
+          "maxHp": 0.12,
+          "damageReduction": 0.08
+        },
+        "elementBoost": {
+          "light": 0.18
+        }
+      }
+    },
+    {
+      "id": "talent_legend_arcane_singularity",
+      "name": "奥术奇点",
+      "rarity": "unique",
+      "skillPool": "class",
+      "allowedHeroClasses": ["mage"],
+      "description": "传奇法师专属天赋，大幅强化元素穿透和爆发系数。",
+      "modifiers": {
+        "flat": {
+          "int": 68,
+          "critRate": 0.05,
+          "elementalPierce": 0.12
+        },
+        "ratio": {
+          "damageBoost": 0.1
+        },
+        "elementBoost": {
+          "fire": 0.14,
+          "ice": 0.14
+        }
+      }
+    },
+    {
+      "id": "talent_legend_starseeker",
+      "name": "星痕追猎",
+      "rarity": "unique",
+      "skillPool": "class",
+      "allowedHeroClasses": ["ranger"],
+      "description": "传奇游侠专属天赋，强化暴击链与追击伤害。",
+      "modifiers": {
+        "flat": {
+          "agi": 58,
+          "critRate": 0.06,
+          "critDamage": 0.22
+        },
+        "ratio": {
+          "damageBoost": 0.08
+        },
+        "elementBoost": {
+          "wind": 0.2
+        }
+      }
+    },
+    {
+      "id": "talent_legend_miya_pulse_of_yggdrasil",
+      "name": "世界树的脉动",
+      "rarity": "unique",
+      "skillPool": "class",
+      "allowedHeroClasses": ["priest"],
+      "description": "生命属性伤害额外无视目标 30% 全元素抗性；释放生命治疗技能时，若有友军生命低于 30%，该次治疗翻倍。",
+      "modifiers": {
+        "flat": {
+          "int": 82,
+          "allBoost": 0.12,
+          "elementalPierce": 0.1
+        },
+        "elementBoost": {
+          "life": 0.22
+        }
+      }
+    }
+  ],
+  "activeSkills": [
+    {
+      "id": "skill_legend_miya_emerald_baptism",
+      "name": "翡翠洗礼",
+      "skillPool": "class",
+      "allowedHeroClasses": ["priest"],
+      "category": "assault",
+      "description": "对敌方随机 3 个目标造成 120% INT 的生命伤害；对亡灵目标伤害翻倍；击杀时触发生命爆发，为全队回复该目标最大生命的 5%。",
+      "targetType": "randomEnemies",
+      "targetCount": 3,
+      "effect": "damage",
+      "damageType": "magic",
+      "element": "life",
+      "mpCost": 28,
+      "cooldown": 4,
+      "baseWeight": 112,
+      "basePower": 0,
+      "scaling": {
+        "int": 1.2
+      },
+      "canCrit": true,
+      "extraEffects": [
+        {
+          "type": "healAlliesOnKill",
+          "ratio": 0.05
+        }
+      ]
+    }
+  ],
+  "passiveSkills": [
+    {
+      "id": "passive_legend_miya_universal_resonance",
+      "name": "万物共鸣",
+      "skillPool": "class",
+      "allowedHeroClasses": ["priest"],
+      "description": "每当友军受伤，立即对敌方当前血量百分比最高单位造成 20% INT 的生命伤害。",
+      "modifiers": {
+        "flat": {
+          "int": 36,
+          "allBoost": 0.04
+        }
+      }
+    }
+  ]
+}
+

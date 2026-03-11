@@ -56,7 +56,8 @@ const resourceRarityLabels: Record<InventoryResourceRarity, string> = {
 const heroClassLabels: Record<InventoryMemoryStack["heroClass"], string> = {
   paladin: "圣骑士",
   mage: "法师",
-  ranger: "游侠"
+  ranger: "游侠",
+  priest: "祭司"
 };
 
 function formatStatValue(value: number): string {
@@ -337,7 +338,8 @@ export function InventoryPage() {
     const byClass: Record<InventoryMemoryStack["heroClass"], number> = {
       paladin: 0,
       mage: 0,
-      ranger: 0
+      ranger: 0,
+      priest: 0
     };
     let equippedCount = 0;
     visibleMemoryEntries.forEach((entry) => {

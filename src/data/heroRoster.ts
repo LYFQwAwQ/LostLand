@@ -141,10 +141,37 @@ const BASE_FIXED_HEROES: Hero[] = [
       passiveSkillIds: ["passive_arcane_flow", "passive_frost_focus"]
     },
     stats: { hp: "4,200", mp: "4,500", str: "42", int: "380", agi: "156", def: "120" }
+  },
+  // TODO(test): 测试结束后，从固定初始英雄中移除弥亚（legendary-priest-miya），恢复为纯随机传奇产出。
+  {
+    id: "legendary-priest-miya",
+    name: "弥亚",
+    title: "翡翠之灵",
+    heroClass: "priest",
+    image: "/images/heroes/Miya.png",
+    rarity: "legendary",
+    origin: "fixed",
+    learnedSkills: {
+      talentIds: ["talent_legend_miya_pulse_of_yggdrasil"],
+      activeSkillIds: [
+        "skill_legend_miya_emerald_baptism",
+        "basic_attack"
+      ],
+      passiveSkillIds: ["passive_legend_miya_universal_resonance"]
+    },
+    loadoutPreset: {
+      talentId: "talent_legend_miya_pulse_of_yggdrasil",
+      activeSkillIds: [
+        "skill_legend_miya_emerald_baptism",
+        "basic_attack"
+      ],
+      passiveSkillIds: ["passive_legend_miya_universal_resonance"]
+    },
+    stats: { hp: "7,600", mp: "6,200", str: "88", int: "520", agi: "166", def: "232" }
   }
 ];
 
-const HERO_CLASSES: HeroClass[] = ["paladin", "mage", "ranger"];
+const HERO_CLASSES: HeroClass[] = ["paladin", "mage", "ranger", "priest"];
 
 function createRandom(seed: number): () => number {
   let value = seed >>> 0;
@@ -485,7 +512,7 @@ export function createStartupHeroes(): Hero[] {
   const usedNames = new Set(BASE_FIXED_HEROES.map((hero) => hero.name));
   const usedIds = new Set(BASE_FIXED_HEROES.map((hero) => hero.id));
   const usedTalentIdsByClassMap = new Map<HeroClass, Set<string>>();
-  const availableLegendary = [...legendaryHeroesConfig.heroes];
+  const availableLegendary = legendaryHeroesConfig.heroes.filter((hero) => !usedIds.has(hero.id));
 
   const generatedHeroes: Hero[] = [];
   const randomCount = Math.max(0, Math.floor(heroGenerationConfig.randomHeroCountPerStartup));

@@ -1,0 +1,36 @@
+[
+  {
+    "id": "priest_healing_rite",
+    "name": "愈合仪典",
+    "skillPool": "class",
+    "allowedHeroClasses": ["priest"],
+    "category": "succor",
+    "description": "治疗最低血量友军并净化一个负面状态。",
+    "targetType": "lowestHpAlly",
+    "effect": "heal",
+    "element": "life",
+    "mpCost": 18,
+    "cooldown": 2,
+    "baseWeight": 106,
+    "basePower": 98,
+    "scaling": {
+      "int": 0.58
+    },
+    "canCrit": false,
+    "extraEffects": [
+      {
+        "type": "cleanse",
+        "target": "targets",
+        "removeCount": 1,
+        "polarity": "negative"
+      }
+    ],
+    "weightTuning": {
+      "allyHpBelow": {
+        "threshold": 0.5,
+        "delta": 40
+      }
+    }
+  }
+]
+

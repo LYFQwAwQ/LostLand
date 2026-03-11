@@ -2,9 +2,10 @@
   "randomHeroCountPerStartup": 2,
   "legendarySpawnChance": 0.04,
   "classRollWeights": {
-    "paladin": 32,
-    "mage": 30,
-    "ranger": 38
+    "paladin": 28,
+    "mage": 26,
+    "ranger": 26,
+    "priest": 20
   },
   "namePools": {
     "familyNames": [
@@ -47,6 +48,11 @@
       "林境巡猎",
       "风痕追猎者",
       "暮林箭卫"
+    ],
+    "priest": [
+      "圣树林语者",
+      "黎辉祷祭师",
+      "翠潮愈魂者"
     ]
   },
   "imagePoolByClass": {
@@ -61,6 +67,10 @@
     "ranger": [
       "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=900",
       "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=900"
+    ],
+    "priest": [
+      "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=900",
+      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=900"
     ]
   },
   "statProfileByClass": {
@@ -75,6 +85,10 @@
     "ranger": {
       "base": { "hp": 7200, "mp": 1700, "str": 182, "int": 112, "agi": 286, "def": 238 },
       "variance": { "hp": 1400, "mp": 260, "str": 34, "int": 24, "agi": 50, "def": 40 }
+    },
+    "priest": {
+      "base": { "hp": 6600, "mp": 3200, "str": 92, "int": 326, "agi": 144, "def": 216 },
+      "variance": { "hp": 1200, "mp": 520, "str": 20, "int": 58, "agi": 26, "def": 34 }
     }
   },
   "standardLoadoutPools": {
@@ -126,6 +140,23 @@
       ],
       "fixedGuaranteedActiveSkillId": "ranger_quick_shot",
       "passiveSkillIds": ["passive_keen_eye", "passive_fleet_foot", "passive_trapper"],
+      "activePickCountRange": { "min": 4, "max": 6 },
+      "passivePickCountRange": { "min": 1, "max": 2 },
+      "totalCountWeightDecay": 0.55
+    },
+    "priest": {
+      "talentIds": ["talent_priest_life_choir", "talent_priest_sacred_guard"],
+      "activeSkillIds": [
+        "priest_spirit_lance",
+        "priest_emerald_tide",
+        "priest_ward_prayer",
+        "priest_seed_of_wither",
+        "priest_blessing_hymn",
+        "priest_healing_rite",
+        "basic_attack"
+      ],
+      "fixedGuaranteedActiveSkillId": "priest_spirit_lance",
+      "passiveSkillIds": ["passive_bloom_focus", "passive_sacred_vessel", "passive_concord_signal"],
       "activePickCountRange": { "min": 4, "max": 6 },
       "passivePickCountRange": { "min": 1, "max": 2 },
       "totalCountWeightDecay": 0.55

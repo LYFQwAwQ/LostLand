@@ -32,26 +32,5 @@
         "damageReduction": 0.03
       }
     }
-  },
-  {
-    "id": "talent_legend_sun_oath",
-    "name": "日耀圣誓",
-    "rarity": "unique",
-    "skillPool": "class",
-    "allowedHeroClasses": ["paladin"],
-    "description": "传奇圣骑士专属天赋，显著提升坚韧与圣光输出。",
-    "modifiers": {
-      "flat": {
-        "def": 48,
-        "aggro": 36
-      },
-      "ratio": {
-        "maxHp": 0.12,
-        "damageReduction": 0.08
-      },
-      "elementBoost": {
-        "light": 0.18
-      }
-    }
   }
 ]

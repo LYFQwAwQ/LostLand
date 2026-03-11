@@ -1456,10 +1456,29 @@ body {
 .hero-portrait-card {
   width: 32%;
   min-width: 210px;
-  border: 1px solid var(--gold);
   position: relative;
   overflow: hidden;
-  background: #1a1612;
+  border-radius: 0;
+  background: transparent;
+  isolation: isolate;
+  --hero-portrait-soft-mask: radial-gradient(
+    ellipse 68% 74% at 50% 50%,
+    #000 52%,
+    rgb(0 0 0 / 86%) 66%,
+    rgb(0 0 0 / 42%) 82%,
+    transparent 100%
+  );
+}
+
+.hero-portrait-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 74% 80% at 50% 50%, transparent 56%, rgb(10 8 7 / 58%) 100%);
+  -webkit-mask-image: var(--hero-portrait-soft-mask);
+  mask-image: var(--hero-portrait-soft-mask);
+  z-index: 2;
 }
 
 .hero-portrait-card img {
@@ -1468,19 +1487,30 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: grayscale(0.85);
+  -webkit-mask-image: var(--hero-portrait-soft-mask);
+  mask-image: var(--hero-portrait-soft-mask);
 }
 
 .hero-portrait-mask {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent, rgb(15 13 11 / 88%));
+  background: linear-gradient(
+    180deg,
+    rgb(12 10 9 / 40%) 0%,
+    transparent 24%,
+    transparent 64%,
+    rgb(15 13 11 / 88%) 100%
+  );
+  -webkit-mask-image: var(--hero-portrait-soft-mask);
+  mask-image: var(--hero-portrait-soft-mask);
+  z-index: 3;
 }
 
 .hero-portrait-text {
   position: absolute;
   left: 14px;
   bottom: 14px;
+  z-index: 4;
 }
 
 .hero-portrait-text h2 {
@@ -2558,6 +2588,98 @@ body {
 .ranger-slot-acc-4 {
   left: 82%;
   top: 84%;
+}
+
+.priest-gear-board {
+  background:
+    radial-gradient(circle at 24% 20%, rgb(34 197 94 / 11%), transparent 38%),
+    radial-gradient(circle at 78% 24%, rgb(250 204 21 / 8%), transparent 40%),
+    radial-gradient(circle at center, #1a1712 0%, #110f0c 72%);
+}
+
+.priest-aura {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.priest-aura span {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px dashed rgb(187 247 208 / 22%);
+}
+
+.priest-aura span:nth-child(1) {
+  width: 72%;
+  height: 72%;
+  left: 14%;
+  top: 14%;
+}
+
+.priest-aura span:nth-child(2) {
+  width: 48%;
+  height: 48%;
+  left: 26%;
+  top: 26%;
+  border-color: rgb(250 204 21 / 26%);
+}
+
+.priest-aura span:nth-child(3) {
+  width: 22%;
+  height: 22%;
+  left: 39%;
+  top: 39%;
+  border-style: solid;
+  border-color: rgb(134 239 172 / 35%);
+}
+
+.priest-slot {
+  width: 86px;
+  height: 70px;
+  z-index: 3;
+}
+
+.priest-slot-hand {
+  left: 50%;
+  top: 14%;
+}
+
+.priest-slot-armor {
+  left: 50%;
+  top: 34%;
+}
+
+.priest-slot-medium-1 {
+  left: 28%;
+  top: 52%;
+}
+
+.priest-slot-medium-2 {
+  left: 50%;
+  top: 56%;
+}
+
+.priest-slot-medium-3 {
+  left: 72%;
+  top: 52%;
+}
+
+.priest-slot-core {
+  left: 50%;
+  top: 74%;
+  border-color: rgb(250 204 21 / 66%);
+  box-shadow: 0 0 18px rgb(134 239 172 / 12%);
+}
+
+.priest-slot-acc-1 {
+  left: 36%;
+  top: 90%;
+}
+
+.priest-slot-acc-2 {
+  left: 64%;
+  top: 90%;
 }
 
 @keyframes breathe {

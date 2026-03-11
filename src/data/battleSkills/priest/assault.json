@@ -1,0 +1,49 @@
+[
+  {
+    "id": "priest_spirit_lance",
+    "name": "灵辉穿刺",
+    "skillPool": "class",
+    "allowedHeroClasses": ["priest"],
+    "category": "assault",
+    "description": "以生命之辉贯穿单体目标。",
+    "targetType": "singleEnemy",
+    "effect": "damage",
+    "damageType": "magic",
+    "element": "life",
+    "mpCost": 11,
+    "cooldown": 1,
+    "baseWeight": 124,
+    "basePower": 88,
+    "scaling": {
+      "int": 1.02
+    },
+    "canCrit": true
+  },
+  {
+    "id": "priest_emerald_tide",
+    "name": "翡翠潮汐",
+    "skillPool": "class",
+    "allowedHeroClasses": ["priest"],
+    "category": "assault",
+    "description": "向全体敌人扩散生命冲击。",
+    "targetType": "allEnemies",
+    "effect": "damage",
+    "damageType": "magic",
+    "element": "life",
+    "mpCost": 24,
+    "cooldown": 3,
+    "baseWeight": 102,
+    "basePower": 72,
+    "scaling": {
+      "int": 0.9
+    },
+    "canCrit": true,
+    "weightTuning": {
+      "enemyCountAtLeast": {
+        "count": 2,
+        "delta": 16
+      }
+    }
+  }
+]
+

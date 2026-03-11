@@ -6,7 +6,8 @@
     "allowedHeroClasses":  [
                                "paladin",
                                "mage",
-                               "ranger"
+                               "ranger",
+                               "priest"
                            ],
     "category":  "assault",
     "description":  "基础单体攻击，不消耗 MP。",

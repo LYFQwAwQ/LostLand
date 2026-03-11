@@ -66,6 +66,22 @@ export function getDefaultHeroLoadout(hero: Hero): BattleLoadout {
     );
   }
 
+  if (hero.heroClass === "priest") {
+    return createBattleLoadout(
+      "talent_priest_life_choir",
+      [
+        "priest_spirit_lance",
+        "priest_emerald_tide",
+        "priest_ward_prayer",
+        "priest_seed_of_wither",
+        "priest_blessing_hymn",
+        "priest_healing_rite",
+        "basic_attack"
+      ],
+      ["passive_bloom_focus", "passive_sacred_vessel"]
+    );
+  }
+
   return createBattleLoadout(
     "talent_wind_trace_hunter",
     [
@@ -84,6 +100,7 @@ export function getDefaultHeroLoadout(hero: Hero): BattleLoadout {
 interface EnemyPrototype {
   id: string;
   name: string;
+  race: "beast" | "undead" | "human" | "spirit" | "machine";
   baseLevel: number;
   slotHint: BattleFormationSlot["line"];
   stats: {
@@ -131,6 +148,7 @@ const ENEMY_POOL: EnemyPrototype[] = [
   {
     id: "beast-hound",
     name: "裂齿猎犬",
+    race: "beast",
     baseLevel: 6,
     slotHint: "front",
     stats: {
@@ -157,6 +175,7 @@ const ENEMY_POOL: EnemyPrototype[] = [
   {
     id: "beast-spewer",
     name: "腐沼喷吐者",
+    race: "undead",
     baseLevel: 7,
     slotHint: "back",
     stats: {
@@ -184,6 +203,7 @@ const ENEMY_POOL: EnemyPrototype[] = [
   {
     id: "beast-brute",
     name: "荆棘蛮兽",
+    race: "beast",
     baseLevel: 8,
     slotHint: "front",
     stats: {
@@ -211,6 +231,7 @@ const ENEMY_POOL: EnemyPrototype[] = [
   {
     id: "beast-priest",
     name: "荒原祭师",
+    race: "beast",
     baseLevel: 9,
     slotHint: "back",
     stats: {
@@ -289,7 +310,7 @@ export function buildEnemyTeam(nodeId: string, archetype: NodeArchetype, suppres
       side: "enemy",
       level,
       slot: { line, index },
-      tags: [archetype, `enemy:${prototype.id}`],
+      tags: [archetype, `enemy:${prototype.id}`, `race:${prototype.race}`, prototype.race],
       baseStats: {
         maxHp: Math.round(prototype.stats.maxHp * hpScale),
         maxMp: Math.round(prototype.stats.maxMp * (1 + level * 0.03)),

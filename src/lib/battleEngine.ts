@@ -33,6 +33,9 @@ const DEFENSE_K = 1000;
 const LOG_LIMIT = 180;
 const MAX_ACTIONS_PER_STEP = 3;
 const EVA_CAP = 0.5;
+const MIYA_TALENT_ID = "talent_legend_miya_pulse_of_yggdrasil";
+const MIYA_ACTIVE_SKILL_ID = "skill_legend_miya_emerald_baptism";
+const MIYA_PASSIVE_SKILL_ID = "passive_legend_miya_universal_resonance";
 const MULTIPLICATIVE_MODIFIER_KEYS = new Set<BattleStatFlatKey>(["maxHp", "maxMp", "str", "int", "agi", "def"]);
 const NEGATIVE_STATUS_KEYS = new Set<BattleStatusKey>(["frozen", "stunned", "poisoned", "burning", "weakened", "taunted"]);
 const POSITIVE_STATUS_KEYS = new Set<BattleStatusKey>(["guarded", "shielded", "immune"]);
@@ -608,12 +611,61 @@ function resolveTauntTarget(actor: BattleRuntimeUnit, enemies: BattleRuntimeUnit
   return null;
 }
 
+function chooseHighestHpRatioTarget(candidates: BattleRuntimeUnit[]): BattleRuntimeUnit | null {
+  if (candidates.length <= 0) {
+    return null;
+  }
+  return [...candidates].sort((left, right) => {
+    const leftRatio = left.currentHp / Math.max(1, left.stats.maxHp);
+    const rightRatio = right.currentHp / Math.max(1, right.stats.maxHp);
+    if (rightRatio !== leftRatio) {
+      return rightRatio - leftRatio;
+    }
+    if (right.currentHp !== left.currentHp) {
+      return right.currentHp - left.currentHp;
+    }
+    return right.stats.maxHp - left.stats.maxHp;
+  })[0] ?? null;
+}
+
+function hasUnitRace(unit: BattleRuntimeUnit, race: string): boolean {
+  return unit.tags.includes(race) || unit.tags.includes(`race:${race}`);
+}
+
+function triggerMiyaUniversalResonance(
+  damagedUnit: BattleRuntimeUnit,
+  units: BattleRuntimeUnit[],
+  replay: BattleReplayData,
+  timeMs: number
+): void {
+  const resonators = livingUnits(units, damagedUnit.side).filter((unit) => unit.passiveSkillIds.includes(MIYA_PASSIVE_SKILL_ID));
+  if (resonators.length <= 0) {
+    return;
+  }
+
+  resonators.forEach((resonator) => {
+    const enemies = livingUnits(units, resonator.side === "ally" ? "enemy" : "ally");
+    const target = chooseHighestHpRatioTarget(enemies);
+    if (!target) {
+      return;
+    }
+    const damage = Math.max(1, Math.round(resonator.stats.int * 0.2));
+    applyDamage(resonator, target, damage, replay, {
+      timeMs,
+      cause: "skill",
+      skillId: MIYA_PASSIVE_SKILL_ID,
+      skillName: "万物共鸣"
+    });
+  });
+}
+
 function applyDamage(
   source: BattleRuntimeUnit,
   target: BattleRuntimeUnit,
   value: number,
   replay: BattleReplayData,
-  meta: DamageRecordMeta
+  meta: DamageRecordMeta,
+  units?: BattleRuntimeUnit[]
 ): number {
   const rawDamage = Math.max(1, Math.round(value));
   const { damageAfterShield } = resolveShieldAbsorption(target, rawDamage, source, replay, meta.timeMs);
@@ -630,6 +682,9 @@ function applyDamage(
   if (aliveBefore && !target.alive && source.id !== target.id) {
     ensureUnitStat(replay, source).kills += 1;
     ensureUnitStat(replay, target).deaths += 1;
+  }
+  if (units && source.side !== target.side) {
+    triggerMiyaUniversalResonance(target, units, replay, meta.timeMs);
   }
   return damage;
 }
@@ -673,7 +728,7 @@ function applyTurnStartStatus(
         cause: "status",
         skillId: null,
         skillName: status.key
-      });
+      }, units);
       nextLogs = appendLog(nextLogs, timeMs, "debuff", `${unit.name} 受到持续伤害 ${dealt}`);
     }
   });
@@ -847,6 +902,15 @@ function resolveTargets(skill: BattleActiveSkillDefinition, actor: BattleRuntime
   if (skill.targetType === "allEnemies") {
     return enemies;
   }
+  if (skill.targetType === "randomEnemies") {
+    const count = Math.max(1, skill.targetCount ?? 1);
+    const shuffled = [...enemies];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+    }
+    return shuffled.slice(0, Math.min(count, shuffled.length));
+  }
   if (skill.targetType === "allAllies") {
     return allies;
   }
@@ -939,7 +1003,7 @@ function applyElementalTrigger(
       cause: "element",
       skillId: null,
       skillName: trigger.replaySkillName ?? trigger.name
-    });
+    }, units);
     accumulator.damageDone += applied;
     accumulator.targetUnitIds.add(target.id);
     accumulator.targetUnitNames.add(target.name);
@@ -1035,11 +1099,15 @@ function performDamageSkill(
 ): BattleLogEntry[] {
   let nextLogs = logs;
   const basePower = computeSkillBase(skill, attacker);
+  const healAlliesOnKillEffects = (skill.extraEffects ?? []).filter(
+    (effect): effect is Extract<BattleSkillExtraEffect, { type: "healAlliesOnKill" }> => effect.type === "healAlliesOnKill"
+  );
 
   targets.forEach((target) => {
     if (!target.alive) {
       return;
     }
+    const aliveBeforeHit = target.alive && target.currentHp > 0;
     if (Math.random() < clamp(target.stats.evasion, 0, EVA_CAP)) {
       nextLogs = appendLog(nextLogs, timeMs, "miss", `${attacker.name} 的 ${skill.name} 被 ${target.name} 闪避`);
       accumulator.targetUnitIds.add(target.id);
@@ -1054,19 +1122,21 @@ function performDamageSkill(
     const element = skill.element;
     const boost = element ? attacker.stats.elementBoost[element] : 0;
     const res = element ? target.stats.elementRes[element] : 0;
-    const effRes = clamp((res + target.stats.allRes) - attacker.stats.elementalPierce, -0.85, 0.95);
+    const extraAllResPierce = attacker.talentId === MIYA_TALENT_ID && element === "life" ? 0.3 : 0;
+    const effRes = clamp((res + (target.stats.allRes - extraAllResPierce)) - attacker.stats.elementalPierce, -0.85, 0.95);
     const elemZone = element ? (1 + boost + attacker.stats.allBoost) * (1 - effRes) : 1;
+    const undeadZone = skill.id === MIYA_ACTIVE_SKILL_ID && hasUnitRace(target, "undead") ? 2 : 1;
     const weakenedPenalty = getStatusPotency(attacker, "weakened");
     const guardedBonus = getStatusPotency(target, "guarded");
     const extraZone = Math.max(0.1, 1 + attacker.stats.damageBoost - weakenedPenalty);
     const reductionZone = Math.max(0.1, 1 - clamp(target.stats.damageReduction + guardedBonus, -0.8, 0.9));
-    const finalDamage = Math.max(1, Math.round(basePower * critZone * defZone * elemZone * extraZone * reductionZone));
+    const finalDamage = Math.max(1, Math.round(basePower * critZone * defZone * elemZone * undeadZone * extraZone * reductionZone));
     const dealt = applyDamage(attacker, target, finalDamage, replay, {
       timeMs,
       cause: "skill",
       skillId: skill.id,
       skillName: skill.name
-    });
+    }, units);
     accumulator.damageDone += dealt;
     accumulator.targetUnitIds.add(target.id);
     accumulator.targetUnitNames.add(target.name);
@@ -1096,7 +1166,7 @@ function performDamageSkill(
         cause: "thorns",
         skillId: null,
         skillName: "反伤"
-      });
+      }, units);
       nextLogs = appendLog(nextLogs, timeMs, "damage", `${target.name} 反伤 ${reflected}`);
     }
 
@@ -1106,6 +1176,23 @@ function performDamageSkill(
     if (typeof skill.actionDeltaTarget === "number") {
       target.actionValue = Math.max(0, target.actionValue - skill.actionDeltaTarget);
     }
+
+    const killedBySkill = aliveBeforeHit && !target.alive;
+    if (killedBySkill && healAlliesOnKillEffects.length > 0) {
+      healAlliesOnKillEffects.forEach((effect) => {
+        const healValue = Math.max(1, Math.round(target.stats.maxHp * effect.ratio));
+        const allies = livingUnits(units, attacker.side);
+        allies.forEach((ally) => {
+          const healed = applyHeal(attacker, ally, healValue, replay, timeMs, skill.id, `${skill.name}-生命爆发`);
+          if (healed > 0) {
+            accumulator.healDone += healed;
+            accumulator.targetUnitIds.add(ally.id);
+            accumulator.targetUnitNames.add(ally.name);
+          }
+        });
+        nextLogs = appendLog(nextLogs, timeMs, "heal", `${skill.name} 触发生命爆发，全队回复 ${healValue}`);
+      });
+    }
   });
 
   return nextLogs;
@@ -1114,6 +1201,7 @@ function performDamageSkill(
 function performHealSkill(
   skill: BattleActiveSkillDefinition,
   actor: BattleRuntimeUnit,
+  units: BattleRuntimeUnit[],
   targets: BattleRuntimeUnit[],
   logs: BattleLogEntry[],
   timeMs: number,
@@ -1122,12 +1210,14 @@ function performHealSkill(
 ): BattleLogEntry[] {
   let nextLogs = logs;
   const basePower = computeSkillBase(skill, actor);
+  const hasCriticalHpAlly = livingUnits(units, actor.side).some((unit) => unit.currentHp / Math.max(1, unit.stats.maxHp) < 0.3);
+  const shouldDoubleLifeHeal = actor.talentId === MIYA_TALENT_ID && skill.element === "life" && hasCriticalHpAlly;
 
   targets.forEach((target) => {
     if (!target.alive) {
       return;
     }
-    const healPower = Math.max(1, Math.round(basePower * (1 + actor.stats.allBoost)));
+    const healPower = Math.max(1, Math.round(basePower * (1 + actor.stats.allBoost) * (shouldDoubleLifeHeal ? 2 : 1)));
     const healed = applyHeal(actor, target, healPower, replay, timeMs, skill.id, skill.name);
     accumulator.healDone += healed;
     accumulator.targetUnitIds.add(target.id);
@@ -1154,8 +1244,8 @@ function applyExtraEffects(
   let nextLogs = logs;
 
   skill.extraEffects.forEach((effect: BattleSkillExtraEffect) => {
-    const effectTargets = effect.target === "self" ? [actor] : targets;
     if (effect.type === "applyStatus") {
+      const effectTargets = effect.target === "self" ? [actor] : targets;
       effectTargets.forEach((target) => {
         nextLogs = applyStatus(target, actor, effect.application, timeMs, nextLogs, replay);
         accumulator.targetUnitIds.add(target.id);
@@ -1165,6 +1255,7 @@ function applyExtraEffects(
     }
 
     if (effect.type === "actionDelta") {
+      const effectTargets = effect.target === "self" ? [actor] : targets;
       effectTargets.forEach((target) => {
         target.actionValue = clamp(target.actionValue + effect.delta, 0, ACTION_THRESHOLD - 1);
         accumulator.targetUnitIds.add(target.id);
@@ -1181,6 +1272,7 @@ function applyExtraEffects(
     }
 
     if (effect.type === "shield") {
+      const effectTargets = effect.target === "self" ? [actor] : targets;
       const shieldValue = Math.max(1, Math.round(computeScalingValue(effect.basePower, effect.scaling, actor)));
       effectTargets.forEach((target) => {
         accumulator.targetUnitIds.add(target.id);
@@ -1204,6 +1296,7 @@ function applyExtraEffects(
     }
 
     if (effect.type === "cleanse" || effect.type === "dispel") {
+      const effectTargets = effect.target === "self" ? [actor] : targets;
       const defaultPolarity: BattleStatusEffectPolarity = effect.type === "cleanse" ? "negative" : "positive";
       const polarity = effect.polarity ?? defaultPolarity;
       const removeCount = Math.max(1, effect.removeCount ?? 1);
@@ -1333,7 +1426,7 @@ function processActorTurn(runtime: BattleRuntimeState, actorIndex: number): Batt
   if (selectedSkill.effect === "damage") {
     logs = performDamageSkill(selectedSkill, actor, targets, units, logs, timeMs, replay, accumulator);
   } else {
-    logs = performHealSkill(selectedSkill, actor, targets, logs, timeMs, replay, accumulator);
+    logs = performHealSkill(selectedSkill, actor, units, targets, logs, timeMs, replay, accumulator);
   }
 
   logs = applyExtraEffects(selectedSkill, actor, targets, logs, timeMs, replay, accumulator);

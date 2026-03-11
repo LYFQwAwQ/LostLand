@@ -1,0 +1,40 @@
+[
+  {
+    "id": "priest_ward_prayer",
+    "name": "圣佑祷言",
+    "skillPool": "class",
+    "allowedHeroClasses": ["priest"],
+    "category": "defend",
+    "description": "恢复自身生命并施加短时护盾。",
+    "targetType": "self",
+    "effect": "heal",
+    "element": "light",
+    "mpCost": 16,
+    "cooldown": 3,
+    "baseWeight": 94,
+    "basePower": 72,
+    "scaling": {
+      "int": 0.46,
+      "maxHp": 0.012
+    },
+    "canCrit": false,
+    "extraEffects": [
+      {
+        "type": "shield",
+        "target": "self",
+        "duration": 1,
+        "basePower": 52,
+        "scaling": {
+          "int": 0.36
+        }
+      }
+    ],
+    "weightTuning": {
+      "selfHpBelow": {
+        "threshold": 0.45,
+        "delta": 30
+      }
+    }
+  }
+]
+
