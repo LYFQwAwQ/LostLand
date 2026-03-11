@@ -169,6 +169,15 @@ body {
   color: var(--gold);
 }
 
+.continent-tabs button.disabled,
+.continent-tabs button:disabled {
+  border-color: #4a4138;
+  color: #6f6254;
+  background: #16120f;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .continent-tabs button {
   min-width: 96px;
 }
@@ -3690,6 +3699,13 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+.primary-btn:disabled,
+.ghost-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(35%);
 }
 
 .small-btn {

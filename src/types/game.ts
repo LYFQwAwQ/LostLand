@@ -339,4 +339,72 @@ export interface InventoryMemoryStack {
   effect: string;
 }
 
+export type BulletinMissionType = "collect" | "hunt";
+
+export type BulletinMissionStatus = "available" | "in_progress" | "ready_to_submit" | "completed";
+
+export interface BulletinMissionCollectTarget {
+  materialId: string;
+  materialName: string;
+  rarity: InventoryResourceRarity;
+  requiredQuantity: number;
+}
+
+export interface BulletinMissionHuntTarget {
+  enemyPrototypeId: string;
+  enemyName: string;
+  requiredCount: number;
+}
+
+export interface BulletinMissionRewardMaterial {
+  materialId: string;
+  materialName: string;
+  rarity: InventoryResourceRarity;
+  quantity: number;
+}
+
+export interface BulletinMissionRewardConsumable {
+  consumableId: string;
+  consumableName: string;
+  rarity: InventoryResourceRarity;
+  quantity: number;
+}
+
+export interface BulletinMissionReward {
+  materials: BulletinMissionRewardMaterial[];
+  consumables: BulletinMissionRewardConsumable[];
+  bounty: number;
+  reputation: number;
+}
+
+export interface BulletinMissionProgress {
+  materialCounts: Record<string, number>;
+  enemyKillCounts: Record<string, number>;
+}
+
+export interface BulletinMissionDefinition {
+  id: string;
+  regionId: string;
+  title: string;
+  type: BulletinMissionType;
+  description: string;
+  collectTargets: BulletinMissionCollectTarget[];
+  huntTargets: BulletinMissionHuntTarget[];
+  sourceNodeIds: string[];
+  reward: BulletinMissionReward;
+}
+
+export interface BulletinMissionState extends BulletinMissionDefinition {
+  status: BulletinMissionStatus;
+  progress: BulletinMissionProgress;
+  acceptedAtWorldMonth: number | null;
+  completedAtWorldMonth: number | null;
+}
+
+export interface MissionBattleOutcome {
+  regionId: string;
+  materialGainCounts: Record<string, number>;
+  defeatedEnemyCounts: Record<string, number>;
+}
+
 

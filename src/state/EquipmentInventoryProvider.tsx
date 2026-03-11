@@ -9,6 +9,7 @@ import { getPairedPaladinHandSlot, isPaladinHandSlot } from "../lib/equipmentCat
 import { generateEquipmentBatch } from "../lib/equipmentSystem";
 import type { BattleDropSummary } from "../types/battle";
 import type {
+  BulletinMissionReward,
   GeneratedEquipment,
   InventoryConsumableStack,
   InventoryMaterialStack,
@@ -40,6 +41,8 @@ interface EquipmentInventoryContextValue {
   equippedMemoryByHero: Record<string, string>;
   refreshItems: () => void;
   collectBattleDrops: (drops: BattleDropSummary | null | undefined) => void;
+  grantMissionRewards: (reward: BulletinMissionReward | null | undefined) => void;
+  consumeMaterials: (materials: Array<{ materialId: string; quantity: number }>) => boolean;
   equipItem: (
     heroId: string,
     slotId: string,
@@ -325,6 +328,82 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     });
   };
 
+  const grantMissionRewards = (reward: BulletinMissionReward | null | undefined) => {
+    if (!reward) {
+      return;
+    }
+
+    if (reward.materials.length > 0) {
+      setMaterialStock((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        reward.materials.forEach((item) => {
+          const quantity = Math.max(0, Math.floor(item.quantity));
+          if (quantity <= 0) {
+            return;
+          }
+          next[item.materialId] = (next[item.materialId] ?? 0) + quantity;
+          changed = true;
+        });
+        return changed ? next : prev;
+      });
+    }
+
+    if (reward.consumables.length > 0) {
+      setConsumableStock((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        reward.consumables.forEach((item) => {
+          const quantity = Math.max(0, Math.floor(item.quantity));
+          if (quantity <= 0) {
+            return;
+          }
+          next[item.consumableId] = (next[item.consumableId] ?? 0) + quantity;
+          changed = true;
+        });
+        return changed ? next : prev;
+      });
+    }
+  };
+
+  const consumeMaterials = (materials: Array<{ materialId: string; quantity: number }>): boolean => {
+    if (!materials || materials.length <= 0) {
+      return true;
+    }
+
+    const requirements = materials
+      .map((item) => ({
+        materialId: item.materialId,
+        quantity: Math.max(0, Math.floor(item.quantity))
+      }))
+      .filter((item) => item.materialId.length > 0 && item.quantity > 0);
+
+    if (requirements.length <= 0) {
+      return true;
+    }
+
+    let consumed = false;
+    setMaterialStock((prev) => {
+      const hasEnough = requirements.every((item) => (prev[item.materialId] ?? 0) >= item.quantity);
+      if (!hasEnough) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      requirements.forEach((item) => {
+        const remain = (next[item.materialId] ?? 0) - item.quantity;
+        if (remain > 0) {
+          next[item.materialId] = remain;
+        } else {
+          delete next[item.materialId];
+        }
+      });
+      consumed = true;
+      return next;
+    });
+    return consumed;
+  };
+
   const equipItem = (
     heroId: string,
     slotId: string,
@@ -553,6 +632,8 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       equippedMemoryByHero,
       refreshItems,
       collectBattleDrops,
+      grantMissionRewards,
+      consumeMaterials,
       equipItem,
       unequipItem,
       setHeroMemory,
@@ -572,7 +653,18 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       exportSnapshot,
       importSnapshot
     }),
-    [consumableItems, equippedByHero, equippedMemoryByHero, itemMap, items, materialItems, memoryItems, memoryOwnerMap, ownerMap, ownedMemoryIdSet]
+    [
+      consumableItems,
+      equippedByHero,
+      equippedMemoryByHero,
+      itemMap,
+      items,
+      materialItems,
+      memoryItems,
+      memoryOwnerMap,
+      ownerMap,
+      ownedMemoryIdSet
+    ]
   );
 
   return <EquipmentInventoryContext.Provider value={value}>{children}</EquipmentInventoryContext.Provider>;

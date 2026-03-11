@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   buildWorldMapSearchParams,
+  DEFAULT_WORLD_SELECTION,
   getContinentMeta,
   getDominionMeta,
   getDominionsByContinent,
@@ -261,7 +262,11 @@ export function WorldMapPage() {
     return resolveSelectionFromLegacyRegion(searchParams.get("region"));
   }, [explicitSelection, searchParams]);
 
-  const selection = explicitSelection ?? legacySelection;
+  const rawSelection = explicitSelection ?? legacySelection;
+  const selection =
+    rawSelection && rawSelection.continentId === "central"
+      ? rawSelection
+      : DEFAULT_WORLD_SELECTION;
 
   const [pickerContinentId, setPickerContinentId] = useState<ContinentId | null>(null);
   const [pickerDominionId, setPickerDominionId] = useState<string | null>(null);
@@ -290,11 +295,12 @@ export function WorldMapPage() {
   }, [pickerDominionId]);
 
   useEffect(() => {
-    if (!selection || explicitSelection) {
+    const normalized = buildWorldMapSearchParams(selection).toString();
+    if (searchParams.toString() === normalized) {
       return;
     }
     setSearchParams(buildWorldMapSearchParams(selection), { replace: true });
-  }, [explicitSelection, selection, setSearchParams]);
+  }, [searchParams, selection, setSearchParams]);
 
   useEffect(() => {
     if (!selection) {
@@ -461,15 +467,22 @@ export function WorldMapPage() {
       <header className="page-header">
         <h1>世界地图</h1>
         <p>大陆 → 疆域 → 地区多层地图。地区拓扑为泊松盘采样 + 德劳内三角化，并支持月度演化回放。</p>
+        <p>测试阶段：仅开放中央大陆，其他大陆入口暂时置灰不可选。</p>
       </header>
 
       <div className="region-tabs continent-tabs">
         {WORLD_CONTINENTS.map((item) => (
           <button
             key={item.id}
-            className={selection?.continentId === item.id ? "active" : ""}
-            onClick={() => openDominionPicker(item.id)}
+            className={`${selection?.continentId === item.id ? "active" : ""} ${item.id !== "central" ? "disabled" : ""}`.trim()}
+            onClick={() => {
+              if (item.id !== "central") {
+                return;
+              }
+              openDominionPicker(item.id);
+            }}
             type="button"
+            disabled={item.id !== "central"}
           >
             {item.name}
           </button>

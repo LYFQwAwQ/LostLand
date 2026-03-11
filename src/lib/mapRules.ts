@@ -29,7 +29,7 @@ export const ACTION_META: Record<NodeAction, NodeActionMeta> = {
   bulletin: {
     key: "bulletin",
     label: "布告栏",
-    description: "任务接口占位，当前仅保留页面结构。"
+    description: "地区任务委派：领取、战斗推进与提交结算。"
   },
   battle: {
     key: "battle",

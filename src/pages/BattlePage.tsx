@@ -60,6 +60,14 @@ function getSideUnits(units: BattleRuntimeUnit[], side: BattleSide, line: Battle
   return [0, 1, 2].map((index) => group.find((unit) => unit.slot.index === index) ?? null);
 }
 
+function resolveEnemyPrototypeId(unit: BattleRuntimeUnit): string {
+  const tagged = unit.tags.find((tag) => tag.startsWith("enemy:"));
+  if (tagged) {
+    return tagged.slice("enemy:".length);
+  }
+  return unit.id.replace(/-\d+$/, "");
+}
+
 function UnitSlot({ unit, side }: { unit: BattleRuntimeUnit | null; side: BattleSide }) {
   if (!unit) {
     return (
@@ -170,7 +178,7 @@ function BattleTimeline({ runtime }: { runtime: BattleRuntimeState }) {
 
 export function BattlePage() {
   const { nodeId } = useParams<{ nodeId: string }>();
-  const { findNodeById } = useMapSystem();
+  const { findNodeById, reportMissionBattleOutcome } = useMapSystem();
   const { formation, heroLoadouts } = useBattleSetup();
   const { equippedByHero, itemMap, collectBattleDrops } = useEquipmentInventory();
   const [battleSeed, setBattleSeed] = useState(() => Date.now());
@@ -359,14 +367,39 @@ export function BattlePage() {
 
   useEffect(() => {
     const previous = battleStateRef.current;
-    if (runtime && runtime.status === "finished" && runtime.winner === "ally" && runtime.drops) {
-      const shouldCollect = !previous || previous.battleId !== runtime.battleId || previous.status !== "finished";
-      if (shouldCollect) {
-        collectBattleDrops(runtime.drops);
+    if (runtime && runtime.status === "finished") {
+      const shouldProcess = !previous || previous.battleId !== runtime.battleId || previous.status !== "finished";
+      if (shouldProcess) {
+        if (runtime.winner === "ally" && runtime.drops) {
+          collectBattleDrops(runtime.drops);
+        }
+
+        const materialGainCounts = runtime.drops?.entries.reduce<Record<string, number>>((acc, entry) => {
+          if (entry.category !== "material" || !entry.material) {
+            return acc;
+          }
+          acc[entry.material.id] = (acc[entry.material.id] ?? 0) + Math.max(0, Math.floor(entry.quantity));
+          return acc;
+        }, {}) ?? {};
+
+        const defeatedEnemyCounts = runtime.units.reduce<Record<string, number>>((acc, unit) => {
+          if (unit.side !== "enemy" || unit.alive) {
+            return acc;
+          }
+          const prototypeId = resolveEnemyPrototypeId(unit);
+          acc[prototypeId] = (acc[prototypeId] ?? 0) + 1;
+          return acc;
+        }, {});
+
+        reportMissionBattleOutcome({
+          regionId: context?.region.id ?? "",
+          materialGainCounts,
+          defeatedEnemyCounts
+        });
       }
     }
     battleStateRef.current = runtime ? { battleId: runtime.battleId, status: runtime.status } : null;
-  }, [collectBattleDrops, runtime]);
+  }, [collectBattleDrops, context?.region.id, reportMissionBattleOutcome, runtime]);
 
   useEffect(() => {
     if (!runtime) {

@@ -26,15 +26,6 @@ export interface ForgeRecipe {
   goldCost: number;
 }
 
-export interface BulletinMission {
-  id: string;
-  title: string;
-  kind: "讨伐" | "采集" | "护送";
-  target: string;
-  reward: string;
-  status: "可领取" | "进行中";
-}
-
 const baseShopPool: ShopItem[] = [
   { id: "potion", name: "高浓度生命药剂", category: "消耗", price: 280, stock: 20, weight: 85 },
   { id: "ether", name: "法力精萃", category: "消耗", price: 360, stock: 16, weight: 70 },
@@ -122,32 +113,6 @@ const recipePool: ForgeRecipe[] = [
   }
 ];
 
-const missionPool: BulletinMission[] = [
-  {
-    id: "m1",
-    title: "清剿荒野巡猎群",
-    kind: "讨伐",
-    target: "消灭 18 个荒野目标",
-    reward: "金币 1800 / 声望 +20",
-    status: "可领取"
-  },
-  {
-    id: "m2",
-    title: "回收旧桥补给箱",
-    kind: "采集",
-    target: "收集 12 个补给箱",
-    reward: "金币 1200 / 材料包 x2",
-    status: "可领取"
-  },
-  {
-    id: "m3",
-    title: "护送学者前往行省",
-    kind: "护送",
-    target: "完成 1 次护送路线",
-    reward: "金币 2400 / 声望 +35",
-    status: "进行中"
-  }
-];
 
 function hashNumber(source: string): number {
   let h = 0;
@@ -200,18 +165,8 @@ export function getForgeRecipes(node: RegionNode): ForgeRecipe[] {
   }));
 }
 
-export function getBulletinMissions(node: RegionNode): BulletinMission[] {
-  const offset = hashNumber(`${node.id}-bulletin`) % missionPool.length;
-  return rotate(missionPool, offset).map((mission, index) => ({
-    ...mission,
-    status: index === 0 ? "可领取" : mission.status
-  }));
-}
-
 export const marketSellRules = [
   "单次出售 1-20 件：基础回收价",
   "单次出售 21-60 件：回收价 +8%",
   "单次出售 61 件以上：回收价 +15%"
 ];
-
-export const bulletinNotice = "布告栏任务系统当前为占位实现，后续将接入完整任务链与奖励结算。";

@@ -1,0 +1,37 @@
+{
+  "missionCount": {
+    "collect": 2,
+    "hunt": 2
+  },
+  "collect": {
+    "targetTypeCountRange": [1, 2],
+    "requiredByRarity": {
+      "common": [5, 10],
+      "uncommon": [3, 8],
+      "rare": [2, 5],
+      "epic": [1, 3]
+    }
+  },
+  "hunt": {
+    "targetTypeCountRange": [1, 2],
+    "requiredCountRange": [3, 8]
+  },
+  "reward": {
+    "materialRewardCountRange": [1, 2],
+    "consumableRewardCountRange": [1, 1],
+    "allowedMaterialRarities": ["common", "uncommon", "rare"],
+    "allowedConsumableRarities": ["common", "uncommon"],
+    "bounty": {
+      "base": 210,
+      "perScore": 40,
+      "min": 280,
+      "swingRange": [0.9, 1.08]
+    },
+    "reputation": {
+      "base": 4,
+      "perScore": 0.82,
+      "min": 7,
+      "swingRange": [0.92, 1.1]
+    }
+  }
+}
