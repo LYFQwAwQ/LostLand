@@ -1,6 +1,7 @@
 ﻿import heroGenerationConfigJson from "./config/heroGeneration.json";
 import legendaryHeroesConfigJson from "./config/legendaryHeroes.json";
-import type { Hero, HeroClass } from "../types/game";
+import { battleActiveSkills, battlePassiveSkills, battleTalents } from "./battleSkills";
+import type { Hero, HeroClass, HeroSkillRarity } from "../types/game";
 
 interface HeroStatsNumeric {
   hp: number;
@@ -33,6 +34,11 @@ interface HeroLoadoutPool {
 interface HeroGenerationConfig {
   randomHeroCountPerStartup: number;
   legendarySpawnChance: number;
+  randomSkillRarityWeights?: {
+    common: number;
+    rare: number;
+    epic: number;
+  };
   classRollWeights: Record<HeroClass, number>;
   namePools: {
     familyNames: string[];
@@ -61,6 +67,18 @@ interface LegendaryHeroConfigEntry {
 interface LegendaryHeroesConfig {
   heroes: LegendaryHeroConfigEntry[];
 }
+
+interface RandomSkillRarityWeights {
+  common: number;
+  rare: number;
+  epic: number;
+}
+
+const DEFAULT_RANDOM_SKILL_RARITY_WEIGHTS: RandomSkillRarityWeights = {
+  common: 0.8,
+  rare: 0.19,
+  epic: 0.01
+};
 
 const heroGenerationConfig = heroGenerationConfigJson as HeroGenerationConfig;
 const legendaryHeroesConfig = legendaryHeroesConfigJson as LegendaryHeroesConfig;
@@ -246,15 +264,6 @@ function mapStatsToHero(stats: HeroStatsNumeric): Hero["stats"] {
   };
 }
 
-function pickDistinctSkills(pool: string[], count: number, random: () => number): string[] {
-  const source = [...new Set(pool.filter((skillId) => typeof skillId === "string" && skillId.length > 0))];
-  for (let i = source.length - 1; i > 0; i -= 1) {
-    const swapIndex = Math.floor(random() * (i + 1));
-    [source[i], source[swapIndex]] = [source[swapIndex], source[i]];
-  }
-  return source.slice(0, Math.max(0, Math.min(count, source.length)));
-}
-
 function normalizePickCountRange(
   range: { min: number; max: number } | undefined,
   fallbackCount: number
@@ -298,6 +307,115 @@ function chooseByWeight<T>(entries: Array<{ value: T; weight: number }>, random:
   return valid[valid.length - 1].value;
 }
 
+function isHeroSkillRarity(value: unknown): value is HeroSkillRarity {
+  return value === "common" || value === "rare" || value === "epic" || value === "legendary";
+}
+
+function normalizeRandomSkillRarityWeights(
+  weights?: HeroGenerationConfig["randomSkillRarityWeights"]
+): RandomSkillRarityWeights {
+  const common = typeof weights?.common === "number" && Number.isFinite(weights.common) ? weights.common : 0;
+  const rare = typeof weights?.rare === "number" && Number.isFinite(weights.rare) ? weights.rare : 0;
+  const epic = typeof weights?.epic === "number" && Number.isFinite(weights.epic) ? weights.epic : 0;
+  const normalized = {
+    common: Math.max(0, common),
+    rare: Math.max(0, rare),
+    epic: Math.max(0, epic)
+  };
+  const total = normalized.common + normalized.rare + normalized.epic;
+  if (total <= 0) {
+    return { ...DEFAULT_RANDOM_SKILL_RARITY_WEIGHTS };
+  }
+  return {
+    common: normalized.common / total,
+    rare: normalized.rare / total,
+    epic: normalized.epic / total
+  };
+}
+
+function rollRandomSkillRarity(random: () => number): HeroSkillRarity {
+  return chooseByWeight<HeroSkillRarity>(
+    [
+      { value: "common", weight: RANDOM_SKILL_RARITY_WEIGHTS.common },
+      { value: "rare", weight: RANDOM_SKILL_RARITY_WEIGHTS.rare },
+      { value: "epic", weight: RANDOM_SKILL_RARITY_WEIGHTS.epic }
+    ],
+    random
+  );
+}
+
+function normalizeTalentRarity(rarity: string | undefined): HeroSkillRarity {
+  if (rarity === "legendary" || rarity === "unique") {
+    return "legendary";
+  }
+  if (rarity === "epic") {
+    return "epic";
+  }
+  if (rarity === "rare") {
+    return "rare";
+  }
+  return "common";
+}
+
+function resolveConfiguredSkillRarity(skillId: string): HeroSkillRarity {
+  const active = battleActiveSkills[skillId];
+  if (active) {
+    return active.rarity ?? "common";
+  }
+  const passive = battlePassiveSkills[skillId];
+  if (passive) {
+    return passive.rarity ?? "common";
+  }
+  const talent = battleTalents[skillId];
+  if (talent) {
+    return normalizeTalentRarity(talent.rarity);
+  }
+  return "common";
+}
+
+function collectSkillIds(learnedSkills: {
+  talentIds: string[];
+  activeSkillIds: string[];
+  passiveSkillIds: string[];
+}): string[] {
+  return [...learnedSkills.talentIds, ...learnedSkills.activeSkillIds, ...learnedSkills.passiveSkillIds];
+}
+
+function buildLearnedSkillRarityByIds(skillIds: string[]): Record<string, HeroSkillRarity> {
+  return [...new Set(skillIds.filter((skillId) => typeof skillId === "string" && skillId.length > 0))]
+    .reduce<Record<string, HeroSkillRarity>>((acc, skillId) => {
+      acc[skillId] = resolveConfiguredSkillRarity(skillId);
+      return acc;
+    }, {});
+}
+
+function cloneLearnedSkills(learnedSkills: Hero["learnedSkills"] | undefined): Hero["learnedSkills"] | undefined {
+  if (!learnedSkills) {
+    return undefined;
+  }
+  const talentIds = [...learnedSkills.talentIds];
+  const activeSkillIds = [...learnedSkills.activeSkillIds];
+  const passiveSkillIds = [...learnedSkills.passiveSkillIds];
+  const fallback = buildLearnedSkillRarityByIds(collectSkillIds({ talentIds, activeSkillIds, passiveSkillIds }));
+  const fromSource = learnedSkills.rarityBySkillId
+    ? Object.entries(learnedSkills.rarityBySkillId).reduce<Record<string, HeroSkillRarity>>((acc, [skillId, rarity]) => {
+        if (!fallback[skillId]) {
+          return acc;
+        }
+        acc[skillId] = isHeroSkillRarity(rarity) ? rarity : fallback[skillId];
+        return acc;
+      }, {})
+    : {};
+  return {
+    talentIds,
+    activeSkillIds,
+    passiveSkillIds,
+    rarityBySkillId: { ...fallback, ...fromSource }
+  };
+}
+
+const RANDOM_SKILL_RARITY_WEIGHTS = normalizeRandomSkillRarityWeights(heroGenerationConfig.randomSkillRarityWeights);
+
 function chooseSkillPickCounts(
   activeRange: { min: number; max: number },
   passiveRange: { min: number; max: number },
@@ -334,7 +452,7 @@ function chooseSkillPickCounts(
   return chooseByWeight(weighted, random);
 }
 
-function pickDistinctSkillsWithRequired(
+function pickDistinctSkillsWithRequiredByRarity(
   pool: string[],
   count: number,
   requiredSkillIds: string[] | undefined,
@@ -353,8 +471,21 @@ function pickDistinctSkillsWithRequired(
   const required = [...new Set(requiredSkillIds ?? [])].filter((skillId) => uniquePool.includes(skillId));
   const finalCount = Math.min(uniquePool.length, Math.max(maxCount, required.length));
   const remainPool = uniquePool.filter((skillId) => !required.includes(skillId));
-  const randomPicked = pickDistinctSkills(remainPool, finalCount - required.length, random);
-  return [...randomPicked, ...required];
+  const picked = [...required];
+
+  while (picked.length < finalCount && remainPool.length > 0) {
+    const targetRarity = rollRandomSkillRarity(random);
+    const sameRarityCandidates = remainPool.filter((skillId) => resolveConfiguredSkillRarity(skillId) === targetRarity);
+    const candidatePool = sameRarityCandidates.length > 0 ? sameRarityCandidates : remainPool;
+    const selected = pickOne(candidatePool, random);
+    picked.push(selected);
+    const removeIndex = remainPool.indexOf(selected);
+    if (removeIndex >= 0) {
+      remainPool.splice(removeIndex, 1);
+    }
+  }
+
+  return picked;
 }
 
 function pickTalentId(pool: string[], random: () => number, usedTalentIdsByClass: Set<string>): string | null {
@@ -403,18 +534,21 @@ function buildStandardSkillPackage(
   const activePickCount = weightedPickCounts.active;
   const passivePickCount = weightedPickCounts.passive;
   const talentId = pickTalentId(pool.talentIds, random, usedTalentIdsByClass);
-  const activeSkillIds = pickDistinctSkillsWithRequired(
+  const activeSkillIds = pickDistinctSkillsWithRequiredByRarity(
     pool.activeSkillIds,
     activePickCount,
     fixedGuaranteedActiveSkillId ? [fixedGuaranteedActiveSkillId] : [],
     random
   );
-  const passiveSkillIds = pickDistinctSkills(pool.passiveSkillIds, passivePickCount, random);
+  const passiveSkillIds = pickDistinctSkillsWithRequiredByRarity(pool.passiveSkillIds, passivePickCount, [], random);
+  const talentIds = talentId ? [talentId] : [];
+  const rarityBySkillId = buildLearnedSkillRarityByIds([...talentIds, ...activeSkillIds, ...passiveSkillIds]);
   return {
     learnedSkills: {
-      talentIds: talentId ? [talentId] : [],
+      talentIds,
       activeSkillIds: [...activeSkillIds],
-      passiveSkillIds: [...passiveSkillIds]
+      passiveSkillIds: [...passiveSkillIds],
+      rarityBySkillId
     },
     loadoutPreset: {
       talentId,
@@ -483,6 +617,16 @@ function buildGeneratedStandardHero(
 }
 
 function buildLegendaryHero(entry: LegendaryHeroConfigEntry): Hero {
+  const talentIds = entry.loadout.talentId ? [entry.loadout.talentId] : [];
+  const activeSkillIds = [...entry.loadout.activeSkillIds];
+  const passiveSkillIds = [...entry.loadout.passiveSkillIds];
+  const rarityBySkillId = buildLearnedSkillRarityByIds(
+    collectSkillIds({
+      talentIds,
+      activeSkillIds,
+      passiveSkillIds
+    })
+  );
   return {
     id: entry.id,
     name: entry.name,
@@ -492,14 +636,15 @@ function buildLegendaryHero(entry: LegendaryHeroConfigEntry): Hero {
     rarity: "legendary",
     origin: "generated",
     learnedSkills: {
-      talentIds: entry.loadout.talentId ? [entry.loadout.talentId] : [],
-      activeSkillIds: [...entry.loadout.activeSkillIds],
-      passiveSkillIds: [...entry.loadout.passiveSkillIds]
+      talentIds,
+      activeSkillIds,
+      passiveSkillIds,
+      rarityBySkillId
     },
     loadoutPreset: {
       talentId: entry.loadout.talentId,
-      activeSkillIds: [...entry.loadout.activeSkillIds],
-      passiveSkillIds: [...entry.loadout.passiveSkillIds]
+      activeSkillIds,
+      passiveSkillIds
     },
     stats: mapStatsToHero(entry.stats)
   };
@@ -538,13 +683,7 @@ export function createStartupHeroes(): Hero[] {
   return [
     ...BASE_FIXED_HEROES.map((hero) => ({
       ...hero,
-      learnedSkills: hero.learnedSkills
-        ? {
-            talentIds: [...hero.learnedSkills.talentIds],
-            activeSkillIds: [...hero.learnedSkills.activeSkillIds],
-            passiveSkillIds: [...hero.learnedSkills.passiveSkillIds]
-          }
-        : undefined,
+      learnedSkills: cloneLearnedSkills(hero.learnedSkills),
       loadoutPreset: hero.loadoutPreset
         ? {
             talentId: hero.loadoutPreset.talentId,

@@ -168,10 +168,10 @@ export function NodeActionPage() {
       const summary = mission.collectTargets
         .map((target) => `${target.materialName} x${target.requiredQuantity}`)
         .join("，");
-      return summary.length > 0 ? `在${region.regionName}收集并交付：${summary}` : `在${region.regionName}收集并交付指定材料。`;
+      return summary.length > 0 ? `在${region.dominionName}收集并交付：${summary}` : `在${region.dominionName}收集并交付指定材料。`;
     }
     const summary = mission.huntTargets.map((target) => `${target.enemyName} x${target.requiredCount}`).join("，");
-    return summary.length > 0 ? `在${region.regionName}击败：${summary}` : `在${region.regionName}完成讨伐委派。`;
+    return summary.length > 0 ? `在${region.dominionName}击败：${summary}` : `在${region.dominionName}完成讨伐委派。`;
   };
 
   if (!isNodeAction(action) || action === "ritual") {
@@ -438,7 +438,7 @@ export function NodeActionPage() {
                   </div>
                 </article>
               ))}
-              {bulletinMissions.length <= 0 ? <p>当前地区暂无可用任务。</p> : null}
+              {bulletinMissions.length <= 0 ? <p>当前疆域暂无可用任务。</p> : null}
             </div>
           </HeaderInfo>
         </div>

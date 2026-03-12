@@ -3,7 +3,9 @@
     "id": "priest_spirit_lance",
     "name": "灵辉穿刺",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
+    "allowedHeroClasses": [
+      "priest"
+    ],
     "category": "assault",
     "description": "以生命之辉贯穿单体目标。",
     "targetType": "singleEnemy",
@@ -17,13 +19,16 @@
     "scaling": {
       "int": 1.02
     },
-    "canCrit": true
+    "canCrit": true,
+    "rarity": "common"
   },
   {
     "id": "priest_emerald_tide",
     "name": "翡翠潮汐",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
+    "allowedHeroClasses": [
+      "priest"
+    ],
     "category": "assault",
     "description": "向全体敌人扩散生命冲击。",
     "targetType": "allEnemies",
@@ -43,7 +48,7 @@
         "count": 2,
         "delta": 16
       }
-    }
+    },
+    "rarity": "epic"
   }
 ]
-

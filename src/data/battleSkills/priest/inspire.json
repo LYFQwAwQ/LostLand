@@ -3,7 +3,9 @@
     "id": "priest_blessing_hymn",
     "name": "祝祷圣歌",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
+    "allowedHeroClasses": [
+      "priest"
+    ],
     "category": "inspire",
     "description": "为全体友军恢复生命并小幅推进动作条。",
     "targetType": "allAllies",
@@ -29,7 +31,7 @@
         "threshold": 0.62,
         "delta": 28
       }
-    }
+    },
+    "rarity": "common"
   }
 ]
-

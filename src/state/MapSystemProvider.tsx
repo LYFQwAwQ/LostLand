@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { initialLogs } from "../data/mockData";
-import { createRegionTopologyById } from "../data/worldMapData";
+import { createRegionTopologyById, getRegionMeta } from "../data/worldMapData";
 import {
   acceptMission,
   applyMissionBattleOutcome,
@@ -60,7 +60,9 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
       }
 
       const created = createRegionTopologyById(regionId);
-      const generated = generateRegionBulletinMissions(created);
+      const generated = generateRegionBulletinMissions(created, (targetRegionId) =>
+        targetRegionId === regionId ? created : regionsById[targetRegionId]
+      );
       setRegionsById((prev) => {
         if (prev[regionId]) {
           return prev;
@@ -106,7 +108,9 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
         const baseRegion = existing ?? createRegionTopologyById(regionId);
 
         if (!existing) {
-          const generated = generateRegionBulletinMissions(baseRegion);
+          const generated = generateRegionBulletinMissions(baseRegion, (targetRegionId) =>
+            targetRegionId === regionId ? baseRegion : prev[targetRegionId]
+          );
           setMissionsByRegionId((old) =>
             old[regionId]
               ? old
@@ -225,28 +229,39 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
     if (!outcome.regionId) {
       return;
     }
+    const outcomeDominionId = getRegionMeta(outcome.regionId)?.dominionId;
+    if (!outcomeDominionId) {
+      return;
+    }
     setMissionsByRegionId((prev) => {
-      const regionMissions = prev[outcome.regionId];
-      if (!regionMissions || regionMissions.length <= 0) {
-        return prev;
-      }
-
       let changed = false;
-      const next = regionMissions.map((mission) => {
-        const updated = applyMissionBattleOutcome(mission, outcome);
-        if (updated !== mission) {
-          changed = true;
+      const nextByRegionId: Record<string, BulletinMissionState[]> = { ...prev };
+      Object.entries(prev).forEach(([missionRegionId, regionMissions]) => {
+        if (!regionMissions || regionMissions.length <= 0) {
+          return;
         }
-        return updated;
+        const missionDominionId = getRegionMeta(missionRegionId)?.dominionId;
+        if (missionDominionId !== outcomeDominionId) {
+          return;
+        }
+        let regionChanged = false;
+        const next = regionMissions.map((mission) => {
+          const updated = applyMissionBattleOutcome(mission, outcome);
+          if (updated !== mission) {
+            changed = true;
+            regionChanged = true;
+          }
+          return updated;
+        });
+        if (regionChanged) {
+          nextByRegionId[missionRegionId] = next;
+        }
       });
 
       if (!changed) {
         return prev;
       }
-      return {
-        ...prev,
-        [outcome.regionId]: next
-      };
+      return nextByRegionId;
     });
   }, []);
 

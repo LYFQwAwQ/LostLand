@@ -1,129 +1,131 @@
-﻿[
-    {
-        "id":  "paladin_shield_slam",
-        "name":  "圣盾猛击",
-        "skillPool":  "class",
-        "allowedHeroClasses":  [
-                                   "paladin"
-                               ],
-        "category":  "defend",
-        "description":  "以盾牌震击敌人，并提高自身防守。",
-        "targetType":  "singleEnemy",
-        "effect":  "damage",
-        "damageType":  "physical",
-        "mpCost":  14,
-        "cooldown":  2,
-        "baseWeight":  110,
-        "basePower":  88,
-        "scaling":  {
-                        "str":  0.8,
-                        "def":  0.25
-                    },
-        "canCrit":  true,
-        "targetStatus":  {
-                             "key":  "stunned",
-                             "chance":  0.25,
-                             "duration":  1
-                         },
-        "selfStatus":  {
-                           "key":  "guarded",
-                           "chance":  1,
-                           "duration":  1,
-                           "potency":  0.25
-                       },
-        "weightTuning":  {
-                             "selfHpBelow":  {
-                                                 "threshold":  0.45,
-                                                 "delta":  30
-                                             }
-                         }
+[
+  {
+    "id": "paladin_shield_slam",
+    "name": "圣盾猛击",
+    "skillPool": "class",
+    "allowedHeroClasses": [
+      "paladin"
+    ],
+    "category": "defend",
+    "description": "以盾牌震击敌人，并提高自身防守。",
+    "targetType": "singleEnemy",
+    "effect": "damage",
+    "damageType": "physical",
+    "mpCost": 14,
+    "cooldown": 2,
+    "baseWeight": 110,
+    "basePower": 88,
+    "scaling": {
+      "str": 0.8,
+      "def": 0.25
     },
-    {
-        "id":  "paladin_war_provoke",
-        "name":  "战吼挑衅",
-        "skillPool":  "class",
-        "allowedHeroClasses":  [
-                                   "paladin"
-                               ],
-        "category":  "defend",
-        "description":  "对单体目标造成伤害并附加嘲讽，强制其优先攻击自己。",
-        "targetType":  "singleEnemy",
-        "effect":  "damage",
-        "damageType":  "physical",
-        "mpCost":  16,
-        "cooldown":  3,
-        "baseWeight":  108,
-        "basePower":  56,
-        "scaling":  {
-                        "str":  0.5,
-                        "def":  0.2
-                    },
-        "canCrit":  true,
-        "extraEffects":  [
-                             {
-                                 "type":  "applyStatus",
-                                 "target":  "targets",
-                                 "application":  {
-                                                     "key":  "taunted",
-                                                     "chance":  1,
-                                                     "duration":  2
-                                                 }
-                             }
-                         ],
-        "weightTuning":  {
-                             "enemyCountAtLeast":  {
-                                                       "count":  2,
-                                                       "delta":  15
-                                                   }
-                         }
+    "canCrit": true,
+    "targetStatus": {
+      "key": "stunned",
+      "chance": 0.25,
+      "duration": 1
     },
-    {
-        "id":  "paladin_bulwark_vow",
-        "name":  "壁垒誓约",
-        "skillPool":  "class",
-        "allowedHeroClasses":  [
-                                   "paladin"
-                               ],
-        "category":  "defend",
-        "description":  "恢复自身并施加护盾，同时获得短暂负面免疫。",
-        "targetType":  "self",
-        "effect":  "heal",
-        "element":  "light",
-        "mpCost":  21,
-        "cooldown":  4,
-        "baseWeight":  96,
-        "basePower":  44,
-        "scaling":  {
-                        "def":  0.5,
-                        "maxHp":  0.02
-                    },
-        "canCrit":  false,
-        "extraEffects":  [
-                             {
-                                 "type":  "shield",
-                                 "target":  "self",
-                                 "duration":  2,
-                                 "basePower":  140,
-                                 "scaling":  {
-                                                 "def":  0.6
-                                             }
-                             },
-                             {
-                                 "type":  "applyStatus",
-                                 "target":  "self",
-                                 "application":  {
-                                                     "key":  "immune",
-                                                     "chance":  1,
-                                                     "duration":  2
-                                                 }
-                             }
-                         ],
-        "weightTuning":  {
-                             "selfHpBelow":  {
-                                                 "threshold":  0.55,
-                                                 "delta":  36
-                                             }
-                         }
-    }
+    "selfStatus": {
+      "key": "guarded",
+      "chance": 1,
+      "duration": 1,
+      "potency": 0.25
+    },
+    "weightTuning": {
+      "selfHpBelow": {
+        "threshold": 0.45,
+        "delta": 30
+      }
+    },
+    "rarity": "common"
+  },
+  {
+    "id": "paladin_war_provoke",
+    "name": "战吼挑衅",
+    "skillPool": "class",
+    "allowedHeroClasses": [
+      "paladin"
+    ],
+    "category": "defend",
+    "description": "对单体目标造成伤害并附加嘲讽，强制其优先攻击自己。",
+    "targetType": "singleEnemy",
+    "effect": "damage",
+    "damageType": "physical",
+    "mpCost": 16,
+    "cooldown": 3,
+    "baseWeight": 108,
+    "basePower": 56,
+    "scaling": {
+      "str": 0.5,
+      "def": 0.2
+    },
+    "canCrit": true,
+    "extraEffects": [
+      {
+        "type": "applyStatus",
+        "target": "targets",
+        "application": {
+          "key": "taunted",
+          "chance": 1,
+          "duration": 2
+        }
+      }
+    ],
+    "weightTuning": {
+      "enemyCountAtLeast": {
+        "count": 2,
+        "delta": 15
+      }
+    },
+    "rarity": "common"
+  },
+  {
+    "id": "paladin_bulwark_vow",
+    "name": "壁垒誓约",
+    "skillPool": "class",
+    "allowedHeroClasses": [
+      "paladin"
+    ],
+    "category": "defend",
+    "description": "恢复自身并施加护盾，同时获得短暂负面免疫。",
+    "targetType": "self",
+    "effect": "heal",
+    "element": "light",
+    "mpCost": 21,
+    "cooldown": 4,
+    "baseWeight": 96,
+    "basePower": 44,
+    "scaling": {
+      "def": 0.5,
+      "maxHp": 0.02
+    },
+    "canCrit": false,
+    "extraEffects": [
+      {
+        "type": "shield",
+        "target": "self",
+        "duration": 2,
+        "basePower": 140,
+        "scaling": {
+          "def": 0.6
+        }
+      },
+      {
+        "type": "applyStatus",
+        "target": "self",
+        "application": {
+          "key": "immune",
+          "chance": 1,
+          "duration": 2
+        }
+      }
+    ],
+    "weightTuning": {
+      "selfHpBelow": {
+        "threshold": 0.55,
+        "delta": 36
+      }
+    },
+    "rarity": "rare"
+  }
 ]
-

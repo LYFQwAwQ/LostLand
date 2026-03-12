@@ -1,9 +1,11 @@
-﻿[
+[
   {
     "id": "ranger_hawk_signal",
     "name": "鹰哨号令",
     "skillPool": "class",
-    "allowedHeroClasses": ["ranger"],
+    "allowedHeroClasses": [
+      "ranger"
+    ],
     "category": "inspire",
     "description": "发出鹰哨，治疗全体友军并小幅推进行动条。",
     "targetType": "allAllies",
@@ -30,6 +32,7 @@
         "threshold": 0.58,
         "delta": 30
       }
-    }
+    },
+    "rarity": "common"
   }
 ]

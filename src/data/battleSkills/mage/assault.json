@@ -1,59 +1,60 @@
-﻿[
-    {
-        "id":  "mage_arcane_bolt",
-        "name":  "奥术冲击",
-        "skillPool":  "class",
-        "allowedHeroClasses":  [
-                                   "mage"
-                               ],
-        "category":  "assault",
-        "description":  "高频率的单体法术攻击。",
-        "targetType":  "singleEnemy",
-        "effect":  "damage",
-        "damageType":  "magic",
-        "element":  "fire",
-        "mpCost":  12,
-        "cooldown":  1,
-        "baseWeight":  120,
-        "basePower":  86,
-        "scaling":  {
-                        "int":  1.05
-                    },
-        "canCrit":  true
+[
+  {
+    "id": "mage_arcane_bolt",
+    "name": "奥术冲击",
+    "skillPool": "class",
+    "allowedHeroClasses": [
+      "mage"
+    ],
+    "category": "assault",
+    "description": "高频率的单体法术攻击。",
+    "targetType": "singleEnemy",
+    "effect": "damage",
+    "damageType": "magic",
+    "element": "fire",
+    "mpCost": 12,
+    "cooldown": 1,
+    "baseWeight": 120,
+    "basePower": 86,
+    "scaling": {
+      "int": 1.05
     },
-    {
-        "id":  "mage_flame_wave",
-        "name":  "烈焰波",
-        "skillPool":  "class",
-        "allowedHeroClasses":  [
-                                   "mage"
-                               ],
-        "category":  "assault",
-        "description":  "火焰扫射，对前后排敌人造成伤害并附加灼烧。",
-        "targetType":  "allEnemies",
-        "effect":  "damage",
-        "damageType":  "magic",
-        "element":  "fire",
-        "mpCost":  24,
-        "cooldown":  3,
-        "baseWeight":  110,
-        "basePower":  78,
-        "scaling":  {
-                        "int":  0.92
-                    },
-        "canCrit":  true,
-        "targetStatus":  {
-                             "key":  "burning",
-                             "chance":  0.4,
-                             "duration":  2,
-                             "potency":  0.04
-                         },
-        "weightTuning":  {
-                             "enemyCountAtLeast":  {
-                                                       "count":  2,
-                                                       "delta":  18
-                                                   }
-                         }
-    }
+    "canCrit": true,
+    "rarity": "common"
+  },
+  {
+    "id": "mage_flame_wave",
+    "name": "烈焰波",
+    "skillPool": "class",
+    "allowedHeroClasses": [
+      "mage"
+    ],
+    "category": "assault",
+    "description": "火焰扫射，对前后排敌人造成伤害并附加灼烧。",
+    "targetType": "allEnemies",
+    "effect": "damage",
+    "damageType": "magic",
+    "element": "fire",
+    "mpCost": 24,
+    "cooldown": 3,
+    "baseWeight": 110,
+    "basePower": 78,
+    "scaling": {
+      "int": 0.92
+    },
+    "canCrit": true,
+    "targetStatus": {
+      "key": "burning",
+      "chance": 0.4,
+      "duration": 2,
+      "potency": 0.04
+    },
+    "weightTuning": {
+      "enemyCountAtLeast": {
+        "count": 2,
+        "delta": 18
+      }
+    },
+    "rarity": "common"
+  }
 ]
-

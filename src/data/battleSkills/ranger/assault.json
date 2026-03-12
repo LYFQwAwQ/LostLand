@@ -1,9 +1,11 @@
-﻿[
+[
   {
     "id": "ranger_quick_shot",
     "name": "疾风速射",
     "skillPool": "class",
-    "allowedHeroClasses": ["ranger"],
+    "allowedHeroClasses": [
+      "ranger"
+    ],
     "category": "assault",
     "description": "以高速箭矢压制单体目标。",
     "targetType": "singleEnemy",
@@ -18,13 +20,16 @@
       "agi": 1.05,
       "str": 0.28
     },
-    "canCrit": true
+    "canCrit": true,
+    "rarity": "common"
   },
   {
     "id": "ranger_split_arrow",
     "name": "裂羽连矢",
     "skillPool": "class",
-    "allowedHeroClasses": ["ranger"],
+    "allowedHeroClasses": [
+      "ranger"
+    ],
     "category": "assault",
     "description": "对全体敌人进行分裂箭打击。",
     "targetType": "allEnemies",
@@ -45,6 +50,7 @@
         "count": 2,
         "delta": 20
       }
-    }
+    },
+    "rarity": "epic"
   }
 ]

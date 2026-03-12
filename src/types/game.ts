@@ -2,6 +2,8 @@
 
 export type HeroTab = "stats" | "gear" | "skills" | "memory";
 
+export type HeroSkillRarity = "common" | "rare" | "epic" | "legendary";
+
 export interface Hero {
   id: string;
   name: string;
@@ -14,6 +16,7 @@ export interface Hero {
     talentIds: string[];
     activeSkillIds: string[];
     passiveSkillIds: string[];
+    rarityBySkillId?: Record<string, HeroSkillRarity>;
   };
   loadoutPreset?: {
     talentId: string | null;
@@ -406,5 +409,4 @@ export interface MissionBattleOutcome {
   materialGainCounts: Record<string, number>;
   defeatedEnemyCounts: Record<string, number>;
 }
-
 

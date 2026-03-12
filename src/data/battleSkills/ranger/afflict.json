@@ -1,9 +1,11 @@
-﻿[
+[
   {
     "id": "ranger_crippling_trap",
     "name": "缚足陷阱",
     "skillPool": "class",
-    "allowedHeroClasses": ["ranger"],
+    "allowedHeroClasses": [
+      "ranger"
+    ],
     "category": "afflict",
     "description": "造成伤害并施加虚弱，延后目标行动条。",
     "targetType": "singleEnemy",
@@ -25,6 +27,7 @@
       "duration": 2,
       "potency": 0.15
     },
-    "actionDeltaTarget": -360
+    "actionDeltaTarget": -360,
+    "rarity": "common"
   }
 ]

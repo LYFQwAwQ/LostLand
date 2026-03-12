@@ -1,6 +1,11 @@
 ﻿{
   "randomHeroCountPerStartup": 2,
   "legendarySpawnChance": 0.04,
+  "randomSkillRarityWeights": {
+    "common": 0.8,
+    "rare": 0.19,
+    "epic": 0.01
+  },
   "classRollWeights": {
     "paladin": 28,
     "mage": 26,

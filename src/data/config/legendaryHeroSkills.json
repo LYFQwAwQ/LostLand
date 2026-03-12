@@ -3,7 +3,7 @@
     {
       "id": "talent_legend_sun_oath",
       "name": "日耀圣誓",
-      "rarity": "unique",
+      "rarity": "legendary",
       "skillPool": "class",
       "allowedHeroClasses": ["paladin"],
       "description": "传奇圣骑士专属天赋，显著提升坚韧与圣光输出。",
@@ -24,7 +24,7 @@
     {
       "id": "talent_legend_arcane_singularity",
       "name": "奥术奇点",
-      "rarity": "unique",
+      "rarity": "legendary",
       "skillPool": "class",
       "allowedHeroClasses": ["mage"],
       "description": "传奇法师专属天赋，大幅强化元素穿透和爆发系数。",
@@ -46,7 +46,7 @@
     {
       "id": "talent_legend_starseeker",
       "name": "星痕追猎",
-      "rarity": "unique",
+      "rarity": "legendary",
       "skillPool": "class",
       "allowedHeroClasses": ["ranger"],
       "description": "传奇游侠专属天赋，强化暴击链与追击伤害。",
@@ -67,7 +67,7 @@
     {
       "id": "talent_legend_miya_pulse_of_yggdrasil",
       "name": "世界树的脉动",
-      "rarity": "unique",
+      "rarity": "legendary",
       "skillPool": "class",
       "allowedHeroClasses": ["priest"],
       "description": "生命属性伤害额外无视目标 30% 全元素抗性；释放生命治疗技能时，若有友军生命低于 30%，该次治疗翻倍。",
@@ -87,6 +87,7 @@
     {
       "id": "skill_legend_miya_emerald_baptism",
       "name": "翡翠洗礼",
+      "rarity": "legendary",
       "skillPool": "class",
       "allowedHeroClasses": ["priest"],
       "category": "assault",
@@ -116,6 +117,7 @@
     {
       "id": "passive_legend_miya_universal_resonance",
       "name": "万物共鸣",
+      "rarity": "legendary",
       "skillPool": "class",
       "allowedHeroClasses": ["priest"],
       "description": "每当友军受伤，立即对敌方当前血量百分比最高单位造成 20% INT 的生命伤害。",

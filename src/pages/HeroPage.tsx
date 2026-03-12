@@ -25,7 +25,15 @@ import { useBattleSetup } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { heroes } from "../data/mockData";
 import type { BattleLoadout, BattleStatModifier, BattleTalentRarity } from "../types/battle";
-import type { EquipmentSlot, EquipmentStatKey, GeneratedEquipment, Hero, HeroTab, InventoryMemoryStack } from "../types/game";
+import type {
+  EquipmentSlot,
+  EquipmentStatKey,
+  GeneratedEquipment,
+  Hero,
+  HeroSkillRarity,
+  HeroTab,
+  InventoryMemoryStack
+} from "../types/game";
 
 interface ElementRow {
   id: string;
@@ -86,6 +94,13 @@ const TALENT_RARITY_LABELS: Record<BattleTalentRarity, string> = {
   epic: "史诗",
   legendary: "传说",
   unique: "独特"
+};
+
+const HERO_SKILL_RARITY_LABELS: Record<HeroSkillRarity, string> = {
+  common: "普通",
+  rare: "稀有",
+  epic: "史诗",
+  legendary: "传说"
 };
 
 const HERO_NAME_MAP = heroes.reduce<Record<string, string>>((map, hero) => {
@@ -323,6 +338,7 @@ function HeroSkillLoadoutEditor({
   const hoveredType = hoveredTalent ? "talent" : hoveredActive ? "active" : hoveredPassive ? "passive" : null;
   const hoveredDesc = hoveredTalent?.description ?? hoveredActive?.description ?? hoveredPassive?.description ?? "";
   const hoveredName = hoveredTalent?.name ?? hoveredActive?.name ?? hoveredPassive?.name ?? "";
+  const hoveredSkillRarity = hoveredSkill ? hero.learnedSkills?.rarityBySkillId?.[hoveredSkill.id] ?? null : null;
   const hoveredStyle = useMemo(() => {
     if (!hoveredSkill) {
       return undefined;
@@ -545,6 +561,7 @@ function HeroSkillLoadoutEditor({
             <span>{hoveredType.toUpperCase()}</span>
           </header>
           <p>{hoveredDesc}</p>
+          {hoveredSkillRarity ? <p>稀有度：{HERO_SKILL_RARITY_LABELS[hoveredSkillRarity]}</p> : null}
 
           {hoveredActive ? (
             <div className="hero-skill-hover-meta">

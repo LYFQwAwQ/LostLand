@@ -3,7 +3,9 @@
     "id": "priest_healing_rite",
     "name": "愈合仪典",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
+    "allowedHeroClasses": [
+      "priest"
+    ],
     "category": "succor",
     "description": "治疗最低血量友军并净化一个负面状态。",
     "targetType": "lowestHpAlly",
@@ -30,7 +32,7 @@
         "threshold": 0.5,
         "delta": 40
       }
-    }
+    },
+    "rarity": "common"
   }
 ]
-

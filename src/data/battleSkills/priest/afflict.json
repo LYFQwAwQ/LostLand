@@ -3,7 +3,9 @@
     "id": "priest_seed_of_wither",
     "name": "枯萎之种",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
+    "allowedHeroClasses": [
+      "priest"
+    ],
     "category": "afflict",
     "description": "对单体造成生命侵蚀并施加虚弱。",
     "targetType": "singleEnemy",
@@ -24,7 +26,7 @@
       "duration": 2,
       "potency": 0.14
     },
-    "actionDeltaTarget": -320
+    "actionDeltaTarget": -320,
+    "rarity": "common"
   }
 ]
-

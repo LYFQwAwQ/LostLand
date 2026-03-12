@@ -1,38 +1,38 @@
-﻿[
-{
-    "id":  "mage_clear_mind",
-    "name":  "净流回响",
-    "skillPool":  "class",
-    "allowedHeroClasses":  [
-                               "mage"
-                           ],
-    "category":  "succor",
-    "description":  "为全体友军回复生命并净化负面状态。",
-    "targetType":  "allAllies",
-    "effect":  "heal",
-    "element":  "life",
-    "mpCost":  24,
-    "cooldown":  4,
-    "baseWeight":  100,
-    "basePower":  50,
-    "scaling":  {
-                    "int":  0.58
-                },
-    "canCrit":  false,
-    "extraEffects":  [
-                         {
-                             "type":  "cleanse",
-                             "target":  "targets",
-                             "removeCount":  2,
-                             "polarity":  "negative"
-                         }
-                     ],
-    "weightTuning":  {
-                         "allyHpBelow":  {
-                                             "threshold":  0.62,
-                                             "delta":  34
-                                         }
-                     }
-}
+[
+  {
+    "id": "mage_clear_mind",
+    "name": "净流回响",
+    "skillPool": "class",
+    "allowedHeroClasses": [
+      "mage"
+    ],
+    "category": "succor",
+    "description": "为全体友军回复生命并净化负面状态。",
+    "targetType": "allAllies",
+    "effect": "heal",
+    "element": "life",
+    "mpCost": 24,
+    "cooldown": 4,
+    "baseWeight": 100,
+    "basePower": 50,
+    "scaling": {
+      "int": 0.58
+    },
+    "canCrit": false,
+    "extraEffects": [
+      {
+        "type": "cleanse",
+        "target": "targets",
+        "removeCount": 2,
+        "polarity": "negative"
+      }
+    ],
+    "weightTuning": {
+      "allyHpBelow": {
+        "threshold": 0.62,
+        "delta": 34
+      }
+    },
+    "rarity": "rare"
+  }
 ]
-

@@ -1,9 +1,11 @@
-﻿[
+[
   {
     "id": "passive_plate_mastery",
     "name": "板甲精通",
     "skillPool": "class",
-    "allowedHeroClasses": ["paladin"],
+    "allowedHeroClasses": [
+      "paladin"
+    ],
     "description": "提升生命、防御和减伤。",
     "modifiers": {
       "flat": {
@@ -13,13 +15,16 @@
       "ratio": {
         "damageReduction": 0.06
       }
-    }
+    },
+    "rarity": "rare"
   },
   {
     "id": "passive_resolute_heart",
     "name": "坚毅之心",
     "skillPool": "class",
-    "allowedHeroClasses": ["paladin"],
+    "allowedHeroClasses": [
+      "paladin"
+    ],
     "description": "提升嘲讽和吸血。",
     "modifiers": {
       "flat": {
@@ -28,19 +33,23 @@
       "ratio": {
         "lifeSteal": 0.04
       }
-    }
+    },
+    "rarity": "common"
   },
   {
     "id": "passive_guardian_pace",
     "name": "守卫步伐",
     "skillPool": "class",
-    "allowedHeroClasses": ["paladin"],
+    "allowedHeroClasses": [
+      "paladin"
+    ],
     "description": "提升行动稳定性与反击能力。",
     "modifiers": {
       "flat": {
         "agi": 22,
         "thorns": 0.05
       }
-    }
+    },
+    "rarity": "common"
   }
 ]

@@ -3,7 +3,9 @@
     "id": "passive_bloom_focus",
     "name": "繁芽专注",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
+    "allowedHeroClasses": [
+      "priest"
+    ],
     "description": "提升生命系输出与元素穿透。",
     "modifiers": {
       "flat": {
@@ -13,13 +15,16 @@
       "elementBoost": {
         "life": 0.1
       }
-    }
+    },
+    "rarity": "rare"
   },
   {
     "id": "passive_sacred_vessel",
     "name": "圣容之器",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
+    "allowedHeroClasses": [
+      "priest"
+    ],
     "description": "提升治疗效率与团队抗性。",
     "modifiers": {
       "flat": {
@@ -29,13 +34,16 @@
         "maxHp": 0.08,
         "damageReduction": 0.04
       }
-    }
+    },
+    "rarity": "common"
   },
   {
     "id": "passive_concord_signal",
     "name": "同律信标",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
+    "allowedHeroClasses": [
+      "priest"
+    ],
     "description": "强化法力与持续作战能力。",
     "modifiers": {
       "flat": {
@@ -45,7 +53,7 @@
       "ratio": {
         "damageBoost": 0.04
       }
-    }
+    },
+    "rarity": "common"
   }
 ]
-

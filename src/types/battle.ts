@@ -6,6 +6,7 @@ export type BattleDamageType = "physical" | "magic";
 export type BattleSkillCategory = "assault" | "defend" | "inspire" | "afflict" | "succor";
 export type BattleSkillKind = "active" | "passive" | "talent";
 export type BattleSkillPool = "common" | "class" | "enemy";
+export type BattleSkillRarity = "common" | "rare" | "epic" | "legendary";
 export type BattleTalentRarity = "common" | "rare" | "epic" | "legendary" | "unique";
 export type BattleLogTone = "system" | "damage" | "heal" | "buff" | "debuff" | "miss" | "drop";
 export type BattleDropCategory = "equipment" | "material";
@@ -176,6 +177,7 @@ export interface BattleActiveSkillDefinition {
   id: string;
   name: string;
   kind: "active";
+  rarity?: BattleSkillRarity;
   skillPool?: BattleSkillPool;
   allowedHeroClasses?: HeroClass[];
   conflictSkillIds?: string[];
@@ -205,6 +207,7 @@ export interface BattlePassiveSkillDefinition {
   id: string;
   name: string;
   kind: "passive";
+  rarity?: BattleSkillRarity;
   skillPool?: BattleSkillPool;
   allowedHeroClasses?: HeroClass[];
   conflictSkillIds?: string[];

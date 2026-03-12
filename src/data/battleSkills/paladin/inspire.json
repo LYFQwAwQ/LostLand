@@ -1,40 +1,40 @@
-﻿[
-{
-    "id":  "paladin_command",
-    "name":  "战阵号令",
-    "skillPool":  "class",
-    "allowedHeroClasses":  [
-                               "paladin"
-                           ],
-    "category":  "inspire",
-    "description":  "鼓舞全体，恢复少量生命并为自身提供守护。",
-    "targetType":  "allAllies",
-    "effect":  "heal",
-    "element":  "life",
-    "mpCost":  20,
-    "cooldown":  4,
-    "baseWeight":  90,
-    "basePower":  58,
-    "scaling":  {
-                    "int":  0.38
-                },
-    "canCrit":  false,
-    "selfStatus":  {
-                       "key":  "guarded",
-                       "chance":  1,
-                       "duration":  2,
-                       "potency":  0.2
-                   },
-    "weightTuning":  {
-                         "allyHpBelow":  {
-                                             "threshold":  0.55,
-                                             "delta":  30
-                                         },
-                         "enemyCountAtLeast":  {
-                                                   "count":  3,
-                                                   "delta":  15
-                                               }
-                     }
-}
+[
+  {
+    "id": "paladin_command",
+    "name": "战阵号令",
+    "skillPool": "class",
+    "allowedHeroClasses": [
+      "paladin"
+    ],
+    "category": "inspire",
+    "description": "鼓舞全体，恢复少量生命并为自身提供守护。",
+    "targetType": "allAllies",
+    "effect": "heal",
+    "element": "life",
+    "mpCost": 20,
+    "cooldown": 4,
+    "baseWeight": 90,
+    "basePower": 58,
+    "scaling": {
+      "int": 0.38
+    },
+    "canCrit": false,
+    "selfStatus": {
+      "key": "guarded",
+      "chance": 1,
+      "duration": 2,
+      "potency": 0.2
+    },
+    "weightTuning": {
+      "allyHpBelow": {
+        "threshold": 0.55,
+        "delta": 30
+      },
+      "enemyCountAtLeast": {
+        "count": 3,
+        "delta": 15
+      }
+    },
+    "rarity": "common"
+  }
 ]
-

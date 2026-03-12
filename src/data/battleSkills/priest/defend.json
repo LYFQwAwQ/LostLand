@@ -3,7 +3,9 @@
     "id": "priest_ward_prayer",
     "name": "圣佑祷言",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
+    "allowedHeroClasses": [
+      "priest"
+    ],
     "category": "defend",
     "description": "恢复自身生命并施加短时护盾。",
     "targetType": "self",
@@ -34,7 +36,7 @@
         "threshold": 0.45,
         "delta": 30
       }
-    }
+    },
+    "rarity": "common"
   }
 ]
-

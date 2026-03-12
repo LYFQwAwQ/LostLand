@@ -6,6 +6,7 @@ import type {
   BattleSkillCategory,
   BattleSkillExtraEffect,
   BattleSkillPool,
+  BattleSkillRarity,
   BattleSkillScaling,
   BattleStatusApplication,
   BattleStatusEffectPolarity,
@@ -35,6 +36,7 @@ const STATUS_KEYS: BattleStatusKey[] = [
   "taunted"
 ];
 const TALENT_RARITIES: BattleTalentRarity[] = ["common", "rare", "epic", "legendary", "unique"];
+const SKILL_RARITIES: BattleSkillRarity[] = ["common", "rare", "epic", "legendary"];
 const STATUS_EFFECT_POLARITIES: BattleStatusEffectPolarity[] = ["positive", "negative", "all"];
 const ACTIVE_CATEGORY_FILE_NAMES = new Set<string>(["assault.json", "defend.json", "inspire.json", "afflict.json", "succor.json"]);
 const FLAT_KEYS = [
@@ -63,6 +65,7 @@ const FALLBACK_BASIC_ATTACK: BattleActiveSkillDefinition = {
   id: "basic_attack",
   name: "基础攻击",
   kind: "active",
+  rarity: "common",
   skillPool: "common",
   allowedHeroClasses: ["paladin", "mage", "ranger", "priest"],
   category: "assault",
@@ -300,6 +303,7 @@ function parseActiveSkill(value: unknown): BattleActiveSkillDefinition | null {
     id,
     name,
     kind: "active",
+    rarity: parseEnum(value.rarity, SKILL_RARITIES, "common"),
     skillPool: parseEnum(value.skillPool, SKILL_POOLS, "common"),
     allowedHeroClasses: parseHeroClassList(value.allowedHeroClasses),
     conflictSkillIds: parseStringArray(value.conflictSkillIds),
@@ -343,6 +347,7 @@ function parsePassiveSkill(value: unknown): BattlePassiveSkillDefinition | null 
     id,
     name,
     kind: "passive",
+    rarity: parseEnum(value.rarity, SKILL_RARITIES, "common"),
     skillPool: parseEnum(value.skillPool, SKILL_POOLS, "common"),
     allowedHeroClasses: parseHeroClassList(value.allowedHeroClasses),
     conflictSkillIds: parseStringArray(value.conflictSkillIds),

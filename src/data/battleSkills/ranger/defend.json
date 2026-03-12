@@ -1,9 +1,11 @@
-﻿[
+[
   {
     "id": "ranger_smoke_step",
     "name": "烟幕错步",
     "skillPool": "class",
-    "allowedHeroClasses": ["ranger"],
+    "allowedHeroClasses": [
+      "ranger"
+    ],
     "category": "defend",
     "description": "短暂后撤并恢复生命，推进自身行动条。",
     "targetType": "self",
@@ -30,6 +32,7 @@
         "threshold": 0.45,
         "delta": 34
       }
-    }
+    },
+    "rarity": "common"
   }
 ]

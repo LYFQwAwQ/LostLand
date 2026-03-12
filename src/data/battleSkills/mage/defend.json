@@ -1,38 +1,38 @@
-﻿[
-{
-    "id":  "mage_emergency_barrier",
-    "name":  "紧急护幕",
-    "skillPool":  "class",
-    "allowedHeroClasses":  [
-                               "mage"
-                           ],
-    "category":  "defend",
-    "description":  "恢复自身并进入守护状态。",
-    "targetType":  "self",
-    "effect":  "heal",
-    "element":  "wind",
-    "mpCost":  16,
-    "cooldown":  3,
-    "baseWeight":  96,
-    "basePower":  82,
-    "scaling":  {
-                    "int":  0.5,
-                    "maxHp":  0.02
-                },
-    "canCrit":  false,
-    "selfStatus":  {
-                       "key":  "guarded",
-                       "chance":  1,
-                       "duration":  1,
-                       "potency":  0.2
-                   },
-    "actionDeltaSelf":  380,
-    "weightTuning":  {
-                         "selfHpBelow":  {
-                                             "threshold":  0.4,
-                                             "delta":  40
-                                         }
-                     }
-}
+[
+  {
+    "id": "mage_emergency_barrier",
+    "name": "紧急护幕",
+    "skillPool": "class",
+    "allowedHeroClasses": [
+      "mage"
+    ],
+    "category": "defend",
+    "description": "恢复自身并进入守护状态。",
+    "targetType": "self",
+    "effect": "heal",
+    "element": "wind",
+    "mpCost": 16,
+    "cooldown": 3,
+    "baseWeight": 96,
+    "basePower": 82,
+    "scaling": {
+      "int": 0.5,
+      "maxHp": 0.02
+    },
+    "canCrit": false,
+    "selfStatus": {
+      "key": "guarded",
+      "chance": 1,
+      "duration": 1,
+      "potency": 0.2
+    },
+    "actionDeltaSelf": 380,
+    "weightTuning": {
+      "selfHpBelow": {
+        "threshold": 0.4,
+        "delta": 40
+      }
+    },
+    "rarity": "common"
+  }
 ]
-

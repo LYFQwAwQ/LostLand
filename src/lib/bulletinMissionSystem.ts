@@ -1,5 +1,6 @@
 import { getMaterialDropCatalog } from "../data/battleDrops";
 import { buildEnemyTeam } from "../data/battleUnits";
+import { createRegionTopologyById, getRegionsByDominion } from "../data/worldMapData";
 import {
   getBulletinMissionConfigByDominion,
   type BulletinMissionDominionConfig
@@ -120,29 +121,45 @@ function parseEnemyPrototypeId(unit: BattleUnitTemplate): string {
   return unit.id.replace(/-\d+$/, "");
 }
 
-function collectRegionMissionAvailability(region: RegionTopology): RegionMissionAvailability {
-  const battleNodes = region.nodes.filter((node) => node.state === "active" && BATTLE_ARCHETYPES.has(node.archetype));
-  const battleNodeIds = battleNodes.map((node) => node.id);
+function collectRegionMissionAvailability(
+  region: RegionTopology,
+  resolveRegionById?: (regionId: string) => RegionTopology | undefined
+): RegionMissionAvailability {
+  const dominionRegions = getRegionsByDominion(region.dominionId);
+  const battleNodeIds: string[] = [];
   const enemyMap = new Map<string, { prototypeId: string; enemyName: string; sourceNodeIdSet: Set<string> }>();
 
-  battleNodes.forEach((node) => {
-    // Sample multiple deterministic seeds for the same node to avoid under-sampling enemy candidates.
-    for (let i = 0; i < 3; i += 1) {
-      const preview = buildEnemyTeam(`${node.id}-mission-scan-${i}`, node.archetype, region.mapSuppression);
-      preview.forEach((unit) => {
-        const prototypeId = parseEnemyPrototypeId(unit);
-        const existing = enemyMap.get(prototypeId);
-        if (existing) {
-          existing.sourceNodeIdSet.add(node.id);
-          return;
-        }
-        enemyMap.set(prototypeId, {
-          prototypeId,
-          enemyName: normalizeEnemyName(unit.name),
-          sourceNodeIdSet: new Set([node.id])
+  dominionRegions.forEach((regionMeta) => {
+    const sourceRegion =
+      regionMeta.id === region.id
+        ? region
+        : resolveRegionById?.(regionMeta.id) ?? createRegionTopologyById(regionMeta.id);
+    const battleNodes = sourceRegion.nodes.filter((node) => node.state === "active" && BATTLE_ARCHETYPES.has(node.archetype));
+    battleNodeIds.push(...battleNodes.map((node) => node.id));
+
+    battleNodes.forEach((node) => {
+      // Sample multiple deterministic seeds for the same node to avoid under-sampling enemy candidates.
+      for (let i = 0; i < 3; i += 1) {
+        const preview = buildEnemyTeam(
+          `${sourceRegion.id}:${node.id}:mission-scan-${i}`,
+          node.archetype,
+          sourceRegion.mapSuppression
+        );
+        preview.forEach((unit) => {
+          const prototypeId = parseEnemyPrototypeId(unit);
+          const existing = enemyMap.get(prototypeId);
+          if (existing) {
+            existing.sourceNodeIdSet.add(node.id);
+            return;
+          }
+          enemyMap.set(prototypeId, {
+            prototypeId,
+            enemyName: normalizeEnemyName(unit.name),
+            sourceNodeIdSet: new Set([node.id])
+          });
         });
-      });
-    }
+      }
+    });
   });
 
   const enemyIds = new Set(enemyMap.keys());
@@ -170,7 +187,7 @@ function collectRegionMissionAvailability(region: RegionTopology): RegionMission
     .sort((left, right) => left.enemyName.localeCompare(right.enemyName, "zh-CN"));
 
   return {
-    battleNodeIds,
+    battleNodeIds: [...new Set(battleNodeIds)],
     enemies,
     materials
   };
@@ -447,7 +464,7 @@ function buildCollectMissionDefinition(
     regionId: region.id,
     title: `采集委派：${leadName}${collectTargets.length > 1 ? "等物资" : ""}`,
     type: "collect",
-    description: `在${region.regionName}收集并交付：${formatCollectTargetSummary(collectTargets)}`,
+    description: `在${region.dominionName}收集并交付：${formatCollectTargetSummary(collectTargets)}`,
     collectTargets,
     huntTargets: [],
     sourceNodeIds: [...availability.battleNodeIds],
@@ -486,7 +503,7 @@ function buildHuntMissionDefinition(
     regionId: region.id,
     title: `讨伐委派：清剿${leadName}`,
     type: "hunt",
-    description: `在${region.regionName}击败：${formatHuntTargetSummary(huntTargets)}`,
+    description: `在${region.dominionName}击败：${formatHuntTargetSummary(huntTargets)}`,
     collectTargets: [],
     huntTargets,
     sourceNodeIds: [...availability.battleNodeIds],
@@ -494,32 +511,37 @@ function buildHuntMissionDefinition(
   };
 }
 
-export function generateRegionBulletinMissions(region: RegionTopology): RegionMissionGenerationResult {
-  const availability = collectRegionMissionAvailability(region);
+export function generateRegionBulletinMissions(
+  region: RegionTopology,
+  resolveRegionById?: (regionId: string) => RegionTopology | undefined
+): RegionMissionGenerationResult {
+  const availability = collectRegionMissionAvailability(region, resolveRegionById);
   const missionConfig = getBulletinMissionConfigByDominion(region.dominionId);
 
   if (availability.battleNodeIds.length <= 0) {
     return {
       missions: [],
-      warning: "该地区当前没有可进入的讨伐节点，无法生成可完成任务。"
+      warning: "该疆域当前没有可进入的讨伐节点，无法生成可完成任务。"
     };
   }
 
   if (availability.enemies.length <= 0) {
     return {
       missions: [],
-      warning: "该地区未识别到有效敌人池，任务生成已暂停。"
+      warning: "该疆域未识别到有效敌人池，任务生成已暂停。"
     };
   }
 
   if (availability.materials.length <= 0) {
     return {
       missions: [],
-      warning: "该地区未识别到可掉落材料，采集任务无法保证可完成。"
+      warning: "该疆域未识别到可掉落材料，采集任务无法保证可完成。"
     };
   }
 
-  const random = createRandom(hashSeed(`${region.id}:${region.mapSuppression}:${availability.battleNodeIds.join("|")}`));
+  const random = createRandom(
+    hashSeed(`${region.id}:${region.dominionId}:${region.mapSuppression}:${availability.battleNodeIds.join("|")}`)
+  );
   const definitions: BulletinMissionDefinition[] = [];
 
   for (let i = 0; i < missionConfig.missionCount.collect; i += 1) {

@@ -1,9 +1,11 @@
-﻿[
+[
   {
     "id": "ranger_field_mend",
     "name": "野战包扎",
     "skillPool": "class",
-    "allowedHeroClasses": ["ranger"],
+    "allowedHeroClasses": [
+      "ranger"
+    ],
     "category": "succor",
     "description": "治疗最低血量友军并净化负面状态。",
     "targetType": "lowestHpAlly",
@@ -31,6 +33,7 @@
         "threshold": 0.5,
         "delta": 38
       }
-    }
+    },
+    "rarity": "rare"
   }
 ]

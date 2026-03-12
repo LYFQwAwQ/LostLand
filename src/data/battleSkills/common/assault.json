@@ -1,27 +1,27 @@
-﻿[
-{
-    "id":  "basic_attack",
-    "name":  "基础攻击",
-    "skillPool":  "common",
-    "allowedHeroClasses":  [
-                               "paladin",
-                               "mage",
-                               "ranger",
-                               "priest"
-                           ],
-    "category":  "assault",
-    "description":  "基础单体攻击，不消耗 MP。",
-    "targetType":  "singleEnemy",
-    "effect":  "damage",
-    "damageType":  "physical",
-    "mpCost":  0,
-    "cooldown":  0,
-    "baseWeight":  100,
-    "basePower":  72,
-    "scaling":  {
-                    "str":  0.95
-                },
-    "canCrit":  true
-}
+[
+  {
+    "id": "basic_attack",
+    "name": "基础攻击",
+    "skillPool": "common",
+    "allowedHeroClasses": [
+      "paladin",
+      "mage",
+      "ranger",
+      "priest"
+    ],
+    "category": "assault",
+    "description": "基础单体攻击，不消耗 MP。",
+    "targetType": "singleEnemy",
+    "effect": "damage",
+    "damageType": "physical",
+    "mpCost": 0,
+    "cooldown": 0,
+    "baseWeight": 100,
+    "basePower": 72,
+    "scaling": {
+      "str": 0.95
+    },
+    "canCrit": true,
+    "rarity": "common"
+  }
 ]
-
