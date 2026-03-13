@@ -1731,6 +1731,7 @@ body {
   color: #c7ab80;
   line-height: 1.55;
   font-size: 12px;
+  white-space: pre-line;
 }
 
 .hero-talent-display-card small {
@@ -1886,6 +1887,7 @@ body {
   margin: 0;
   color: #c9af85;
   font-size: 12px;
+  white-space: pre-line;
 }
 
 .hero-skill-hover-meta,

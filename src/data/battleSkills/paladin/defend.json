@@ -7,7 +7,7 @@
       "paladin"
     ],
     "category": "defend",
-    "description": "以盾牌震击敌人，并提高自身防守。",
+    "description": "以盾牌震击敌人，并提高自身防守。\n----------------\n对单体敌人造成基础威力88的物理伤害，伤害系数为80%力量 + 25%防御，并有25%概率附加眩晕1回合。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "physical",
@@ -47,7 +47,7 @@
       "paladin"
     ],
     "category": "defend",
-    "description": "对单体目标造成伤害并附加嘲讽，强制其优先攻击自己。",
+    "description": "对单体目标造成伤害并附加嘲讽，强制其优先攻击自己。\n----------------\n对单体敌人造成基础威力56的物理伤害，伤害系数为50%力量 + 20%防御。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "physical",

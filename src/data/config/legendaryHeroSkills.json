@@ -5,8 +5,10 @@
       "name": "日耀圣誓",
       "rarity": "legendary",
       "skillPool": "class",
-      "allowedHeroClasses": ["paladin"],
-      "description": "传奇圣骑士专属天赋，显著提升坚韧与圣光输出。",
+      "allowedHeroClasses": [
+        "paladin"
+      ],
+      "description": "日耀誓言如晨光覆甲，让她在最前线依旧坚不可摧。\n----------------\n增加48防御，增加36仇恨，额外提高12%生命上限，额外提高8%伤害减免，增加18%光元素增伤。",
       "modifiers": {
         "flat": {
           "def": 48,
@@ -26,8 +28,10 @@
       "name": "奥术奇点",
       "rarity": "legendary",
       "skillPool": "class",
-      "allowedHeroClasses": ["mage"],
-      "description": "传奇法师专属天赋，大幅强化元素穿透和爆发系数。",
+      "allowedHeroClasses": [
+        "mage"
+      ],
+      "description": "奥术奇点在掌心坍缩，元素洪流由此被重新编排。\n----------------\n增加68智力，增加5%暴击率，增加12%元素穿透，额外提高10%伤害增伤，增加14%火元素增伤，增加14%冰元素增伤。",
       "modifiers": {
         "flat": {
           "int": 68,
@@ -48,8 +52,10 @@
       "name": "星痕追猎",
       "rarity": "legendary",
       "skillPool": "class",
-      "allowedHeroClasses": ["ranger"],
-      "description": "传奇游侠专属天赋，强化暴击链与追击伤害。",
+      "allowedHeroClasses": [
+        "ranger"
+      ],
+      "description": "星痕牵引着箭路，每次追猎都像在夜幕刻下坐标。\n----------------\n增加58敏捷，增加6%暴击率，增加22%暴击伤害，额外提高8%伤害增伤，增加20%风元素增伤。",
       "modifiers": {
         "flat": {
           "agi": 58,
@@ -69,8 +75,10 @@
       "name": "世界树的脉动",
       "rarity": "legendary",
       "skillPool": "class",
-      "allowedHeroClasses": ["priest"],
-      "description": "生命属性伤害额外无视目标 30% 全元素抗性；释放生命治疗技能时，若有友军生命低于 30%，该次治疗翻倍。",
+      "allowedHeroClasses": [
+        "priest"
+      ],
+      "description": "世界树的脉动穿过她的指尖，将生机与意志一并唤醒。\n----------------\n生命属性伤害额外无视目标30%全元素抗性；释放生命治疗技能时，若有友军生命低于30%，该次治疗翻倍；并增加82智力、10%元素穿透、12%全元素增伤、22%生命元素增伤。",
       "modifiers": {
         "flat": {
           "int": 82,
@@ -89,9 +97,11 @@
       "name": "翡翠洗礼",
       "rarity": "legendary",
       "skillPool": "class",
-      "allowedHeroClasses": ["priest"],
+      "allowedHeroClasses": [
+        "priest"
+      ],
       "category": "assault",
-      "description": "对敌方随机 3 个目标造成 120% INT 的生命伤害；对亡灵目标伤害翻倍；击杀时触发生命爆发，为全队回复该目标最大生命的 5%。",
+      "description": "对敌方随机 3 个目标造成120%智力的生命伤害；对亡灵目标伤害翻倍；击杀时触发生命爆发，为全队回复该目标最大生命的5%。\n----------------\n对随机3名敌人造成法术伤害，伤害系数为120%智力；对亡灵目标伤害翻倍；若击杀目标，则为全队回复该目标最大生命的5%。",
       "targetType": "randomEnemies",
       "targetCount": 3,
       "effect": "damage",
@@ -119,8 +129,10 @@
       "name": "万物共鸣",
       "rarity": "legendary",
       "skillPool": "class",
-      "allowedHeroClasses": ["priest"],
-      "description": "每当友军受伤，立即对敌方当前血量百分比最高单位造成 20% INT 的生命伤害。",
+      "allowedHeroClasses": [
+        "priest"
+      ],
+      "description": "米娅将万物脉动织成共鸣网，任何涟漪都会被她听见。\n----------------\n每当友军受伤，立即对敌方当前血量百分比最高单位造成20%智力的生命伤害；并增加36智力、4%全元素增伤。",
       "modifiers": {
         "flat": {
           "int": 36,
@@ -130,4 +142,3 @@
     }
   ]
 }
-

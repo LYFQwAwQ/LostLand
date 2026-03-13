@@ -10,7 +10,7 @@
       "priest"
     ],
     "category": "assault",
-    "description": "基础单体攻击，不消耗 MP。",
+    "description": "基础单体攻击，不消耗 MP。\n----------------\n对单体敌人造成基础威力72的物理伤害，伤害系数为95%力量。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "physical",

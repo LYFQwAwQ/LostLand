@@ -7,7 +7,7 @@
       "paladin"
     ],
     "category": "assault",
-    "description": "附带光元素的高伤害斩击。",
+    "description": "附带光元素的高伤害斩击。\n----------------\n对单体敌人造成基础威力132的物理伤害，伤害系数为90%力量 + 20%智力。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "physical",

@@ -7,7 +7,7 @@
       "mage"
     ],
     "category": "afflict",
-    "description": "寒冰爆发攻击全体敌人，并有概率冻结。",
+    "description": "寒冰爆发攻击全体敌人，并有概率冻结。\n----------------\n对全体敌人造成基础威力72的法术伤害，伤害系数为80%智力，并有22%概率附加冻结1回合。",
     "targetType": "allEnemies",
     "effect": "damage",
     "damageType": "magic",
@@ -41,7 +41,7 @@
       "mage"
     ],
     "category": "afflict",
-    "description": "对单体造成法术伤害并驱散其正面状态。",
+    "description": "对单体造成法术伤害并驱散其正面状态。\n----------------\n对单体敌人造成基础威力82的法术伤害，伤害系数为86%智力。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "magic",

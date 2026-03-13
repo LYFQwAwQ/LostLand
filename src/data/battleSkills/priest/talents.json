@@ -4,8 +4,10 @@
     "name": "生命圣咏",
     "rarity": "epic",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
-    "description": "强化生命属性技能与团队稳定性。",
+    "allowedHeroClasses": [
+      "priest"
+    ],
+    "description": "圣咏交织成温柔而坚定的合唱，抚平战场上的裂痕。\n----------------\n增加36智力，增加6%全元素增伤，增加14%生命元素增伤。",
     "modifiers": {
       "flat": {
         "int": 36,
@@ -21,8 +23,10 @@
     "name": "圣徽护祷",
     "rarity": "rare",
     "skillPool": "class",
-    "allowedHeroClasses": ["priest"],
-    "description": "提升生存与净化能力，偏向稳态辅助。",
+    "allowedHeroClasses": [
+      "priest"
+    ],
+    "description": "祷词化作环形圣纹，在危局中撑起最后一道庇护。\n----------------\n增加220法力上限，增加5%全元素抗性，额外提高6%生命上限，额外提高4%伤害减免。",
     "modifiers": {
       "flat": {
         "allRes": 0.05,
@@ -35,4 +39,3 @@
     }
   }
 ]
-

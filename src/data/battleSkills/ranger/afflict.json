@@ -7,7 +7,7 @@
       "ranger"
     ],
     "category": "afflict",
-    "description": "造成伤害并施加虚弱，延后目标行动条。",
+    "description": "造成伤害并施加虚弱，延后目标行动条。\n----------------\n对单体敌人造成基础威力82的物理伤害，伤害系数为20%力量 + 82%敏捷，并有45%概率附加虚弱2回合。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "physical",

@@ -6,7 +6,7 @@
     "allowedHeroClasses": [
       "ranger"
     ],
-    "description": "提升暴击率、暴击伤害和穿透。",
+    "description": "猎者的目光穿透烟尘，先于箭矢命中要害。\n----------------\n增加20穿透，增加6%暴击率，增加15%暴击伤害。",
     "modifiers": {
       "flat": {
         "critRate": 0.06,
@@ -23,7 +23,7 @@
     "allowedHeroClasses": [
       "ranger"
     ],
-    "description": "提升敏捷、闪避和行动效率。",
+    "description": "风从脚踝掠过，令身形在交锋间始终快人一步。\n----------------\n增加30敏捷，增加5%闪避率，额外提高4%伤害增伤。",
     "modifiers": {
       "flat": {
         "agi": 30,
@@ -42,7 +42,7 @@
     "allowedHeroClasses": [
       "ranger"
     ],
-    "description": "强化控制类技能命中后的压制能力。",
+    "description": "陷阵者熟悉每一寸地形，耐心等待猎物踏入死角。\n----------------\n增加14穿透，增加3%全元素增伤。",
     "modifiers": {
       "flat": {
         "penetration": 14,

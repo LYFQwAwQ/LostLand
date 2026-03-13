@@ -7,7 +7,7 @@
       "priest"
     ],
     "category": "assault",
-    "description": "以生命之辉贯穿单体目标。",
+    "description": "以生命之辉贯穿单体目标。\n----------------\n对单体敌人造成基础威力88的法术伤害，伤害系数为102%智力。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "magic",
@@ -30,7 +30,7 @@
       "priest"
     ],
     "category": "assault",
-    "description": "向全体敌人扩散生命冲击。",
+    "description": "向全体敌人扩散生命冲击。\n----------------\n对全体敌人造成基础威力72的法术伤害，伤害系数为90%智力。",
     "targetType": "allEnemies",
     "effect": "damage",
     "damageType": "magic",

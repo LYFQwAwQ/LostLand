@@ -1,11 +1,13 @@
-﻿[
+[
   {
     "id": "talent_starweaver",
     "name": "群星织法",
     "rarity": "legendary",
     "skillPool": "class",
-    "allowedHeroClasses": ["mage"],
-    "description": "强化元素增伤与暴击。",
+    "allowedHeroClasses": [
+      "mage"
+    ],
+    "description": "她将星辉缝入法阵，让每次施法都带着天穹的回音。\n----------------\n增加4%暴击率，增加5%元素穿透，增加8%全元素增伤。",
     "modifiers": {
       "flat": {
         "critRate": 0.04,
@@ -19,8 +21,10 @@
     "name": "法环共振",
     "rarity": "rare",
     "skillPool": "class",
-    "allowedHeroClasses": ["mage"],
-    "description": "提升法力上限与恢复效率，偏向续航。",
+    "allowedHeroClasses": [
+      "mage"
+    ],
+    "description": "法环绕体而行，像行星轨道般维持不息的法力循环。\n----------------\n增加260法力上限，增加24智力，额外提高4%伤害增伤。",
     "modifiers": {
       "flat": {
         "maxMp": 260,

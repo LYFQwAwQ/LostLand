@@ -7,7 +7,7 @@
       "priest"
     ],
     "category": "afflict",
-    "description": "对单体造成生命侵蚀并施加虚弱。",
+    "description": "对单体造成生命侵蚀并施加虚弱。\n----------------\n对单体敌人造成基础威力84的法术伤害，伤害系数为80%智力，并有42%概率附加虚弱2回合。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "magic",

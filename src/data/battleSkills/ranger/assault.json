@@ -7,7 +7,7 @@
       "ranger"
     ],
     "category": "assault",
-    "description": "以高速箭矢压制单体目标。",
+    "description": "以高速箭矢压制单体目标。\n----------------\n对单体敌人造成基础威力88的物理伤害，伤害系数为28%力量 + 105%敏捷。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "physical",
@@ -31,7 +31,7 @@
       "ranger"
     ],
     "category": "assault",
-    "description": "对全体敌人进行分裂箭打击。",
+    "description": "对全体敌人进行分裂箭打击。\n----------------\n对全体敌人造成基础威力72的物理伤害，伤害系数为22%力量 + 90%敏捷。",
     "targetType": "allEnemies",
     "effect": "damage",
     "damageType": "physical",

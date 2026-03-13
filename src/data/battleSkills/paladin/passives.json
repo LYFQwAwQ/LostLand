@@ -6,7 +6,7 @@
     "allowedHeroClasses": [
       "paladin"
     ],
-    "description": "提升生命、防御和减伤。",
+    "description": "厚重板甲与身躯融为一体，步步皆是壁垒。\n----------------\n增加420生命上限，增加38防御，额外提高6%伤害减免。",
     "modifiers": {
       "flat": {
         "maxHp": 420,
@@ -25,7 +25,7 @@
     "allowedHeroClasses": [
       "paladin"
     ],
-    "description": "提升嘲讽和吸血。",
+    "description": "誓言沉入心脉，在风暴中也不曾后退半步。\n----------------\n增加24仇恨，额外提高4%吸血。",
     "modifiers": {
       "flat": {
         "aggro": 24
@@ -43,7 +43,7 @@
     "allowedHeroClasses": [
       "paladin"
     ],
-    "description": "提升行动稳定性与反击能力。",
+    "description": "守卫者以稳健步伐控住战线，反击总在敌人失衡时落下。\n----------------\n增加22敏捷，增加5%反伤。",
     "modifiers": {
       "flat": {
         "agi": 22,

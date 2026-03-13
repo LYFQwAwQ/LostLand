@@ -6,7 +6,7 @@
     "allowedHeroClasses": [
       "mage"
     ],
-    "description": "提升法力和法术强度。",
+    "description": "奥术潮汐在体内往复回旋，让施法节律愈发稳定。\n----------------\n增加240法力上限，增加25智力，增加5%元素穿透。",
     "modifiers": {
       "flat": {
         "maxMp": 240,
@@ -23,7 +23,7 @@
     "allowedHeroClasses": [
       "mage"
     ],
-    "description": "提升暴击率与寒冰加成。",
+    "description": "寒意凝成清明心境，使每一次咒式都更冷静锋利。\n----------------\n增加5%暴击率，增加12%冰元素增伤。",
     "modifiers": {
       "flat": {
         "critRate": 0.05
@@ -41,7 +41,7 @@
     "allowedHeroClasses": [
       "mage"
     ],
-    "description": "提升法术伤害并增强风系机动。",
+    "description": "残留法痕在空气中回响，推动下一道术式更快成形。\n----------------\n额外提高5%伤害增伤，增加10%风元素增伤。",
     "modifiers": {
       "ratio": {
         "damageBoost": 0.05

@@ -1,11 +1,13 @@
-﻿[
+[
   {
     "id": "talent_wind_trace_hunter",
     "name": "风痕狩猎",
     "rarity": "epic",
     "skillPool": "class",
-    "allowedHeroClasses": ["ranger"],
-    "description": "强化敏捷、暴击与风系增伤。",
+    "allowedHeroClasses": [
+      "ranger"
+    ],
+    "description": "风痕在弓弦上低鸣，追猎者总能贴着气流锁定目标。\n----------------\n增加38敏捷，增加3%暴击率，增加14%风元素增伤。",
     "modifiers": {
       "flat": {
         "agi": 38,
@@ -21,8 +23,10 @@
     "name": "伏猎本能",
     "rarity": "rare",
     "skillPool": "class",
-    "allowedHeroClasses": ["ranger"],
-    "description": "提升闪避与破甲，偏向先手打击。",
+    "allowedHeroClasses": [
+      "ranger"
+    ],
+    "description": "伏击本能在静默中苏醒，出手时只留下短促寒光。\n----------------\n增加24穿透，增加4%闪避率，额外提高5%伤害增伤。",
     "modifiers": {
       "flat": {
         "evasion": 0.04,

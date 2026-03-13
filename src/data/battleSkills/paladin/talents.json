@@ -1,11 +1,13 @@
-﻿[
+[
   {
     "id": "talent_oathbound_guard",
     "name": "誓约守壁",
     "rarity": "epic",
     "skillPool": "class",
-    "allowedHeroClasses": ["paladin"],
-    "description": "强化守护姿态与光元素输出。",
+    "allowedHeroClasses": [
+      "paladin"
+    ],
+    "description": "古老誓约化作护壁，圣印在战场上持续燃亮。\n----------------\n额外提高8%生命上限，额外提高4%伤害减免，增加12%光元素增伤。",
     "modifiers": {
       "ratio": {
         "maxHp": 0.08,
@@ -21,8 +23,10 @@
     "name": "远征军旗",
     "rarity": "rare",
     "skillPool": "class",
-    "allowedHeroClasses": ["paladin"],
-    "description": "提升全局抗性与生存，偏向持续作战。",
+    "allowedHeroClasses": [
+      "paladin"
+    ],
+    "description": "远征军旗在尘土中高举，令同袍在长战里仍不失锐气。\n----------------\n增加5%全元素抗性，额外提高6%生命上限，额外提高3%伤害减免。",
     "modifiers": {
       "flat": {
         "allRes": 0.05

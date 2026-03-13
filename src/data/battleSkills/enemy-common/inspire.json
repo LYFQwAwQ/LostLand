@@ -1,26 +1,23 @@
-﻿[
-{
-    "id":  "enemy_rush",
-    "name":  "狂袭",
-    "skillPool":  "enemy",
-    "allowedHeroClasses":  [
-
-                           ],
-    "category":  "inspire",
-    "description":  "瞬间加速并攻击单体目标。",
-    "targetType":  "singleEnemy",
-    "effect":  "damage",
-    "damageType":  "physical",
-    "element":  "wind",
-    "mpCost":  12,
-    "cooldown":  2,
-    "baseWeight":  104,
-    "basePower":  76,
-    "scaling":  {
-                    "str":  0.84
-                },
-    "canCrit":  true,
-    "actionDeltaSelf":  420
-}
+[
+  {
+    "id": "enemy_rush",
+    "name": "狂袭",
+    "skillPool": "enemy",
+    "allowedHeroClasses": [],
+    "category": "inspire",
+    "description": "瞬间加速并攻击单体目标。\n----------------\n对单体敌人造成基础威力76的物理伤害，伤害系数为84%力量。",
+    "targetType": "singleEnemy",
+    "effect": "damage",
+    "damageType": "physical",
+    "element": "wind",
+    "mpCost": 12,
+    "cooldown": 2,
+    "baseWeight": 104,
+    "basePower": 76,
+    "scaling": {
+      "str": 0.84
+    },
+    "canCrit": true,
+    "actionDeltaSelf": 420
+  }
 ]
-

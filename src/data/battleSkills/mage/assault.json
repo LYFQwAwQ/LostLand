@@ -7,7 +7,7 @@
       "mage"
     ],
     "category": "assault",
-    "description": "高频率的单体法术攻击。",
+    "description": "高频率的单体法术攻击。\n----------------\n对单体敌人造成基础威力86的法术伤害，伤害系数为105%智力。",
     "targetType": "singleEnemy",
     "effect": "damage",
     "damageType": "magic",
@@ -30,7 +30,7 @@
       "mage"
     ],
     "category": "assault",
-    "description": "火焰扫射，对前后排敌人造成伤害并附加灼烧。",
+    "description": "火焰扫射，对前后排敌人造成伤害并附加灼烧。\n----------------\n对全体敌人造成基础威力78的法术伤害，伤害系数为92%智力，并有40%概率附加灼烧2回合。",
     "targetType": "allEnemies",
     "effect": "damage",
     "damageType": "magic",

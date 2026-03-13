@@ -6,7 +6,7 @@
     "allowedHeroClasses": [
       "priest"
     ],
-    "description": "提升生命系输出与元素穿透。",
+    "description": "生命之芽在祷声中层层绽放，治愈与裁决同源而生。\n----------------\n增加28智力，增加6%元素穿透，增加10%生命元素增伤。",
     "modifiers": {
       "flat": {
         "int": 28,
@@ -25,7 +25,7 @@
     "allowedHeroClasses": [
       "priest"
     ],
-    "description": "提升治疗效率与团队抗性。",
+    "description": "圣辉灌注器皿，使守护之力在队伍间静默流转。\n----------------\n增加4%全元素抗性，额外提高8%生命上限，额外提高4%伤害减免。",
     "modifiers": {
       "flat": {
         "allRes": 0.04
@@ -44,7 +44,7 @@
     "allowedHeroClasses": [
       "priest"
     ],
-    "description": "强化法力与持续作战能力。",
+    "description": "同律信号在队列中传递，让每次协同都更平顺持久。\n----------------\n增加320法力上限，增加3%全元素增伤，额外提高4%伤害增伤。",
     "modifiers": {
       "flat": {
         "maxMp": 320,
