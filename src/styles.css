@@ -927,6 +927,12 @@ body {
   gap: 10px;
 }
 
+.inventory-legendary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+}
+
 .inventory-resource-card {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1099,6 +1105,50 @@ body {
   border-color: #ea580c;
 }
 
+.quality-legendary-exclusive {
+  color: #ffe8c7;
+  text-shadow: 0 0 8px rgb(245 158 11 / 32%);
+}
+
+@supports (-webkit-background-clip: text) {
+  .quality-legendary-exclusive {
+    background-image: linear-gradient(120deg, #f59e0b 0%, #ec4899 35%, #22d3ee 70%, #a78bfa 100%);
+    background-size: 220% 220%;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+.quality-badge.quality-legendary-exclusive {
+  color: #fff7ea;
+  -webkit-text-fill-color: #fff7ea;
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(rgb(15 23 42 / 92%), rgb(15 23 42 / 92%)),
+    linear-gradient(120deg, #f59e0b 0%, #ec4899 35%, #22d3ee 70%, #a78bfa 100%);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  background-size: 220% 220%;
+  text-shadow: 0 0 6px rgb(245 158 11 / 35%);
+  animation: legendary-exclusive-flow 3.6s linear infinite;
+}
+
+@keyframes legendary-exclusive-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quality-legendary-exclusive {
+    animation: none;
+  }
+}
 .quality-mythic {
   color: #fca5a5;
   border-color: #dc2626;
@@ -1477,6 +1527,33 @@ body {
     rgb(0 0 0 / 42%) 82%,
     transparent 100%
   );
+}
+
+.inventory-legendary-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #1b1510;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.inventory-legendary-card.equipped {
+  border-color: #a68458;
+  box-shadow: 0 0 0 1px rgb(166 132 88 / 28%);
+}
+
+.inventory-legendary-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.inventory-legendary-card h4 {
+  margin: 0;
+  color: #eed4a6;
+  font-size: 14px;
 }
 
 .hero-portrait-card::before {
@@ -2207,6 +2284,135 @@ body {
   color: var(--muted);
   font-size: 12px;
   padding: 6px;
+}
+
+.hero-legendary-panel {
+  border: 1px solid var(--line);
+  background: #16120e;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.hero-legendary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.hero-legendary-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hero-legendary-head > span {
+  border: 1px solid #8d724f;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: #eacfa1;
+  white-space: nowrap;
+}
+
+.hero-legendary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.hero-legendary-card {
+  border: 1px solid #5f4b36;
+  background: #1d1711;
+  border-radius: 8px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.hero-legendary-card.equipped {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 1px rgb(212 175 55 / 26%);
+}
+
+.hero-legendary-card.disabled {
+  opacity: 0.62;
+}
+
+.hero-legendary-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.hero-legendary-card h4 {
+  margin: 0;
+  color: #efd8ac;
+  font-size: 14px;
+}
+
+.hero-legendary-card header p {
+  margin: 4px 0 0;
+  color: #c6ad83;
+  font-size: 11px;
+}
+
+.hero-legendary-card header small {
+  color: #f1d7a5;
+  font-size: 10px;
+}
+
+.hero-legendary-lore {
+  margin: 0;
+  color: #bda685;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.hero-legendary-runes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.hero-legendary-runes span {
+  border: 1px solid #6a5945;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 10px;
+  color: #d8c29c;
+}
+
+.hero-legendary-skill {
+  border-top: 1px dashed rgb(157 136 106 / 45%);
+  padding-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.hero-legendary-skill h5 {
+  margin: 0;
+  color: #d9bf8f;
+  font-size: 12px;
+}
+
+.hero-legendary-skill strong {
+  color: #f0dcb5;
+  font-size: 13px;
+}
+
+.hero-legendary-skill p {
+  margin: 0;
+  color: #bfa37b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.hero-legendary-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .paladin-gear-board {
@@ -3029,6 +3235,10 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .inventory-legendary-grid {
+    grid-template-columns: 1fr;
+  }
+
   .hero-list {
     grid-auto-flow: column;
     overflow: auto;
@@ -3073,6 +3283,15 @@ body {
 
   .hero-equip-hover-detail {
     display: none;
+  }
+
+  .hero-legendary-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-legendary-grid {
+    grid-template-columns: 1fr;
   }
 
   .memory-stage-title span {
@@ -5230,6 +5449,80 @@ body {
   color: #c4a67e;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.organization-mission-note {
+  color: #a98961;
+  font-size: 12px;
+}
+
+.organization-mission-list {
+  max-height: min(54vh, 460px);
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.organization-mission-item {
+  border: 1px solid #5f4932;
+  border-radius: 10px;
+  background: rgb(39 28 20 / 72%);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.organization-mission-item h4 {
+  margin: 0;
+  color: #f0d2a1;
+  font-size: 14px;
+}
+
+.organization-functional-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.organization-core-status-list {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #5f4932;
+  border-radius: 10px;
+  background: rgb(39 28 20 / 52%);
+  padding: 8px 10px;
+}
+
+.organization-main-quest-list {
+  max-height: min(54vh, 460px);
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.organization-main-quest-item {
+  border: 1px solid #5f4932;
+  border-radius: 10px;
+  background: rgb(39 28 20 / 72%);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.organization-main-quest-item h4 {
+  margin: 0;
+  color: #f0d2a1;
+  font-size: 14px;
+}
+
+.organization-main-quest-item.completed {
+  opacity: 0.58;
+  filter: grayscale(0.55);
+}
+
+.organization-main-quest-item.locked {
+  border-color: #4d4a45;
 }
 
 @media (max-width: 1480px) {

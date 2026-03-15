@@ -6,6 +6,7 @@ import { PaladinGearBoard } from "../components/hero/PaladinGearBoard";
 import { PriestGearBoard } from "../components/hero/PriestGearBoard";
 import { RangerGearBoard } from "../components/hero/RangerGearBoard";
 import { battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
+import { legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
 import {
   EQUIPMENT_SLOT_LABELS,
   EQUIPMENT_SUBTYPE_LABELS,
@@ -14,7 +15,7 @@ import {
   getHeroEquipSlots,
   isPaladinHandSlot
 } from "../lib/equipmentCatalog";
-import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS } from "../lib/equipmentSystem";
+import { EQUIPMENT_RANK_LABELS, getEquipmentQualityLabel } from "../lib/equipmentSystem";
 import {
   getHeroSkillOptions,
   normalizeHeroLoadout,
@@ -102,11 +103,11 @@ const HERO_SKILL_RARITY_LABELS: Record<HeroSkillRarity, string> = {
   epic: "史诗",
   legendary: "传说"
 };
-
 const HERO_NAME_MAP = heroes.reduce<Record<string, string>>((map, hero) => {
   map[hero.id] = hero.name;
   return map;
 }, {});
+
 
 function formatModifierValue(value: number): string {
   if (Math.abs(value) > 0 && Math.abs(value) < 1) {
@@ -626,6 +627,19 @@ function HeroGearContent({
     : fallbackSlotId;
   const selectedSlot = heroSlots.find((slot) => slot.id === selectedSlotId) ?? heroSlots[0];
   const heroEquipped = equippedByHero[hero.id] ?? {};
+  const heroLegendaryUidSet = useMemo(
+    () => new Set(Object.values(heroEquipped).filter((uid) => Boolean(legendaryEquipmentIdByUid[uid]))),
+    [heroEquipped]
+  );
+  const heroLegendaryCount = heroLegendaryUidSet.size;
+  const getDisplayedQualityLabel = (item: Pick<GeneratedEquipment, "uid" | "quality">): string => {
+    return getEquipmentQualityLabel(item.quality, Boolean(legendaryEquipmentIdByUid[item.uid]));
+  };
+
+  const getDisplayedQualityClass = (item: Pick<GeneratedEquipment, "uid" | "quality">): string => {
+    return Boolean(legendaryEquipmentIdByUid[item.uid]) ? "quality-legendary-exclusive" : "quality-" + item.quality;
+  };
+
   const equippedBySlot = Object.fromEntries(
     heroSlots.map((slot) => [slot.id, heroEquipped[slot.id] ? backpackMap.get(heroEquipped[slot.id]) : undefined])
   ) as Record<string, GeneratedEquipment | undefined>;
@@ -654,12 +668,17 @@ function HeroGearContent({
       const owners = getItemOwners(item.uid);
       const isOwnedByOtherHero = owners.some((owner) => owner.heroId !== hero.id);
       const isCurrent = owners.some((owner) => owner.heroId === hero.id && owner.slotId === selectedSlot?.id);
-      const canEquip = !isOwnedByOtherHero;
+      const isLegendaryItem = Boolean(legendaryEquipmentIdByUid[item.uid]);
+      const heroAlreadyOwnsThisLegendary = heroLegendaryUidSet.has(item.uid);
+      const exceedsLegendaryLimit = isLegendaryItem && !heroAlreadyOwnsThisLegendary && heroLegendaryCount >= 2;
+      const canEquip = !isOwnedByOtherHero && !exceedsLegendaryLimit;
       let ownerText = "可装备";
 
       if (isOwnedByOtherHero) {
         const owner = owners.find((entry) => entry.heroId !== hero.id)!;
         ownerText = `已装备：${HERO_NAME_MAP[owner.heroId] ?? owner.heroId}`;
+      } else if (exceedsLegendaryLimit) {
+        ownerText = "已达每英雄传说装备上限（2件）";
       } else if (owners.length > 0 && !isCurrent) {
         const ownerSlotLabels = owners
           .filter((owner) => owner.heroId === hero.id)
@@ -678,7 +697,7 @@ function HeroGearContent({
         ownerText
       };
     });
-  }, [getItemOwners, hero.id, heroSlots, selectedSlot?.id, slotItems]);
+  }, [getItemOwners, hero.id, heroLegendaryCount, heroLegendaryUidSet, heroSlots, selectedSlot?.id, slotItems]);
 
   const totalSlotCount = slotItems.length;
   const availableSlotCount = slotEntries.filter((entry) => entry.canEquip).length;
@@ -832,7 +851,6 @@ function HeroGearContent({
           )}
         </div>
       </div>
-
       {isPickerOpen && selectedSlot ? (
         <div
           className="hero-equip-picker-backdrop"
@@ -904,8 +922,8 @@ function HeroGearContent({
                   >
                     <div className="hero-equip-picker-title-row">
                       <h4>{entry.item.templateName}</h4>
-                      <span className={`quality-badge quality-${entry.item.quality}`}>
-                        {EQUIPMENT_QUALITY_LABELS[entry.item.quality]}
+                      <span className={`quality-badge ${getDisplayedQualityClass(entry.item)}`}>
+                        {getDisplayedQualityLabel(entry.item)}
                       </span>
                     </div>
                     <p>{EQUIPMENT_SUBTYPE_LABELS[entry.item.subtype]}</p>
@@ -926,8 +944,8 @@ function HeroGearContent({
                 <header className="hero-equip-hover-head">
                   <h4>{hoveredEntry.item.templateName}</h4>
                   <div className="hero-equip-hover-badges">
-                    <span className={`quality-badge quality-${hoveredEntry.item.quality}`}>
-                      {EQUIPMENT_QUALITY_LABELS[hoveredEntry.item.quality]}
+                    <span className={`quality-badge ${getDisplayedQualityClass(hoveredEntry.item)}`}>
+                      {getDisplayedQualityLabel(hoveredEntry.item)}
                     </span>
                     <span className={`rank-badge rank-${hoveredEntry.item.rank}`}>
                       {EQUIPMENT_RANK_LABELS[hoveredEntry.item.rank]}

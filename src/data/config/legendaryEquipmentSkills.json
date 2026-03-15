@@ -1,0 +1,24 @@
+{
+  "skills": [
+    {
+      "id": "legendary_equip_skill_embershard_oath",
+      "name": "灰烬誓印",
+      "description": "被动：战斗开始时，持有者获得 1 层不可驱散护盾，护盾值等于最大生命的 12%。"
+    },
+    {
+      "id": "legendary_equip_skill_tidecore_whisper",
+      "name": "潮核低语",
+      "description": "被动：每回合首次释放主动技能后，回复自身最大法力的 6%。"
+    },
+    {
+      "id": "legendary_equip_skill_starseal_hunt",
+      "name": "星封猎脉",
+      "description": "被动：对生命低于 40% 的目标造成伤害时，额外附加一次 25% 攻击系数的追击。"
+    },
+    {
+      "id": "legendary_equip_skill_yggdra_resonance",
+      "name": "世界树余响",
+      "description": "被动：友方受到治疗时，持有者获得 1 层持续 2 回合的全伤害提升（可叠加 3 层）。"
+    }
+  ]
+}

@@ -1,10 +1,18 @@
 import { createContext, useContext, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ORGANIZATION_CONFIG, getOrganizationBuildingDefinition, getRankExpRequirement, organizationBuildingDefinitions } from "../data/organizationData";
+import {
+  ORGANIZATION_CONFIG,
+  getOrganizationBuildingDefinition,
+  getRankExpRequirement,
+  organizationBuildingDefinitions,
+  organizationMainQuestDefinitions
+} from "../data/organizationData";
 import type {
   OrganizationBuildingDefinition,
   OrganizationBuildingPlacement,
   OrganizationGridCell,
+  OrganizationMainQuestState,
+  OrganizationMainQuestStatus,
   OrganizationPlacementCheckResult,
   OrganizationRankState,
   OrganizationTerritoryExpandCheckResult,
@@ -27,6 +35,9 @@ interface OrganizationContextValue {
   placeBuilding: (definitionId: string, origin: OrganizationGridCell) => { ok: boolean; message: string; instanceId: string | null };
   removeBuilding: (instanceId: string) => void;
   upgradeBuilding: (instanceId: string) => void;
+  mainQuests: OrganizationMainQuestState[];
+  acceptMainQuest: (questId: string) => { ok: boolean; message: string };
+  completeMainQuest: (questId: string) => { ok: boolean; message: string };
   addMockOrganizationExp: (amount: number) => void;
 }
 
@@ -81,6 +92,13 @@ function createInitialRevealedCells(): Record<string, true> {
   return revealedCells;
 }
 
+function createInitialMainQuestStatusById(): Record<string, OrganizationMainQuestStatus> {
+  return organizationMainQuestDefinitions.reduce<Record<string, OrganizationMainQuestStatus>>((acc, quest, index) => {
+    acc[quest.id] = index === 0 ? "available" : "locked";
+    return acc;
+  }, {});
+}
+
 function placementCells(placement: OrganizationBuildingPlacement, definitions: Record<string, OrganizationBuildingDefinition>): OrganizationGridCell[] {
   const definition = definitions[placement.definitionId];
   if (!definition) {
@@ -97,6 +115,9 @@ const OrganizationContext = createContext<OrganizationContextValue | null>(null)
 export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [placements, setPlacements] = useState<OrganizationBuildingPlacement[]>([]);
   const [revealedCells, setRevealedCells] = useState<Record<string, true>>(() => createInitialRevealedCells());
+  const [mainQuestStatusById, setMainQuestStatusById] = useState<Record<string, OrganizationMainQuestStatus>>(
+    () => createInitialMainQuestStatusById()
+  );
   const [progressState, setProgressState] = useState<OrganizationProgressState>({
     rankState: {
       rank: 1,
@@ -129,6 +150,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const revealedCellCount = useMemo(() => Object.keys(revealedCells).length, [revealedCells]);
   const rankState = progressState.rankState;
   const pendingExpansionCount = progressState.pendingExpansionCount;
+  const mainQuests = useMemo<OrganizationMainQuestState[]>(
+    () =>
+      organizationMainQuestDefinitions.map((quest) => ({
+        ...quest,
+        status: mainQuestStatusById[quest.id] ?? "locked"
+      })),
+    [mainQuestStatusById]
+  );
 
   const checkPlacement = (definitionId: string, origin: OrganizationGridCell): OrganizationPlacementCheckResult => {
     const definition = buildingById[definitionId];
@@ -252,6 +281,67 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const acceptMainQuest = (questId: string): { ok: boolean; message: string } => {
+    const questIndex = organizationMainQuestDefinitions.findIndex((quest) => quest.id === questId);
+    if (questIndex < 0) {
+      return { ok: false, message: "主线任务不存在。" };
+    }
+    const quest = organizationMainQuestDefinitions[questIndex];
+    const status = mainQuestStatusById[questId] ?? "locked";
+
+    if (status === "locked") {
+      return { ok: false, message: "该任务尚未解锁，请先完成前置主线。" };
+    }
+    if (status === "in_progress") {
+      return { ok: false, message: "该任务已在进行中。" };
+    }
+    if (status === "completed") {
+      return { ok: false, message: "该任务已完成。" };
+    }
+
+    const hasInProgressQuest = organizationMainQuestDefinitions.some(
+      (item) => (mainQuestStatusById[item.id] ?? "locked") === "in_progress"
+    );
+    if (hasInProgressQuest) {
+      return { ok: false, message: "当前已有进行中的主线任务，请先完成后再接取下一条。" };
+    }
+
+    setMainQuestStatusById((prev) => ({
+      ...prev,
+      [questId]: "in_progress"
+    }));
+    return { ok: true, message: `主线任务已接取：${quest.title}` };
+  };
+
+  const completeMainQuest = (questId: string): { ok: boolean; message: string } => {
+    const questIndex = organizationMainQuestDefinitions.findIndex((quest) => quest.id === questId);
+    if (questIndex < 0) {
+      return { ok: false, message: "主线任务不存在。" };
+    }
+    const quest = organizationMainQuestDefinitions[questIndex];
+    const status = mainQuestStatusById[questId] ?? "locked";
+    if (status !== "in_progress") {
+      return { ok: false, message: "仅进行中的主线任务可以完成。" };
+    }
+
+    const nextQuest = organizationMainQuestDefinitions[questIndex + 1];
+    setMainQuestStatusById((prev) => {
+      const next: Record<string, OrganizationMainQuestStatus> = {
+        ...prev,
+        [questId]: "completed"
+      };
+      if (nextQuest && (next[nextQuest.id] ?? "locked") === "locked") {
+        next[nextQuest.id] = "available";
+      }
+      return next;
+    });
+
+    if (nextQuest) {
+      return { ok: true, message: `主线任务已完成：${quest.title}。已解锁下一条主线。` };
+    }
+    return { ok: true, message: `主线任务已完成：${quest.title}。当前主线序列已全部完成。` };
+  };
+
   const addMockOrganizationExp = (amount: number) => {
     const gain = Math.max(0, Math.round(amount));
     if (gain <= 0) {
@@ -309,9 +399,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       placeBuilding,
       removeBuilding,
       upgradeBuilding,
+      mainQuests,
+      acceptMainQuest,
+      completeMainQuest,
       addMockOrganizationExp
     }),
-    [buildingById, occupancy, pendingExpansionCount, placements, rankState, revealedCellCount, revealedCells]
+    [buildingById, mainQuests, occupancy, pendingExpansionCount, placements, rankState, revealedCellCount, revealedCells]
   );
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;

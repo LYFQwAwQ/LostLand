@@ -3,6 +3,10 @@ import holyHeartlandConfigJson from "./bulletinMissions/holy-heartland.json";
 import ironFrontierConfigJson from "./bulletinMissions/iron-frontier.json";
 import type { InventoryResourceRarity } from "../../types/game";
 
+export interface BulletinMissionAcceptanceConfig {
+  baseAcceptedLimit: number;
+}
+
 export interface BulletinMissionRewardValueConfig {
   base: number;
   perScore: number;
@@ -64,6 +68,10 @@ interface BulletinMissionDominionConfigRaw {
 }
 
 const ALL_RARITIES: InventoryResourceRarity[] = ["common", "uncommon", "rare", "epic"];
+
+const BULLETIN_MISSION_ACCEPTANCE_CONFIG: BulletinMissionAcceptanceConfig = {
+  baseAcceptedLimit: 4
+};
 
 function clampInt(value: number | undefined, fallback: number, min: number): number {
   const numberValue = Number.isFinite(value) ? Math.floor(value ?? fallback) : fallback;
@@ -227,4 +235,9 @@ const DOMINION_BULLETIN_MISSION_CONFIGS: Record<string, BulletinMissionDominionC
 
 export function getBulletinMissionConfigByDominion(dominionId: string): BulletinMissionDominionConfig {
   return DOMINION_BULLETIN_MISSION_CONFIGS[dominionId] ?? SANITIZED_DEFAULT_BULLETIN_MISSION_CONFIG;
+}
+
+export function getBulletinMissionAcceptedLimit(extraCapacity = 0): number {
+  const bonus = Number.isFinite(extraCapacity) ? Math.max(0, Math.floor(extraCapacity)) : 0;
+  return Math.max(0, BULLETIN_MISSION_ACCEPTANCE_CONFIG.baseAcceptedLimit + bonus);
 }

@@ -1,9 +1,13 @@
-import { Building2, Compass, Hand, Plus, Search, Trash2, ZoomIn, ZoomOut } from "lucide-react";
+import { Building2, Compass, Hand, Plus, Search, ScrollText, Trash2, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent, WheelEvent } from "react";
 import { ORGANIZATION_CONFIG } from "../data/organizationData";
+import { getRegionMeta } from "../data/worldMapData";
+import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
+import { useMapSystem } from "../state/MapSystemProvider";
 import { useOrganization } from "../state/OrganizationProvider";
 import type { OrganizationBuildingPlacement, OrganizationGridCell } from "../types/organization";
+import type { BulletinMissionState } from "../types/game";
 
 interface DragState {
   active: boolean;
@@ -34,7 +38,50 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+const missionTypeLabel: Record<BulletinMissionState["type"], string> = {
+  collect: "收集",
+  hunt: "讨伐"
+};
+
+const missionStatusLabel: Record<BulletinMissionState["status"], string> = {
+  available: "可领取",
+  in_progress: "进行中",
+  ready_to_submit: "可提交",
+  completed: "已完成"
+};
+
+const mainQuestStatusLabel: Record<"locked" | "available" | "in_progress" | "completed", string> = {
+  locked: "未解锁",
+  available: "可接取",
+  in_progress: "进行中",
+  completed: "已完成"
+};
+
+function getMissionObjectiveText(mission: BulletinMissionState): string {
+  if (mission.type === "collect") {
+    const summary = mission.collectTargets.map((target) => `${target.materialName} x${target.requiredQuantity}`).join("，");
+    return summary.length > 0 ? `收集并交付：${summary}` : "收集并交付指定材料。";
+  }
+  const summary = mission.huntTargets.map((target) => `${target.enemyName} x${target.requiredCount}`).join("，");
+  return summary.length > 0 ? `击败目标：${summary}` : "完成指定讨伐目标。";
+}
+
+function getMissionProgressText(mission: BulletinMissionState, materialCountMap: Record<string, number>): string {
+  if (mission.type === "collect") {
+    const summary = mission.collectTargets
+      .map((target) => `${target.materialName} ${materialCountMap[target.materialId] ?? 0}/${target.requiredQuantity}`)
+      .join("，");
+    return summary.length > 0 ? `当前记录：${summary}` : "当前记录：收集目标待追踪。";
+  }
+  const summary = mission.huntTargets
+    .map((target) => `${target.enemyName} ${mission.progress.enemyKillCounts[target.enemyPrototypeId] ?? 0}/${target.requiredCount}`)
+    .join("，");
+  return summary.length > 0 ? `击杀进度：${summary}` : "击杀进度：暂无目标。";
+}
+
 export function OrganizationPage() {
+  const { getAcceptedBulletinMissions, acceptedMissionCount, acceptedMissionLimit } = useMapSystem();
+  const { materialItems } = useEquipmentInventory();
   const {
     gridSize,
     buildings,
@@ -51,6 +98,9 @@ export function OrganizationPage() {
     placeBuilding,
     removeBuilding,
     upgradeBuilding,
+    mainQuests,
+    acceptMainQuest,
+    completeMainQuest,
     addMockOrganizationExp
   } = useOrganization();
   const initialTerritorySize = Math.min(ORGANIZATION_CONFIG.initialTerritorySize, gridSize);
@@ -69,6 +119,8 @@ export function OrganizationPage() {
   const [interactionMode, setInteractionMode] = useState<"build" | "expand" | "pan">("build");
   const [drag, setDrag] = useState<DragState>({ active: false, startX: 0, startY: 0, originX: 20, originY: 20 });
   const [activeFunctionalPlacementId, setActiveFunctionalPlacementId] = useState<string | null>(null);
+  const [activeCoreTab, setActiveCoreTab] = useState<"status" | "mainQuest">("status");
+  const [functionalFeedback, setFunctionalFeedback] = useState<string | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   const selectedDefinition = selectedDefinitionId ? buildingById[selectedDefinitionId] : null;
@@ -145,6 +197,30 @@ export function OrganizationPage() {
     rankState.nextRankExp > 0 ? Math.min(1, rankState.currentExp / rankState.nextRankExp) : 1;
   const expansionPatchLabel = `${ORGANIZATION_CONFIG.expansionPatchSize}x${ORGANIZATION_CONFIG.expansionPatchSize}`;
   const cellSize = ORGANIZATION_CONFIG.boardCellSize;
+  const acceptedMissions = getAcceptedBulletinMissions();
+  const materialCountMap = useMemo(() => {
+    const countMap: Record<string, number> = {};
+    materialItems.forEach((item) => {
+      countMap[item.id] = item.quantity;
+    });
+    return countMap;
+  }, [materialItems]);
+  const buildingCountByDefinition = useMemo(
+    () =>
+      placements.reduce<Record<string, number>>((acc, placement) => {
+        acc[placement.definitionId] = (acc[placement.definitionId] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [placements]
+  );
+  const sortedMainQuests = useMemo(() => {
+    const notCompleted = mainQuests.filter((quest) => quest.status !== "completed");
+    const completed = mainQuests.filter((quest) => quest.status === "completed");
+    return [...notCompleted, ...completed];
+  }, [mainQuests]);
+  const activeFunctionalDefinition = activeFunctionalPlacementId
+    ? buildingById[placementById[activeFunctionalPlacementId]?.definitionId ?? ""]
+    : null;
 
   useEffect(() => {
     const viewportElement = viewportRef.current;
@@ -164,6 +240,14 @@ export function OrganizationPage() {
     observer.observe(viewportElement);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!activeFunctionalPlacementId) {
+      return;
+    }
+    setActiveCoreTab("status");
+    setFunctionalFeedback(null);
+  }, [activeFunctionalPlacementId]);
 
   const visibleCellRange = useMemo(() => {
     const scaledCellSize = cellSize * zoom;
@@ -415,6 +499,22 @@ export function OrganizationPage() {
       setInteractionMode("pan");
       setFeedback("已切换为拖拽平移模式（右键快捷）。");
     }
+  };
+
+  const closeFunctionalModal = () => {
+    setActiveFunctionalPlacementId(null);
+    setFunctionalFeedback(null);
+    setActiveCoreTab("status");
+  };
+
+  const handleAcceptMainQuest = (questId: string) => {
+    const result = acceptMainQuest(questId);
+    setFunctionalFeedback(result.message);
+  };
+
+  const handleCompleteMainQuest = (questId: string) => {
+    const result = completeMainQuest(questId);
+    setFunctionalFeedback(result.message);
   };
 
   return (
@@ -727,15 +827,117 @@ export function OrganizationPage() {
       ) : null}
 
       {activeFunctionalPlacementId ? (
-        <div className="organization-modal-backdrop" role="presentation" onClick={() => setActiveFunctionalPlacementId(null)}>
+        <div className="organization-modal-backdrop" role="presentation" onClick={closeFunctionalModal}>
           <article className="organization-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <h3>功能建筑界面占位</h3>
-            <p>
-              {buildingById[placementById[activeFunctionalPlacementId]?.definitionId ?? ""]?.name ?? "当前建筑"} 的功能界面将在后续阶段接入。
-            </p>
-            <p>当前版本已实现建筑点击入口与地图交互框架。</p>
+            <h3>{activeFunctionalDefinition?.name ?? "功能建筑"}</h3>
+            {activeFunctionalDefinition?.id === "base_core" ? (
+              <>
+                <div className="organization-functional-tabs">
+                  <button
+                    type="button"
+                    className={`ghost-btn ${activeCoreTab === "status" ? "active" : ""}`}
+                    onClick={() => setActiveCoreTab("status")}
+                  >
+                    基地状态
+                  </button>
+                  <button
+                    type="button"
+                    className={`ghost-btn ${activeCoreTab === "mainQuest" ? "active" : ""}`}
+                    onClick={() => setActiveCoreTab("mainQuest")}
+                  >
+                    <ScrollText size={13} />
+                    主线任务
+                  </button>
+                </div>
+                {activeCoreTab === "status" ? (
+                  <>
+                    <p>当前组织已建造建筑总数：{placements.length}</p>
+                    <div className="organization-core-status-list">
+                      {Object.entries(buildingCountByDefinition).length > 0 ? (
+                        Object.entries(buildingCountByDefinition)
+                          .sort((left, right) => right[1] - left[1])
+                          .map(([definitionId, count]) => (
+                            <p key={definitionId}>
+                              {buildingById[definitionId]?.name ?? definitionId}：{count}
+                            </p>
+                          ))
+                      ) : (
+                        <p>当前尚未建造任何建筑。</p>
+                      )}
+                    </div>
+                    <p className="organization-mission-note">更多基地状态信息将在后续版本补充。</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="organization-mission-note">主线任务为固定任务线，不参与随机生成。已完成任务会保留在列表底部。</p>
+                    {functionalFeedback ? <p>{functionalFeedback}</p> : null}
+                    <div className="organization-main-quest-list">
+                      {sortedMainQuests.map((quest) => (
+                        <article
+                          key={quest.id}
+                          className={`organization-main-quest-item ${quest.status === "completed" ? "completed" : ""} ${
+                            quest.status === "locked" ? "locked" : ""
+                          }`}
+                        >
+                          <h4>{quest.title}</h4>
+                          <p>状态：{mainQuestStatusLabel[quest.status]}</p>
+                          <p>{quest.summary}</p>
+                          <p>目标：{quest.objective}</p>
+                          <div className="organization-row-actions">
+                            {quest.status === "available" ? (
+                              <button type="button" className="ghost-btn small-btn" onClick={() => handleAcceptMainQuest(quest.id)}>
+                                接取任务
+                              </button>
+                            ) : null}
+                            {quest.status === "in_progress" ? (
+                              <button type="button" className="ghost-btn small-btn" onClick={() => handleCompleteMainQuest(quest.id)}>
+                                标记完成（测试）
+                              </button>
+                            ) : null}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : activeFunctionalDefinition?.id === "mission_hall" ? (
+              <>
+                <p>
+                  当前已接取任务：{acceptedMissionCount} / {acceptedMissionLimit}
+                </p>
+                <p className="organization-mission-note">收集任务的可交付判定以背包实时材料为准，此处展示任务目标与当前记录。</p>
+                {acceptedMissions.length > 0 ? (
+                  <div className="organization-mission-list">
+                    {acceptedMissions.map((mission) => {
+                      const regionMeta = getRegionMeta(mission.regionId);
+                      return (
+                        <article key={mission.id} className="organization-mission-item">
+                          <h4>{mission.title}</h4>
+                          <p>
+                            {regionMeta?.dominionName ?? "未知疆域"} · {regionMeta?.name ?? mission.regionId}
+                          </p>
+                          <p>
+                            类型：{missionTypeLabel[mission.type]} · 状态：{missionStatusLabel[mission.status]}
+                          </p>
+                          <p>{getMissionObjectiveText(mission)}</p>
+                          <p>{getMissionProgressText(mission, materialCountMap)}</p>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p>当前没有已接取任务。可前往任意节点布告栏领取后再查看。</p>
+                )}
+              </>
+            ) : (
+              <>
+                <p>{activeFunctionalDefinition?.name ?? "当前建筑"} 的功能界面将在后续阶段接入。</p>
+                <p>当前版本已实现建筑点击入口与地图交互框架。</p>
+              </>
+            )}
             <div className="organization-row-actions">
-              <button type="button" className="ghost-btn" onClick={() => setActiveFunctionalPlacementId(null)}>
+              <button type="button" className="ghost-btn" onClick={closeFunctionalModal}>
                 关闭
               </button>
             </div>

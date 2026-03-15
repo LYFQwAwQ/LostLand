@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { heroes } from "../data/mockData";
+import { legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
 import { EQUIPMENT_SLOT_LABELS, EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
-import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS } from "../lib/equipmentSystem";
+import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS, getEquipmentQualityLabel } from "../lib/equipmentSystem";
 import { computeEquipmentInternalScore, resolveEquipmentScoreTier } from "../lib/equipmentScoring";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import type {
   EquipmentQuality,
   EquipmentRank,
   EquipmentSlot,
+  EquipmentStatKey,
   EquipmentSubtype,
   GeneratedEquipment,
   InventoryConsumableStack,
@@ -17,10 +19,11 @@ import type {
   InventoryResourceRarity
 } from "../types/game";
 
-type InventoryTab = "equipment" | "consumable" | "material" | "memory";
+type InventoryTab = "equipment" | "consumable" | "material" | "memory" | "legendary";
 type SortBy = "scoreDesc" | "qualityDesc" | "rankDesc" | "affixDesc" | "nameAsc" | "nameDesc";
 type ResourceSortBy = "quantityDesc" | "rarityDesc" | "nameAsc" | "nameDesc";
 type MemorySortBy = "equippedFirst" | "nameAsc" | "nameDesc";
+type LegendarySortBy = "equippedFirst" | "nameAsc" | "nameDesc";
 type TagGroupKey = "quality" | "rank" | "slot";
 
 const qualityOrder: Record<EquipmentQuality, number> = {
@@ -60,6 +63,25 @@ const heroClassLabels: Record<InventoryMemoryStack["heroClass"], string> = {
   priest: "祭司"
 };
 
+const equipmentStatLabels: Record<EquipmentStatKey, string> = {
+  hp: "生命值",
+  mp: "法力值",
+  str: "力量",
+  int: "智力",
+  agi: "敏捷",
+  def: "物理防御",
+  penetration: "物理穿透",
+  critRate: "暴击率",
+  critDamage: "暴击伤害",
+  evasion: "闪避率",
+  aggro: "仇恨",
+  lifeSteal: "吸血",
+  thorns: "反伤",
+  elementalPierce: "元素穿透",
+  allRes: "全元素抗性",
+  allBoost: "全元素增伤",
+  armorPiercePct: "护甲百分比穿透"
+};
 function formatStatValue(value: number): string {
   if (Math.abs(value) > 0 && Math.abs(value) < 1) {
     return `${(value * 100).toFixed(2)}%`;
@@ -133,7 +155,19 @@ function buildRaritySummary(items: Array<{ rarity: InventoryResourceRarity }>): 
 }
 
 export function InventoryPage() {
-  const { items, refreshItems, getItemOwner, materialItems, consumableItems, memoryItems, getMemoryOwner } = useEquipmentInventory();
+  const {
+    items,
+    refreshItems,
+    getItemOwner,
+    materialItems,
+    consumableItems,
+    memoryItems,
+    getMemoryOwner,
+    legendaryEquipments,
+    legendaryEquipmentSkillsById,
+    ownedLegendaryEquipmentIds,
+    getLegendaryEquipmentOwner
+  } = useEquipmentInventory();
   const [tab, setTab] = useState<InventoryTab>("equipment");
   const [selected, setSelected] = useState<GeneratedEquipment | null>(null);
 
@@ -154,6 +188,8 @@ export function InventoryPage() {
   const [memoryKeyword, setMemoryKeyword] = useState("");
   const [memoryClassFilters, setMemoryClassFilters] = useState<Array<InventoryMemoryStack["heroClass"]>>([]);
   const [memorySortBy, setMemorySortBy] = useState<MemorySortBy>("equippedFirst");
+  const [legendaryKeyword, setLegendaryKeyword] = useState("");
+  const [legendarySortBy, setLegendarySortBy] = useState<LegendarySortBy>("equippedFirst");
 
   const heroNameMap = useMemo(
     () =>
@@ -309,6 +345,57 @@ export function InventoryPage() {
     });
   }, [getMemoryOwner, memoryClassFilters, memoryItems, memoryKeyword, memorySortBy]);
 
+  const visibleLegendaryEntries = useMemo(() => {
+    const ownedSet = new Set(ownedLegendaryEquipmentIds);
+    const keyword = legendaryKeyword.trim().toLowerCase();
+    const filtered = legendaryEquipments
+      .filter((equipment) => ownedSet.has(equipment.id))
+      .map((equipment) => {
+        const ownerHeroId = getLegendaryEquipmentOwner(equipment.id);
+        const passiveSkill = legendaryEquipmentSkillsById[equipment.passiveSkillId];
+        return {
+          equipment,
+          ownerHeroId,
+          passiveSkill
+        };
+      })
+      .filter(({ equipment, passiveSkill }) => {
+        if (keyword.length <= 0) {
+          return true;
+        }
+        return (
+          equipment.name.toLowerCase().includes(keyword) ||
+          equipment.title.toLowerCase().includes(keyword) ||
+          equipment.lore.toLowerCase().includes(keyword) ||
+          equipment.id.toLowerCase().includes(keyword) ||
+          (passiveSkill?.name ?? "").toLowerCase().includes(keyword) ||
+          (passiveSkill?.description ?? "").toLowerCase().includes(keyword)
+        );
+      });
+
+    return [...filtered].sort((left, right) => {
+      if (legendarySortBy === "equippedFirst") {
+        const leftEquipped = left.ownerHeroId ? 1 : 0;
+        const rightEquipped = right.ownerHeroId ? 1 : 0;
+        if (rightEquipped !== leftEquipped) {
+          return rightEquipped - leftEquipped;
+        }
+        return left.equipment.name.localeCompare(right.equipment.name, "zh-CN");
+      }
+      if (legendarySortBy === "nameAsc") {
+        return left.equipment.name.localeCompare(right.equipment.name, "zh-CN");
+      }
+      return right.equipment.name.localeCompare(left.equipment.name, "zh-CN");
+    });
+  }, [
+    getLegendaryEquipmentOwner,
+    legendaryEquipments,
+    legendaryEquipmentSkillsById,
+    legendaryKeyword,
+    legendarySortBy,
+    ownedLegendaryEquipmentIds
+  ]);
+
   const activeResourceItems = tab === "material" ? visibleMaterialItems : tab === "consumable" ? visibleConsumableItems : [];
 
   const qualitySummary = useMemo(() => {
@@ -354,6 +441,19 @@ export function InventoryPage() {
       byClass
     };
   }, [visibleMemoryEntries]);
+
+  const legendarySummary = useMemo(() => {
+    let equippedCount = 0;
+    visibleLegendaryEntries.forEach((entry) => {
+      if (entry.ownerHeroId) {
+        equippedCount += 1;
+      }
+    });
+    return {
+      total: visibleLegendaryEntries.length,
+      equippedCount
+    };
+  }, [visibleLegendaryEntries]);
 
   useEffect(() => {
     if (!selected) {
@@ -430,13 +530,26 @@ export function InventoryPage() {
     setMemorySortBy("equippedFirst");
   };
 
+  const clearLegendaryFilters = () => {
+    setLegendaryKeyword("");
+    setLegendarySortBy("equippedFirst");
+  };
+
+  const getDisplayedQualityLabel = (item: Pick<GeneratedEquipment, "uid" | "quality">): string => {
+    return getEquipmentQualityLabel(item.quality, Boolean(legendaryEquipmentIdByUid[item.uid]));
+  };
+
+  const getDisplayedQualityClass = (item: Pick<GeneratedEquipment, "uid" | "quality">): string => {
+    return Boolean(legendaryEquipmentIdByUid[item.uid]) ? "quality-legendary-exclusive" : "quality-" + item.quality;
+  };
+
   const selectedOwner = selected ? getItemOwner(selected.uid) : null;
 
   return (
     <section className="page inventory-page">
       <header className="page-header">
         <h1>背包</h1>
-        <p>装备、材料、消耗品与记忆统一使用全局背包状态，支持分类筛选与排序。</p>
+        <p>装备、传说装备、材料、消耗品与记忆统一使用全局背包状态，支持分类筛选与排序。</p>
       </header>
 
       <section className="inventory-shell">
@@ -452,6 +565,9 @@ export function InventoryPage() {
           </button>
           <button type="button" className={tab === "memory" ? "active" : ""} onClick={() => setTab("memory")}>
             记忆
+          </button>
+          <button type="button" className={tab === "legendary" ? "active" : ""} onClick={() => setTab("legendary")}>
+            传说装备
           </button>
           <button type="button" className="ghost-btn" onClick={refreshItems} disabled={tab !== "equipment"}>
             刷新装备样本
@@ -583,7 +699,7 @@ export function InventoryPage() {
                         </div>
                       ) : null}
                       <div className="inventory-badges">
-                        <span className={`quality-badge quality-${item.quality}`}>{EQUIPMENT_QUALITY_LABELS[item.quality]}</span>
+                        <span className={`quality-badge ${getDisplayedQualityClass(item)}`}>{getDisplayedQualityLabel(item)}</span>
                         <span className={`rank-badge rank-${item.rank}`}>{EQUIPMENT_RANK_LABELS[item.rank]}</span>
                       </div>
                     </div>
@@ -675,6 +791,103 @@ export function InventoryPage() {
               ) : (
                 <div className="inventory-placeholder">
                   <h3>记忆结果为空</h3>
+                  <p>当前筛选条件下没有可显示条目。</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : tab === "legendary" ? (
+          <div className="inventory-content">
+            <aside className="inventory-summary-card">
+              <h3>传说装备概览</h3>
+              <p>
+                条目：{legendarySummary.total} · 已装备：{legendarySummary.equippedCount}
+              </p>
+              <div className="inventory-quality-grid">
+                <div>
+                  <span className="rank-badge">固定符文槽</span>
+                  <strong>5</strong>
+                </div>
+                <div>
+                  <span className="rank-badge">每英雄上限</span>
+                  <strong>2 件</strong>
+                </div>
+              </div>
+            </aside>
+
+            <div className="inventory-main">
+              <div className="inventory-toolbar">
+                <label>
+                  关键词
+                  <input
+                    type="text"
+                    value={legendaryKeyword}
+                    onChange={(event) => setLegendaryKeyword(event.target.value)}
+                    placeholder="名称 / 称号 / 技能 / 设定"
+                  />
+                </label>
+                <label>
+                  排序
+                  <select value={legendarySortBy} onChange={(event) => setLegendarySortBy(event.target.value as LegendarySortBy)}>
+                    <option value="equippedFirst">已装备优先</option>
+                    <option value="nameAsc">名称 A-Z</option>
+                    <option value="nameDesc">名称 Z-A</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="inventory-tag-groups">
+                <section className="inventory-tag-group">
+                  <button type="button" className="inventory-tag-group-toggle">
+                    <span>说明</span>
+                    <small>测试阶段默认拥有全部传说装备</small>
+                  </button>
+                </section>
+                <div className="inventory-tag-actions">
+                  <button type="button" className="ghost-btn" onClick={clearLegendaryFilters}>
+                    一键清空
+                  </button>
+                </div>
+              </div>
+
+              {visibleLegendaryEntries.length > 0 ? (
+                <div className="inventory-legendary-grid">
+                  {visibleLegendaryEntries.map(({ equipment, ownerHeroId, passiveSkill }) => (
+                    <article key={equipment.id} className={`inventory-legendary-card ${ownerHeroId ? "equipped" : ""}`}>
+                      <header>
+                        <h4>{equipment.name}</h4>
+                        <span className="rank-badge">{equipment.title}</span>
+                      </header>
+                      <p className="inventory-resource-meta">{equipment.lore}</p>
+                      <p className="inventory-resource-quantity">
+                        装备位：{EQUIPMENT_SLOT_LABELS[equipment.slot]} · 类型：{EQUIPMENT_SUBTYPE_LABELS[equipment.subtype]}
+                      </p>
+                      <p className="inventory-resource-quantity">
+                        固定等级：{equipment.level} · 品阶：{EQUIPMENT_RANK_LABELS[equipment.rank]} · 品质：
+                        <span className="quality-badge quality-legendary-exclusive">{getEquipmentQualityLabel(equipment.quality, true)}</span>
+                      </p>
+                      <p className="inventory-resource-quantity">固定符文槽：{equipment.runeSlotCount}</p>
+                      <p className="inventory-resource-effect">
+                        装备技能（被动）：{passiveSkill?.name ?? "未配置技能"}
+                      </p>
+                      <p className="inventory-resource-meta">{passiveSkill?.description ?? "该装备缺少被动技能定义。"}</p>
+                      <p className="inventory-resource-meta">
+                        固定基础属性：
+                        {equipment.t1Stats.map((stat) => `${equipmentStatLabels[stat.key]} ${formatStatValue(stat.value)}`).join(" / ")}
+                      </p>
+                      <p className="inventory-resource-meta">
+                        固定词条：
+                        {equipment.affixes.map((stat) => `${equipmentStatLabels[stat.key]} ${formatStatValue(stat.value)}`).join(" / ")}
+                      </p>
+                      <p className="inventory-memory-owner">
+                        {ownerHeroId ? `已装备：${heroNameMap[ownerHeroId] ?? ownerHeroId}` : "未装备"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="inventory-placeholder">
+                  <h3>传说装备结果为空</h3>
                   <p>当前筛选条件下没有可显示条目。</p>
                 </div>
               )}
@@ -806,7 +1019,7 @@ export function InventoryPage() {
                 </h2>
                 <p className="inventory-subtype-line">
                   <span>{EQUIPMENT_SUBTYPE_LABELS[selected.subtype]}</span>
-                  <strong className={`quality-${selected.quality}`}>{EQUIPMENT_QUALITY_LABELS[selected.quality]}</strong>
+                  <strong className={getDisplayedQualityClass(selected)}>{getDisplayedQualityLabel(selected)}</strong>
                 </p>
                 <div className="inventory-header-meta">
                   <span className={`rank-${selected.rank}`}>品阶：{EQUIPMENT_RANK_LABELS[selected.rank]}</span>

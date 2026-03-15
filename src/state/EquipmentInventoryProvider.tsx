@@ -4,6 +4,12 @@ import { getMaterialDropCatalog } from "../data/battleDrops";
 import { initialConsumableStacks } from "../data/consumables";
 import { equipmentTemplates } from "../data/equipmentTemplates";
 import { heroMemoryMap, initialOwnedHeroMemoryIds } from "../data/heroMemories";
+import {
+  legendaryEquipmentIdByUid,
+  legendaryEquipmentItemById,
+  legendaryEquipments,
+  legendaryEquipmentSkillsById
+} from "../data/legendaryEquipments";
 import { heroes } from "../data/mockData";
 import { getPairedPaladinHandSlot, isPaladinHandSlot } from "../lib/equipmentCatalog";
 import { generateEquipmentBatch } from "../lib/equipmentSystem";
@@ -14,7 +20,9 @@ import type {
   InventoryConsumableStack,
   InventoryMaterialStack,
   InventoryMemoryStack,
-  InventoryResourceRarity
+  InventoryResourceRarity,
+  LegendaryEquipmentDefinition,
+  LegendaryEquipmentSkillDefinition
 } from "../types/game";
 
 export interface EquippedOwner {
@@ -25,6 +33,8 @@ export interface EquippedOwner {
 export interface EquipmentInventorySnapshot {
   seed: string;
   equippedByHero: Record<string, Record<string, string>>;
+  equippedLegendaryByHero?: Record<string, string[]>;
+  ownedLegendaryEquipmentIds?: string[];
   materialStock?: Record<string, number>;
   consumableStock?: Record<string, number>;
   memoryOwnedIds?: string[];
@@ -35,6 +45,9 @@ interface EquipmentInventoryContextValue {
   items: GeneratedEquipment[];
   itemMap: Map<string, GeneratedEquipment>;
   equippedByHero: Record<string, Record<string, string>>;
+  legendaryEquipments: LegendaryEquipmentDefinition[];
+  legendaryEquipmentSkillsById: Record<string, LegendaryEquipmentSkillDefinition>;
+  ownedLegendaryEquipmentIds: string[];
   materialItems: InventoryMaterialStack[];
   consumableItems: InventoryConsumableStack[];
   memoryItems: InventoryMemoryStack[];
@@ -53,6 +66,7 @@ interface EquipmentInventoryContextValue {
   setHeroMemory: (heroId: string, memoryId: string | null) => boolean;
   getHeroMemory: (heroId: string) => string | null;
   getMemoryOwner: (memoryId: string) => string | null;
+  getLegendaryEquipmentOwner: (equipmentId: string) => string | null;
   getItemOwner: (itemUid: string) => EquippedOwner | null;
   getItemOwners: (itemUid: string) => EquippedOwner[];
   exportSnapshot: () => EquipmentInventorySnapshot;
@@ -63,6 +77,8 @@ const DEFAULT_SEED = "global-inventory-seed";
 const MATERIAL_CATALOG = getMaterialDropCatalog();
 const MATERIAL_CATALOG_MAP = new Map(MATERIAL_CATALOG.map((item) => [item.id, item]));
 const HERO_CLASS_BY_ID = new Map(heroes.map((hero) => [hero.id, hero.heroClass]));
+const LEGENDARY_EQUIPMENT_ID_SET = new Set(legendaryEquipments.map((item) => item.id));
+const LEGENDARY_EQUIPMENT_LIMIT_PER_HERO = 2;
 const RESOURCE_RARITY_ORDER: Record<InventoryResourceRarity, number> = {
   common: 0,
   uncommon: 1,
@@ -167,6 +183,29 @@ function normalizeEquippedMemoryByHero(
   return next;
 }
 
+function normalizeOwnedLegendaryEquipmentIds(equipmentIds: string[] | null | undefined): string[] {
+  if (!Array.isArray(equipmentIds)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const result: string[] = [];
+  equipmentIds.forEach((equipmentId) => {
+    if (typeof equipmentId !== "string" || equipmentId.length <= 0 || seen.has(equipmentId)) {
+      return;
+    }
+    if (!LEGENDARY_EQUIPMENT_ID_SET.has(equipmentId)) {
+      return;
+    }
+    seen.add(equipmentId);
+    result.push(equipmentId);
+  });
+  return result;
+}
+
+function buildDefaultOwnedLegendaryEquipmentIds(): string[] {
+  return legendaryEquipments.map((item) => item.id);
+}
+
 function areStringMapEqual(left: Record<string, string>, right: Record<string, string>): boolean {
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
@@ -179,14 +218,28 @@ function areStringMapEqual(left: Record<string, string>, right: Record<string, s
 export function EquipmentInventoryProvider({ children }: { children: ReactNode }) {
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [equippedByHero, setEquippedByHero] = useState<Record<string, Record<string, string>>>({});
+  const [ownedLegendaryEquipmentIds, setOwnedLegendaryEquipmentIds] = useState<string[]>(
+    () => buildDefaultOwnedLegendaryEquipmentIds()
+  );
   const [materialStock, setMaterialStock] = useState<Record<string, number>>({});
   const [consumableStock, setConsumableStock] = useState<Record<string, number>>(() => buildDefaultConsumableStock());
   const [ownedMemoryIds, setOwnedMemoryIds] = useState<string[]>(() => buildDefaultOwnedMemoryIds());
   const [equippedMemoryByHero, setEquippedMemoryByHero] = useState<Record<string, string>>({});
 
-  const items = useMemo(() => buildInventory(seed), [seed]);
-  const itemMap = useMemo(() => new Map(items.map((item) => [item.uid, item])), [items]);
   const ownedMemoryIdSet = useMemo(() => new Set(ownedMemoryIds), [ownedMemoryIds]);
+  const ownedLegendaryEquipmentIdSet = useMemo(
+    () => new Set(ownedLegendaryEquipmentIds),
+    [ownedLegendaryEquipmentIds]
+  );
+  const ownedLegendaryItems = useMemo(
+    () =>
+      ownedLegendaryEquipmentIds
+        .map((equipmentId) => legendaryEquipmentItemById[equipmentId])
+        .filter((item): item is GeneratedEquipment => Boolean(item)),
+    [ownedLegendaryEquipmentIds]
+  );
+  const items = useMemo(() => [...buildInventory(seed), ...ownedLegendaryItems], [ownedLegendaryItems, seed]);
+  const itemMap = useMemo(() => new Map(items.map((item) => [item.uid, item])), [items]);
 
   const ownerMap = useMemo(() => {
     const map = new Map<string, EquippedOwner[]>();
@@ -212,6 +265,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     });
     return map;
   }, [equippedMemoryByHero]);
+
 
   const materialItems = useMemo(() => {
     const merged: InventoryMaterialStack[] = MATERIAL_CATALOG.map((item) => ({
@@ -298,6 +352,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       return areStringMapEqual(prev, normalized) ? prev : normalized;
     });
   }, [ownedMemoryIdSet]);
+
 
   const refreshItems = () => {
     setSeed(`${Date.now()}`);
@@ -420,6 +475,11 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       return false;
     }
 
+    const legendaryEquipmentId = legendaryEquipmentIdByUid[itemUid];
+    if (legendaryEquipmentId && !ownedLegendaryEquipmentIdSet.has(legendaryEquipmentId)) {
+      return false;
+    }
+
     if (item.slot === "twoHand") {
       if (!isPaladinHandSlot(slotId)) {
         return false;
@@ -503,6 +563,13 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
         nextHeroSlots[slotId] = itemUid;
       }
 
+      const legendaryUidCount = new Set(
+        Object.values(nextHeroSlots).filter((uid) => Boolean(legendaryEquipmentIdByUid[uid]))
+      ).size;
+      if (legendaryUidCount > LEGENDARY_EQUIPMENT_LIMIT_PER_HERO) {
+        return prev;
+      }
+
       return {
         ...prev,
         [heroId]: nextHeroSlots
@@ -584,6 +651,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     return {
       seed,
       equippedByHero: cloned,
+      ownedLegendaryEquipmentIds: [...ownedLegendaryEquipmentIds],
       materialStock: { ...materialStock },
       consumableStock: { ...consumableStock },
       memoryOwnedIds: [...ownedMemoryIds],
@@ -603,6 +671,13 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       return acc;
     }, {});
     setEquippedByHero(next);
+    const fallbackLegendaryOwnedIds = buildDefaultOwnedLegendaryEquipmentIds();
+    const importedLegendaryOwnedIds = snapshot.ownedLegendaryEquipmentIds
+      ? normalizeOwnedLegendaryEquipmentIds(snapshot.ownedLegendaryEquipmentIds)
+      : fallbackLegendaryOwnedIds;
+    const normalizedLegendaryOwnedIds =
+      importedLegendaryOwnedIds.length > 0 ? importedLegendaryOwnedIds : fallbackLegendaryOwnedIds;
+    setOwnedLegendaryEquipmentIds(normalizedLegendaryOwnedIds);
 
     if (snapshot.materialStock) {
       setMaterialStock(normalizeResourceStock(snapshot.materialStock));
@@ -626,6 +701,9 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       items,
       itemMap,
       equippedByHero,
+      legendaryEquipments,
+      legendaryEquipmentSkillsById,
+      ownedLegendaryEquipmentIds,
       materialItems,
       consumableItems,
       memoryItems,
@@ -642,6 +720,14 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       },
       getMemoryOwner(memoryId) {
         return memoryOwnerMap.get(memoryId) ?? null;
+      },
+      getLegendaryEquipmentOwner(equipmentId) {
+        const item = legendaryEquipmentItemById[equipmentId];
+        if (!item) {
+          return null;
+        }
+        const owners = ownerMap.get(item.uid) ?? [];
+        return owners.length > 0 ? owners[0].heroId : null;
       },
       getItemOwner(itemUid) {
         const list = ownerMap.get(itemUid);
@@ -663,6 +749,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       memoryItems,
       memoryOwnerMap,
       ownerMap,
+      ownedLegendaryEquipmentIds,
       ownedMemoryIdSet
     ]
   );

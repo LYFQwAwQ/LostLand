@@ -47,6 +47,8 @@ export function NodeActionPage() {
     findNodeById,
     getRegionBulletinMissions,
     getRegionMissionWarning,
+    acceptedMissionCount,
+    acceptedMissionLimit,
     acceptBulletinMission,
     submitBulletinMission
   } = useMapSystem();
@@ -85,8 +87,8 @@ export function NodeActionPage() {
   const handleAcceptMission = (missionId: string) => {
     const mission = bulletinMissions.find((item) => item.id === missionId);
     const accepted = acceptBulletinMission(region.id, missionId);
-    if (!accepted) {
-      setMissionFeedback("任务领取失败：请确认任务仍为可领取状态。");
+    if (!accepted.ok) {
+      setMissionFeedback(accepted.reason ?? "任务领取失败：请确认任务仍为可领取状态。");
       return;
     }
     setMissionFeedback(
@@ -380,6 +382,9 @@ export function NodeActionPage() {
           <HeaderInfo title="布告栏（地区任务）">
             <p>任务已接入可领取、进度累计与奖励结算闭环。</p>
             <p>当前地区任务只会从本地区可讨伐敌人与掉落材料中生成，避免出现死任务。</p>
+            <p>
+              当前已接取任务：{acceptedMissionCount} / {acceptedMissionLimit}
+            </p>
             {missionWarning ? <p>{missionWarning}</p> : null}
             {missionFeedback ? <p>{missionFeedback}</p> : null}
             <div className="mission-list">
@@ -422,7 +427,7 @@ export function NodeActionPage() {
                     <button
                       type="button"
                       className="ghost-btn small-btn"
-                      disabled={mission.status !== "available"}
+                      disabled={mission.status !== "available" || acceptedMissionCount >= acceptedMissionLimit}
                       onClick={() => handleAcceptMission(mission.id)}
                     >
                       <ScrollText size={13} /> 领取委派

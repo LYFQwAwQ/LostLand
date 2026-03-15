@@ -1,4 +1,4 @@
-import type { OrganizationBuildingDefinition, OrganizationGridCell } from "../types/organization";
+import type { OrganizationBuildingDefinition, OrganizationGridCell, OrganizationMainQuestDefinition } from "../types/organization";
 
 export const ORGANIZATION_CONFIG = {
   gridSize: 96,
@@ -25,6 +25,17 @@ function createRect(width: number, height: number): OrganizationGridCell[] {
 
 export const organizationBuildingDefinitions: OrganizationBuildingDefinition[] = [
   {
+    id: "base_core",
+    name: "基地核心",
+    category: "functional",
+    shape: createRect(4, 3),
+    color: "#7a65c8",
+    description: "组织中枢，负责汇总基地状态与主线推进。当前可查看基础统计与固定主线任务。",
+    effect: "可点击进入基地核心界面（基地状态 / 主线任务）。",
+    unique: true,
+    clickable: true
+  },
+  {
     id: "foundry",
     name: "铁匠铺",
     category: "functional",
@@ -32,6 +43,17 @@ export const organizationBuildingDefinitions: OrganizationBuildingDefinition[] =
     color: "#d86c2e",
     description: "装备打造与品质突破核心设施，后续接入打造/宝石子系统。",
     effect: "可点击进入铁匠铺功能界面（当前为占位）。",
+    unique: true,
+    clickable: true
+  },
+  {
+    id: "mission_hall",
+    name: "任务大厅",
+    category: "functional",
+    shape: createRect(3, 2),
+    color: "#5a7f30",
+    description: "集中管理当前委派任务，支持跨地区追踪任务进度与目标。当前版本可查看已接取任务。",
+    effect: "可点击进入任务大厅，查看当前所有已接取任务。",
     unique: true,
     clickable: true
   },
@@ -73,6 +95,27 @@ export const organizationBuildingDefinitions: OrganizationBuildingDefinition[] =
     effect: "提升全体英雄经验收益（当前仅展示增益说明）。",
     unique: false,
     clickable: false
+  }
+];
+
+export const organizationMainQuestDefinitions: OrganizationMainQuestDefinition[] = [
+  {
+    id: "mainline_rebuild_signal",
+    title: "重启信标",
+    summary: "基地核心重启后，先恢复主信标通讯链路。",
+    objective: "接取后完成一次“信标重启”主线步骤。"
+  },
+  {
+    id: "mainline_secure_store",
+    title: "稳固储备线",
+    summary: "建立稳定的基础储备，为后续远征提供支持。",
+    objective: "完成资源储备相关主线步骤。"
+  },
+  {
+    id: "mainline_frontier_plan",
+    title: "边境部署",
+    summary: "完成前线部署规划，打通组织对外行动路径。",
+    objective: "完成边境部署主线步骤。"
   }
 ];
 

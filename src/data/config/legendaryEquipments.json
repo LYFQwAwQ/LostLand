@@ -1,0 +1,84 @@
+{
+  "equipments": [
+    {
+      "id": "legendary_equip_embershard_crown",
+      "name": "烬火王冕",
+      "title": "王庭残焰",
+      "lore": "旧王朝崩毁时保留下来的火印冠冕，传闻其火永不熄灭。",
+      "slot": "head",
+      "subtype": "heavyHelm",
+      "level": 1,
+      "rank": "perfect",
+      "quality": "legendary",
+      "t1Stats": [
+        { "key": "hp", "value": 320 },
+        { "key": "def", "value": 48 }
+      ],
+      "affixes": [
+        { "key": "allRes", "value": 0.06 },
+        { "key": "thorns", "value": 0.08 }
+      ],
+      "passiveSkillId": "legendary_equip_skill_embershard_oath"
+    },
+    {
+      "id": "legendary_equip_tidecore_relic",
+      "name": "潮核遗器",
+      "title": "沉海谕令",
+      "lore": "深海祭司用于记录潮汐咒律的核心，能够回应施术者的呼吸频率。",
+      "slot": "accessory",
+      "subtype": "necklace",
+      "level": 1,
+      "rank": "perfect",
+      "quality": "legendary",
+      "t1Stats": [
+        { "key": "mp", "value": 260 },
+        { "key": "int", "value": 32 }
+      ],
+      "affixes": [
+        { "key": "allBoost", "value": 0.07 },
+        { "key": "elementalPierce", "value": 0.09 }
+      ],
+      "passiveSkillId": "legendary_equip_skill_tidecore_whisper"
+    },
+    {
+      "id": "legendary_equip_starseal_brace",
+      "name": "星封狩带",
+      "title": "静夜追迹",
+      "lore": "古代猎团的誓约遗物，能在目标气息衰弱时锁定其最后轨迹。",
+      "slot": "accessory",
+      "subtype": "bracelet",
+      "level": 1,
+      "rank": "perfect",
+      "quality": "legendary",
+      "t1Stats": [
+        { "key": "agi", "value": 34 },
+        { "key": "penetration", "value": 48 }
+      ],
+      "affixes": [
+        { "key": "critRate", "value": 0.08 },
+        { "key": "critDamage", "value": 0.22 }
+      ],
+      "passiveSkillId": "legendary_equip_skill_starseal_hunt"
+    },
+    {
+      "id": "legendary_equip_yggdra_seed",
+      "name": "世界树种",
+      "title": "群生共鸣",
+      "lore": "世界树褪下的一枚种荚，仍保有微弱但稳定的生命共振。",
+      "slot": "accessory",
+      "subtype": "ring",
+      "level": 1,
+      "rank": "perfect",
+      "quality": "legendary",
+      "t1Stats": [
+        { "key": "hp", "value": 280 },
+        { "key": "allRes", "value": 0.05 }
+      ],
+      "affixes": [
+        { "key": "lifeSteal", "value": 0.06 },
+        { "key": "allBoost", "value": 0.06 }
+      ],
+      "passiveSkillId": "legendary_equip_skill_yggdra_resonance"
+    }
+  ]
+}

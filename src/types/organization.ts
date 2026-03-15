@@ -47,3 +47,16 @@ export interface OrganizationTerritoryExpandCheckResult {
   reason: string | null;
   cells: OrganizationGridCell[];
 }
+
+export type OrganizationMainQuestStatus = "locked" | "available" | "in_progress" | "completed";
+
+export interface OrganizationMainQuestDefinition {
+  id: string;
+  title: string;
+  summary: string;
+  objective: string;
+}
+
+export interface OrganizationMainQuestState extends OrganizationMainQuestDefinition {
+  status: OrganizationMainQuestStatus;
+}

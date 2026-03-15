@@ -1,5 +1,6 @@
 import { Gem, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
-import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS } from "../../lib/equipmentSystem";
+import { EQUIPMENT_RANK_LABELS, getEquipmentQualityLabel } from "../../lib/equipmentSystem";
+import { legendaryEquipmentIdByUid } from "../../data/legendaryEquipments";
 import type { GeneratedEquipment } from "../../types/game";
 
 const priestSlots = [
@@ -23,7 +24,7 @@ function slotQualityText(item: GeneratedEquipment | undefined): string {
   if (!item) {
     return "未装备";
   }
-  return `${EQUIPMENT_QUALITY_LABELS[item.quality]} · ${EQUIPMENT_RANK_LABELS[item.rank]}`;
+  return `${getEquipmentQualityLabel(item.quality, Boolean(legendaryEquipmentIdByUid[item.uid]))} · ${EQUIPMENT_RANK_LABELS[item.rank]}`;
 }
 
 export function PriestGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot }: PriestGearBoardProps) {
@@ -56,4 +57,3 @@ export function PriestGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot }
     </div>
   );
 }
-

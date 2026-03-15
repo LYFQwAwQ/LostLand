@@ -22,12 +22,21 @@ export const EQUIPMENT_RANK_LABELS: Record<EquipmentRank, string> = {
 
 export const EQUIPMENT_QUALITY_LABELS: Record<EquipmentQuality, string> = {
   common: "普通",
-  uncommon: "优秀",
+  uncommon: "精工",
   rare: "稀有",
   epic: "史诗",
-  legendary: "传说",
+  legendary: "圣铸",
   mythic: "神话"
 };
+
+export const LEGENDARY_EQUIPMENT_QUALITY_LABEL = "传说";
+
+export function getEquipmentQualityLabel(quality: EquipmentQuality, isLegendaryEquipment = false): string {
+  if (isLegendaryEquipment) {
+    return LEGENDARY_EQUIPMENT_QUALITY_LABEL;
+  }
+  return EQUIPMENT_QUALITY_LABELS[quality];
+}
 
 export const EQUIPMENT_QUALITY_COLOR_LABELS: Record<EquipmentQuality, string> = {
   common: "白",

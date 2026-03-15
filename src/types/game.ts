@@ -1,4 +1,4 @@
-﻿export type HeroClass = "paladin" | "mage" | "ranger" | "priest";
+export type HeroClass = "paladin" | "mage" | "ranger" | "priest";
 
 export type HeroTab = "stats" | "gear" | "skills" | "memory";
 
@@ -314,6 +314,33 @@ export interface GeneratedEquipment {
   environmentId: string;
 }
 
+export interface LegendaryEquipmentSkillDefinition {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface LegendaryEquipmentFixedStat {
+  key: EquipmentStatKey;
+  value: number;
+}
+
+export interface LegendaryEquipmentDefinition {
+  id: string;
+  name: string;
+  title: string;
+  lore: string;
+  slot: EquipmentSlot;
+  subtype: EquipmentSubtype;
+  level: number;
+  rank: EquipmentRank;
+  quality: EquipmentQuality;
+  t1Stats: LegendaryEquipmentFixedStat[];
+  affixes: LegendaryEquipmentFixedStat[];
+  runeSlotCount: number;
+  passiveSkillId: string;
+}
+
 export type InventoryResourceRarity = "common" | "uncommon" | "rare" | "epic";
 
 export interface InventoryConsumableStack {
@@ -409,4 +436,3 @@ export interface MissionBattleOutcome {
   materialGainCounts: Record<string, number>;
   defeatedEnemyCounts: Record<string, number>;
 }
-

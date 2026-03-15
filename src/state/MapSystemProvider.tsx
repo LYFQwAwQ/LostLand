@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { getBulletinMissionAcceptedLimit } from "../data/config/bulletinMissionConfig";
 import { initialLogs } from "../data/mockData";
 import { createRegionTopologyById, getRegionMeta } from "../data/worldMapData";
 import {
@@ -17,17 +18,25 @@ import type {
   RegionTopology
 } from "../types/game";
 
+interface BulletinMissionAcceptResult {
+  ok: boolean;
+  reason: string | null;
+}
+
 interface MapSystemContextValue {
   regions: RegionTopology[];
   worldMonth: number;
   worldLogs: string[];
+  acceptedMissionLimit: number;
+  acceptedMissionCount: number;
   ensureRegionLoaded: (regionId: string) => RegionTopology;
   advanceOneMonth: (regionId: string) => void;
   getRegionById: (regionId?: string | null) => RegionTopology | undefined;
   findNodeById: (nodeId?: string) => { region: RegionTopology; node: RegionNode } | null;
   getRegionBulletinMissions: (regionId?: string | null) => BulletinMissionState[];
+  getAcceptedBulletinMissions: () => BulletinMissionState[];
   getRegionMissionWarning: (regionId?: string | null) => string | null;
-  acceptBulletinMission: (regionId: string, missionId: string) => boolean;
+  acceptBulletinMission: (regionId: string, missionId: string) => BulletinMissionAcceptResult;
   submitBulletinMission: (regionId: string, missionId: string) => BulletinMissionReward | null;
   reportMissionBattleOutcome: (outcome: MissionBattleOutcome) => void;
 }
@@ -43,14 +52,27 @@ function cloneMissionReward(reward: BulletinMissionReward): BulletinMissionRewar
   };
 }
 
+function isAcceptedBulletinMission(mission: BulletinMissionState): boolean {
+  return mission.status === "in_progress" || mission.status === "ready_to_submit";
+}
+
 export function MapSystemProvider({ children }: { children: ReactNode }) {
   const [regionsById, setRegionsById] = useState<Record<string, RegionTopology>>({});
   const [worldMonth, setWorldMonth] = useState(1);
   const [worldLogs, setWorldLogs] = useState<string[]>(initialLogs);
   const [missionsByRegionId, setMissionsByRegionId] = useState<Record<string, BulletinMissionState[]>>({});
   const [missionWarningByRegionId, setMissionWarningByRegionId] = useState<Record<string, string>>({});
+  const acceptedMissionLimit = getBulletinMissionAcceptedLimit();
 
   const regions = useMemo(() => Object.values(regionsById), [regionsById]);
+  const acceptedMissionCount = useMemo(
+    () =>
+      Object.values(missionsByRegionId).reduce(
+        (acc, regionMissions) => acc + regionMissions.filter((mission) => isAcceptedBulletinMission(mission)).length,
+        0
+      ),
+    [missionsByRegionId]
+  );
 
   const ensureRegionLoaded = useCallback(
     (regionId: string): RegionTopology => {
@@ -154,11 +176,29 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const acceptBulletinMission = useCallback(
-    (regionId: string, missionId: string): boolean => {
-      let accepted = false;
+    (regionId: string, missionId: string): BulletinMissionAcceptResult => {
+      let result: BulletinMissionAcceptResult = {
+        ok: false,
+        reason: "任务领取失败：请确认任务仍为可领取状态。"
+      };
       setMissionsByRegionId((prev) => {
         const regionMissions = prev[regionId];
         if (!regionMissions || regionMissions.length <= 0) {
+          result = {
+            ok: false,
+            reason: "任务领取失败：当前地区未生成可领取任务。"
+          };
+          return prev;
+        }
+        const acceptedCount = Object.values(prev).reduce(
+          (acc, list) => acc + list.filter((mission) => isAcceptedBulletinMission(mission)).length,
+          0
+        );
+        if (acceptedCount >= acceptedMissionLimit) {
+          result = {
+            ok: false,
+            reason: `当前最多可同时接取 ${acceptedMissionLimit} 个任务，请先提交或完成已有任务。`
+          };
           return prev;
         }
 
@@ -171,12 +211,21 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
           if (!updated) {
             return mission;
           }
-          accepted = true;
+          result = {
+            ok: true,
+            reason: null
+          };
           changed = true;
           return updated;
         });
 
         if (!changed) {
+          if (!result.ok) {
+            result = {
+              ok: false,
+              reason: "任务领取失败：请确认任务仍为可领取状态。"
+            };
+          }
           return prev;
         }
         return {
@@ -184,9 +233,9 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
           [regionId]: next
         };
       });
-      return accepted;
+      return result;
     },
-    [worldMonth]
+    [acceptedMissionLimit, worldMonth]
   );
 
   const submitBulletinMission = useCallback(
@@ -309,17 +358,26 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
             Array.isArray(mission.reward.consumables)
         );
       },
+      getAcceptedBulletinMissions() {
+        return Object.values(missionsByRegionId)
+          .flatMap((regionMissions) => regionMissions)
+          .filter((mission) => isAcceptedBulletinMission(mission));
+      },
       getRegionMissionWarning(regionId) {
         if (!regionId) {
           return null;
         }
         return missionWarningByRegionId[regionId] ?? null;
       },
+      acceptedMissionLimit,
+      acceptedMissionCount,
       acceptBulletinMission,
       submitBulletinMission,
       reportMissionBattleOutcome
     }),
     [
+      acceptedMissionCount,
+      acceptedMissionLimit,
       acceptBulletinMission,
       advanceOneMonth,
       ensureRegionLoaded,
