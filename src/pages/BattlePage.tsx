@@ -7,6 +7,7 @@ import { buildAllyTeamTemplates, buildEnemyTeamTemplates } from "../lib/battleAd
 import { endBattle, createBattleRuntime, setBattleRunning, setBattleSpeed, stepBattle } from "../lib/battleEngine";
 import { EQUIPMENT_SLOT_LABELS, EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
 import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS } from "../lib/equipmentSystem";
+import { mapNodeTypeLabel } from "../lib/mapRules";
 import { useBattleSetup } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { useMapSystem } from "../state/MapSystemProvider";
@@ -180,7 +181,7 @@ export function BattlePage() {
   const { nodeId } = useParams<{ nodeId: string }>();
   const { findNodeById, reportMissionBattleOutcome } = useMapSystem();
   const { formation, heroLoadouts } = useBattleSetup();
-  const { equippedByHero, itemMap, collectBattleDrops } = useEquipmentInventory();
+  const { equippedByHero, itemMap, collectBattleDrops, getEquipmentEnhanceBonus } = useEquipmentInventory();
   const [battleSeed, setBattleSeed] = useState(() => Date.now());
   const [chainRound, setChainRound] = useState(1);
   const [campaignLogs, setCampaignLogs] = useState<BattleLogEntry[]>([]);
@@ -202,8 +203,8 @@ export function BattlePage() {
     if (!context) {
       return null;
     }
-    return buildAllyTeamTemplates(heroes, formation, heroLoadouts, equippedByHero, itemMap);
-  }, [context, equippedByHero, formation, heroLoadouts, itemMap]);
+    return buildAllyTeamTemplates(heroes, formation, heroLoadouts, equippedByHero, itemMap, getEquipmentEnhanceBonus);
+  }, [context, equippedByHero, formation, getEquipmentEnhanceBonus, heroLoadouts, itemMap]);
 
   const buildRuntimeForRound = (round: number, previous?: BattleRuntimeState | null): BattleRuntimeState | null => {
     if (!context || !baseAllies) {
@@ -213,7 +214,8 @@ export function BattlePage() {
     const enemies = buildEnemyTeamTemplates(
       `${context.node.id}-round-${battleSeed}-${round}`,
       context.node.archetype,
-      context.region.mapSuppression
+      context.region.mapSuppression,
+      context.node.id
     );
     const created = createBattleRuntime({
       battleId: `${context.node.id}-${battleSeed}-round-${round}`,
@@ -255,21 +257,18 @@ export function BattlePage() {
     return setBattleRunning(setBattleSpeed(created, previous.speedMultiplier), true);
   };
 
-  const initialRuntime = useMemo(() => {
-    if (!context || !baseAllies) {
-      return null;
-    }
-    return buildRuntimeForRound(1);
-  }, [baseAllies, battleSeed, context]);
-
-  const [runtime, setRuntime] = useState<BattleRuntimeState | null>(initialRuntime);
+  const [runtime, setRuntime] = useState<BattleRuntimeState | null>(() => buildRuntimeForRound(1));
+  const runtimeResetKey = `${battleSeed}-${context?.region.id ?? ""}-${context?.node.id ?? ""}`;
 
   useEffect(() => {
+    // 仅在“重新侦察”或切换节点时重置会话，避免掉落/任务回写导致 Provider 更新后打断自动连战。
+    const nextInitialRuntime = buildRuntimeForRound(1);
     setChainRound(1);
-    setRuntime(initialRuntime);
+    setRuntime(nextInitialRuntime);
     setCampaignLogs([]);
+    setIsReplayModalOpen(false);
     campaignLogCursorRef.current = null;
-  }, [initialRuntime]);
+  }, [runtimeResetKey]);
 
   useEffect(() => {
     if (!runtime) {
@@ -411,6 +410,21 @@ export function BattlePage() {
     }
   }, [activeReplayView, runtime]);
 
+  const visibleLogList = useMemo(() => {
+    if (campaignLogs.length > 0) {
+      return [...campaignLogs].reverse();
+    }
+    if (!runtime) {
+      return [];
+    }
+    return runtime.logs
+      .map((entry) => ({
+        ...entry,
+        id: `${runtime.battleId}-${entry.id}`
+      }))
+      .reverse();
+  }, [campaignLogs, runtime]);
+
   if (!context || !runtime) {
     return (
       <section className="page">
@@ -433,7 +447,6 @@ export function BattlePage() {
   const shouldShowReplayUi = isFinished && !canChainToNextRound;
   const allyAlive = runtime.units.filter((unit) => unit.side === "ally" && unit.alive).length;
   const enemyAlive = runtime.units.filter((unit) => unit.side === "enemy" && unit.alive).length;
-  const logList = useMemo(() => [...campaignLogs].reverse(), [campaignLogs]);
   const allyStats = runtime.replay.unitStats
     .filter((stat) => stat.side === "ally")
     .sort((left, right) => right.damageDealt - left.damageDealt);
@@ -500,6 +513,7 @@ export function BattlePage() {
 
   const shouldShowMaterials = dropCategoryFilter === "all" || dropCategoryFilter === "material";
   const shouldShowEquipment = dropCategoryFilter === "all" || dropCategoryFilter === "equipment";
+  const nodeTypeLabel = mapNodeTypeLabel(context.node);
 
   const clearDropEquipmentFilters = () => {
     setDropKeyword("");
@@ -524,7 +538,7 @@ export function BattlePage() {
       <header className="page-header battle-page-header">
         <h1>实时讨伐：{context.node.name}</h1>
         <p>
-          模板 {context.node.archetype} · 第 {chainRound} 场 · 地图压制 {context.region.mapSuppression}% · 我方 {allyAlive} / 敌方{" "}
+          类型 {nodeTypeLabel} · 第 {chainRound} 场 · 地图压制 {context.region.mapSuppression}% · 我方 {allyAlive} / 敌方{" "}
           {enemyAlive}
         </p>
       </header>
@@ -551,9 +565,11 @@ export function BattlePage() {
             type="button"
             className="ghost-btn"
             onClick={() => {
+              const nextInitialRuntime = buildRuntimeForRound(1);
               setChainRound(1);
-              setRuntime(initialRuntime);
+              setRuntime(nextInitialRuntime);
               setCampaignLogs([]);
+              setIsReplayModalOpen(false);
               campaignLogCursorRef.current = null;
             }}
           >
@@ -610,13 +626,13 @@ export function BattlePage() {
             <p>战斗耗时：{(runtime.elapsedMs / 1000).toFixed(1)} 秒</p>
             <p>逻辑 Tick：{runtime.tickCount}</p>
             <p>速度倍率：x{runtime.speedMultiplier.toFixed(1)}</p>
-            <p>连战规则：胜利后关闭复盘弹窗会继续下一场，HP/MP 继承且不回复</p>
+            <p>连战规则：胜利后自动继续下一场，HP/MP 继承且不回复</p>
           </article>
 
           <article className="battle-side-card battle-log-card">
             <h3>战斗日志</h3>
             <div className="battle-log-list">
-              {logList.map((entry) => (
+              {visibleLogList.map((entry) => (
                 <p key={entry.id} className={`tone-${entry.tone}`}>
                   {entry.text}
                 </p>

@@ -42,7 +42,7 @@ function createElementRecord(initial = 0): Record<BattleElement, number> {
   };
 }
 
-function mapEquipmentStats(items: GeneratedEquipment[]) {
+function mapEquipmentStats(items: GeneratedEquipment[], getEnhanceBonusByUid: (itemUid: string) => number) {
   const bonus = {
     maxHp: 0,
     maxMp: 0,
@@ -68,10 +68,9 @@ function mapEquipmentStats(items: GeneratedEquipment[]) {
   };
 
   items.forEach((item) => {
-    const stats = [...item.t1Stats, ...item.affixes];
-    stats.forEach((stat) => {
-      const value = stat.finalValue;
-      switch (stat.key) {
+    const t1EnhanceMultiplier = 1 + Math.max(0, getEnhanceBonusByUid(item.uid));
+    const applyStat = (key: string, value: number) => {
+      switch (key) {
         case "hp":
           bonus.maxHp += value;
           break;
@@ -126,6 +125,13 @@ function mapEquipmentStats(items: GeneratedEquipment[]) {
         default:
           break;
       }
+    };
+
+    item.t1Stats.forEach((stat) => {
+      applyStat(stat.key, stat.finalValue * t1EnhanceMultiplier);
+    });
+    item.affixes.forEach((affix) => {
+      applyStat(affix.key, affix.finalValue);
     });
   });
 
@@ -166,7 +172,8 @@ export function buildAllyTeamTemplates(
   formation: TeamFormationSlotState[],
   heroLoadouts: Record<string, BattleLoadout>,
   equippedByHero: Record<string, Record<string, string>>,
-  itemMap: Map<string, GeneratedEquipment>
+  itemMap: Map<string, GeneratedEquipment>,
+  getEnhanceBonusByUid: (itemUid: string) => number
 ): BattleUnitTemplate[] {
   const heroMap = new Map(heroes.map((hero) => [hero.id, hero]));
   const orderedSlots = [...formation].sort((left, right) => {
@@ -207,7 +214,7 @@ export function buildAllyTeamTemplates(
     const baseAgi = parseStatNumber(hero.stats.agi);
     const baseDef = parseStatNumber(hero.stats.def);
     const equippedItems = getUniqueEquippedItems(hero.id, equippedByHero, itemMap);
-    const equipBonus = mapEquipmentStats(equippedItems);
+    const equipBonus = mapEquipmentStats(equippedItems, getEnhanceBonusByUid);
     const elementPreset = heroElementPreset(hero);
     const isPaladin = hero.heroClass === "paladin";
     const isMage = hero.heroClass === "mage";
@@ -262,6 +269,11 @@ export function buildAllyTeamTemplates(
   });
 }
 
-export function buildEnemyTeamTemplates(nodeId: string, archetype: NodeArchetype, suppression: number): BattleUnitTemplate[] {
-  return buildEnemyTeam(nodeId, archetype, suppression);
+export function buildEnemyTeamTemplates(
+  seedId: string,
+  archetype: NodeArchetype,
+  suppression: number,
+  sourceNodeId?: string
+): BattleUnitTemplate[] {
+  return buildEnemyTeam(seedId, archetype, suppression, sourceNodeId ?? seedId);
 }

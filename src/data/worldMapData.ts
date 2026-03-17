@@ -1,5 +1,6 @@
 ﻿import worldHierarchyJson from "../config/world/worldHierarchy.json";
 import { buildRegionTopology } from "../lib/topology";
+import { createFixedRegionTopology, hasFixedRegionTopology } from "./fixedRegionTopologies";
 import type { ContinentId, DominionStaticConfig, Faction, RegionTopology } from "../types/game";
 
 interface RawFactionWeight {
@@ -370,6 +371,21 @@ export function createRegionTopologyById(regionId: string): RegionTopology {
     throw new Error(`地区 ${regionId} 缺失疆域配置`);
   }
 
+  const dominionConfig = buildDominionStaticConfig(dominionMeta);
+
+  if (hasFixedRegionTopology(regionMeta.id)) {
+    return createFixedRegionTopology({
+      regionId: regionMeta.id,
+      continentId: regionMeta.continentId,
+      continentName: regionMeta.continentName,
+      dominionId: regionMeta.dominionId,
+      dominionName: regionMeta.dominionName,
+      regionName: regionMeta.name,
+      neighborRegionIds: [...regionMeta.neighbors],
+      dominionConfig
+    });
+  }
+
   const random = mulberry32(hashSeed(`${regionMeta.id}-${regionMeta.seed}-${dominionMeta.id}`));
   const scaleFactor = lerp(dominionMeta.scaleRange[0], dominionMeta.scaleRange[1], random());
   const basePointCount = Math.round(clamp(dominionMeta.baseRegionScale * scaleFactor, 18, 68));
@@ -399,6 +415,7 @@ export function createRegionTopologyById(regionId: string): RegionTopology {
     fullFactionChance: dominionMeta.fullFactionChance,
     preGrowthMonths,
     pathWeightRange: [...dominionMeta.pathWeightRange] as [number, number],
-    dominionConfig: buildDominionStaticConfig(dominionMeta)
+    dominionConfig
   });
 }
+

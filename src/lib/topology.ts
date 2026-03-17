@@ -1,6 +1,7 @@
 ﻿import {
   ARCHETYPE_PROFILES,
   mapArchetypeDifficulty,
+  mapArchetypeEntityType,
   pickRandom,
   randomBuffByArchetype,
   randomEnvironmentByArchetype,
@@ -455,6 +456,7 @@ function applyArchetypePreset(node: RegionNode, archetype: NodeArchetype, factio
   node.state = "active";
   node.archetype = archetype;
   node.faction = faction;
+  node.entityType = mapArchetypeEntityType(archetype);
   node.name = randomNameByArchetype(archetype, random);
   node.environment = randomEnvironmentByArchetype(archetype, random);
   node.stayBuff = randomBuffByArchetype(archetype, random);
@@ -743,6 +745,7 @@ export function buildRegionTopology(options: BuildRegionOptions): RegionTopology
       id: nodeIds[index],
       regionId: options.regionId,
       name: randomNameByArchetype(archetype, random),
+      entityType: mapArchetypeEntityType(archetype),
       x: Number(point.x.toFixed(3)),
       y: Number(point.y.toFixed(3)),
       state,
@@ -821,3 +824,6 @@ export function buildRegionTopology(options: BuildRegionOptions): RegionTopology
     lastMonthReport: undefined
   };
 }
+
+
+

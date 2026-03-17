@@ -1,6 +1,7 @@
 ﻿import { Building2, Compass, Map, Package, ShieldCheck, User } from "lucide-react";
 import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useEquipmentInventory } from "../../state/EquipmentInventoryProvider";
 import { useMapSystem } from "../../state/MapSystemProvider";
 
 function SideNavLink({
@@ -26,6 +27,7 @@ function SideNavLink({
 
 export function MainLayout() {
   const { worldLogs, worldMonth } = useMapSystem();
+  const { gold, reputation } = useEquipmentInventory();
 
   return (
     <div className="app-shell">
@@ -54,15 +56,11 @@ export function MainLayout() {
           <div className="resource-grid">
             <div>
               <span>金币</span>
-              <strong>12,450</strong>
-            </div>
-            <div>
-              <span>红宝石</span>
-              <strong>120</strong>
+              <strong>{gold.toLocaleString("zh-CN")}</strong>
             </div>
             <div>
               <span>声望</span>
-              <strong>尊崇</strong>
+              <strong>{reputation.toLocaleString("zh-CN")}</strong>
             </div>
           </div>
         </section>

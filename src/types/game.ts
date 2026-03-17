@@ -93,10 +93,28 @@ export interface NodeSimulationState {
   lastChange: string | null;
 }
 
+export interface NodeEnemyPoolEntry {
+  prototypeId: string;
+  weight: number;
+}
+
+export interface NodeEnemyCountDistribution {
+  min: number;
+  max: number;
+  mean: number;
+  sigma: number;
+}
+
+export interface NodeBattleConfig {
+  enemyPool: NodeEnemyPoolEntry[];
+  countDistribution?: NodeEnemyCountDistribution;
+}
+
 export interface RegionNode {
   id: string;
   regionId: string;
   name: string;
+  entityType?: string;
   x: number;
   y: number;
   state: NodeState;
@@ -108,6 +126,7 @@ export interface RegionNode {
   field: FieldVisualState;
   fog: FogProgress;
   sim: NodeSimulationState;
+  battleConfig?: NodeBattleConfig;
 }
 
 export interface RegionEdge {

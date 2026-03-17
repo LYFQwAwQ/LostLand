@@ -1,6 +1,7 @@
-import defaultConfigJson from "./bulletinMissions/default.json";
+﻿import defaultConfigJson from "./bulletinMissions/default.json";
 import holyHeartlandConfigJson from "./bulletinMissions/holy-heartland.json";
 import ironFrontierConfigJson from "./bulletinMissions/iron-frontier.json";
+import humanTerritoryConfigJson from "./bulletinMissions/human-territory.json";
 import type { InventoryResourceRarity } from "../../types/game";
 
 export interface BulletinMissionAcceptanceConfig {
@@ -178,6 +179,7 @@ function sanitizeConfig(
 const RAW_DEFAULT_BULLETIN_MISSION_CONFIG = defaultConfigJson as BulletinMissionDominionConfigRaw;
 const RAW_HOLY_HEARTLAND_BULLETIN_MISSION_CONFIG = holyHeartlandConfigJson as BulletinMissionDominionConfigRaw;
 const RAW_IRON_FRONTIER_BULLETIN_MISSION_CONFIG = ironFrontierConfigJson as BulletinMissionDominionConfigRaw;
+const RAW_HUMAN_TERRITORY_BULLETIN_MISSION_CONFIG = humanTerritoryConfigJson as BulletinMissionDominionConfigRaw;
 
 const DEFAULT_BULLETIN_MISSION_CONFIG: BulletinMissionDominionConfig = {
   missionCount: {
@@ -230,6 +232,10 @@ const DOMINION_BULLETIN_MISSION_CONFIGS: Record<string, BulletinMissionDominionC
   "iron-frontier": sanitizeConfig(
     RAW_IRON_FRONTIER_BULLETIN_MISSION_CONFIG,
     SANITIZED_DEFAULT_BULLETIN_MISSION_CONFIG
+  ),
+  "human-territory": sanitizeConfig(
+    RAW_HUMAN_TERRITORY_BULLETIN_MISSION_CONFIG,
+    SANITIZED_DEFAULT_BULLETIN_MISSION_CONFIG
   )
 };
 
@@ -241,3 +247,4 @@ export function getBulletinMissionAcceptedLimit(extraCapacity = 0): number {
   const bonus = Number.isFinite(extraCapacity) ? Math.max(0, Math.floor(extraCapacity)) : 0;
   return Math.max(0, BULLETIN_MISSION_ACCEPTANCE_CONFIG.baseAcceptedLimit + bonus);
 }
+

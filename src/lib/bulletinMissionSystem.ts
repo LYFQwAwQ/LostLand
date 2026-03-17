@@ -143,7 +143,8 @@ function collectRegionMissionAvailability(
         const preview = buildEnemyTeam(
           `${sourceRegion.id}:${node.id}:mission-scan-${i}`,
           node.archetype,
-          sourceRegion.mapSuppression
+          sourceRegion.mapSuppression,
+          node.id
         );
         preview.forEach((unit) => {
           const prototypeId = parseEnemyPrototypeId(unit);

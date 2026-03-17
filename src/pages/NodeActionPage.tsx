@@ -1,12 +1,25 @@
-import { Coins, Hammer, ScrollText, Shield, ShoppingBag, Sparkles, Sword, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+﻿import { Coins, Hammer, Lock, ScrollText, Shield, ShoppingBag, Sparkles, Sword, Unlock, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import {
+  ECONOMY_CONFIG,
+  getEquipmentBuyPrice,
+  getEquipmentSellPrice,
+  type EquipmentQuickSellFilter
+} from "../data/config/economyConfig";
+import { equipmentTemplates } from "../data/equipmentTemplates";
+import { legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
+import { heroes } from "../data/mockData";
 import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
 import { getForgeRecipes, getMarketInventory, getShopInventory, getTavernOffers, marketSellRules } from "../data/nodeModules";
+import { EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
+import { computeEquipmentInternalScore } from "../lib/equipmentScoring";
+import { generateEquipmentBatch } from "../lib/equipmentSystem";
 import { ACTION_META, canAccessAction, mapNodeTypeLabel } from "../lib/mapRules";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { useMapSystem } from "../state/MapSystemProvider";
-import type { BulletinMissionState, InventoryResourceRarity, NodeAction } from "../types/game";
+import type { BulletinMissionState, GeneratedEquipment, InventoryResourceRarity, NodeAction } from "../types/game";
 
 const validActions: NodeAction[] = ["detail", "shop", "market", "tavern", "forge", "bulletin", "battle", "ritual"];
 
@@ -29,17 +42,42 @@ const rarityLabel: Record<InventoryResourceRarity, string> = {
   epic: "史诗"
 };
 
+const QUICK_SELL_QUALITY_OPTIONS: GeneratedEquipment["quality"][] = [
+  "common",
+  "uncommon",
+  "rare",
+  "epic",
+  "legendary",
+  "mythic"
+];
+const QUICK_SELL_RANK_OPTIONS: GeneratedEquipment["rank"][] = ["crude", "fine", "superior", "perfect"];
+
 function isNodeAction(value: string | undefined): value is NodeAction {
   return !!value && validActions.includes(value as NodeAction);
 }
 
-function HeaderInfo({ title, children }: { title: string; children: React.ReactNode }) {
+function HeaderInfo({ title, children }: { title: string; children: ReactNode }) {
   return (
     <article className="module-card">
       <h3>{title}</h3>
       {children}
     </article>
   );
+}
+
+function formatCurrency(value: number): string {
+  return `${Math.max(0, Math.floor(value)).toLocaleString("zh-CN")}`;
+}
+
+function parseOptionalInt(value: string): number | "" {
+  if (value.trim().length <= 0) {
+    return "";
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return "";
+  }
+  return Math.max(0, Math.floor(parsed));
 }
 
 export function NodeActionPage() {
@@ -52,13 +90,68 @@ export function NodeActionPage() {
     acceptBulletinMission,
     submitBulletinMission
   } = useMapSystem();
-  const { grantMissionRewards, consumeMaterials, materialItems } = useEquipmentInventory();
+  const {
+    items,
+    gold,
+    grantMissionRewards,
+    buyEquipment,
+    sellEquipment,
+    sellEquipmentBulk,
+    consumeMaterials,
+    materialItems,
+    getItemOwners,
+    isEquipmentLocked,
+    setEquipmentLocked,
+    getEquipmentEnhanceLevel,
+    getEquipmentEnhancementPreview,
+    enhanceEquipment,
+    normalEquipmentCapacity,
+    normalEquipmentCount,
+    isBackpackEquipmentFull
+  } = useEquipmentInventory();
+
   const { nodeId, action } = useParams<{ nodeId: string; action: string }>();
+
   const [missionFeedback, setMissionFeedback] = useState<string | null>(null);
+  const [tradeFeedback, setTradeFeedback] = useState<string | null>(null);
+  const [tradeRefreshToken, setTradeRefreshToken] = useState(0);
+  const [forgeFeedback, setForgeFeedback] = useState<string | null>(null);
+  const defaultQuickSellFilter: Partial<EquipmentQuickSellFilter> = ECONOMY_CONFIG.equipmentTrade.quickSell.defaultFilter;
+
+  const [quickSellMinLevel, setQuickSellMinLevel] = useState<number | "">(
+    defaultQuickSellFilter.minLevel ?? ""
+  );
+  const [quickSellMaxLevel, setQuickSellMaxLevel] = useState<number | "">(
+    defaultQuickSellFilter.maxLevel ?? ""
+  );
+  const [quickSellMinEnhanceLevel, setQuickSellMinEnhanceLevel] = useState<number | "">(
+    defaultQuickSellFilter.minEnhanceLevel ?? ""
+  );
+  const [quickSellMaxEnhanceLevel, setQuickSellMaxEnhanceLevel] = useState<number | "">(
+    defaultQuickSellFilter.maxEnhanceLevel ?? ""
+  );
+  const [quickSellMinScore, setQuickSellMinScore] = useState<number | "">(
+    defaultQuickSellFilter.minScore ?? ""
+  );
+  const [quickSellExcludeEnhanced, setQuickSellExcludeEnhanced] = useState<boolean>(
+    Boolean(defaultQuickSellFilter.excludeEnhanced)
+  );
+  const [quickSellQualityFilters, setQuickSellQualityFilters] = useState<GeneratedEquipment["quality"][]>(
+    defaultQuickSellFilter.qualities ?? []
+  );
+  const [quickSellRankFilters, setQuickSellRankFilters] = useState<GeneratedEquipment["rank"][]>(
+    defaultQuickSellFilter.ranks ?? []
+  );
+  const [selectedForgeItemUid, setSelectedForgeItemUid] = useState("");
+
   const context = findNodeById(nodeId);
 
   useEffect(() => {
     setMissionFeedback(null);
+    setTradeFeedback(null);
+    setForgeFeedback(null);
+    setTradeRefreshToken(0);
+    setSelectedForgeItemUid("");
   }, [nodeId, action]);
 
   if (!context) {
@@ -83,6 +176,162 @@ export function NodeActionPage() {
     acc[item.id] = item.quantity;
     return acc;
   }, {});
+  const heroNameMap = useMemo(
+    () =>
+      heroes.reduce<Record<string, string>>((acc, hero) => {
+        acc[hero.id] = hero.name;
+        return acc;
+      }, {}),
+    []
+  );
+
+  const isShopAction = action === "shop";
+  const tradeOfferCount = ECONOMY_CONFIG.equipmentTrade.offerCountByAction.shop;
+  const tradeOfferLevel = Math.max(1, Math.round((region.mapSuppression + 20) / 25));
+
+  const ownedItemUidSet = useMemo(() => new Set(items.map((item) => item.uid)), [items]);
+
+  const tradeOffers = useMemo(() => {
+    if (!isShopAction) {
+      return [] as Array<{ item: GeneratedEquipment; buyPrice: number }>;
+    }
+    const seed = `${region.id}-${node.id}-${action}-trade-${tradeRefreshToken}`;
+    return generateEquipmentBatch(equipmentTemplates, tradeOfferCount, {
+      seed,
+      level: tradeOfferLevel,
+      source: `node-${action}-equipment-trade`
+    }).map((item) => ({
+      item,
+      buyPrice: getEquipmentBuyPrice(item)
+    }));
+  }, [action, isShopAction, node.id, region.id, tradeOfferCount, tradeOfferLevel, tradeRefreshToken]);
+
+  const sellableEquipmentEntries = useMemo(() => {
+    return items
+      .map((item) => {
+        const ownerList = getItemOwners(item.uid);
+        const enhanceLevel = getEquipmentEnhanceLevel(item.uid);
+        const isLocked = isEquipmentLocked(item.uid);
+        return {
+          item,
+          score: computeEquipmentInternalScore(item),
+          enhanceLevel,
+          isLocked,
+          isLegendary: Boolean(legendaryEquipmentIdByUid[item.uid]),
+          isEquipped: ownerList.length > 0,
+          ownerText:
+            ownerList.length > 0
+              ? ownerList
+                  .map((owner) => {
+                    const heroName = heroNameMap[owner.heroId] ?? owner.heroId;
+                    return `${heroName}(${owner.slotId})`;
+                  })
+                  .join(" / ")
+              : "",
+          sellPrice: getEquipmentSellPrice(item, enhanceLevel)
+        };
+      })
+      .filter((entry) => !entry.isLegendary)
+      .sort((left, right) => {
+        if (left.isLocked !== right.isLocked) {
+          return left.isLocked ? 1 : -1;
+        }
+        if (left.isEquipped !== right.isEquipped) {
+          return left.isEquipped ? 1 : -1;
+        }
+        if (right.sellPrice !== left.sellPrice) {
+          return right.sellPrice - left.sellPrice;
+        }
+        return left.item.templateName.localeCompare(right.item.templateName, "zh-CN");
+      });
+  }, [getEquipmentEnhanceLevel, getItemOwners, heroNameMap, isEquipmentLocked, items]);
+
+  const quickSellFilteredEntries = useMemo(() => {
+    const qualitySet = new Set(quickSellQualityFilters);
+    const rankSet = new Set(quickSellRankFilters);
+    return sellableEquipmentEntries.filter((entry) => {
+      if (entry.isEquipped || entry.isLocked) {
+        return false;
+      }
+      if (qualitySet.size > 0 && !qualitySet.has(entry.item.quality)) {
+        return false;
+      }
+      if (rankSet.size > 0 && !rankSet.has(entry.item.rank)) {
+        return false;
+      }
+      if (quickSellMinLevel !== "" && entry.item.level < quickSellMinLevel) {
+        return false;
+      }
+      if (quickSellMaxLevel !== "" && entry.item.level > quickSellMaxLevel) {
+        return false;
+      }
+      if (quickSellMinEnhanceLevel !== "" && entry.enhanceLevel < quickSellMinEnhanceLevel) {
+        return false;
+      }
+      if (quickSellMaxEnhanceLevel !== "" && entry.enhanceLevel > quickSellMaxEnhanceLevel) {
+        return false;
+      }
+      if (quickSellMinScore !== "" && entry.score < quickSellMinScore) {
+        return false;
+      }
+      if (quickSellExcludeEnhanced && entry.enhanceLevel > 0) {
+        return false;
+      }
+      return entry.sellPrice > 0;
+    });
+  }, [
+    quickSellExcludeEnhanced,
+    quickSellMaxEnhanceLevel,
+    quickSellMaxLevel,
+    quickSellMinEnhanceLevel,
+    quickSellMinLevel,
+    quickSellMinScore,
+    quickSellQualityFilters,
+    quickSellRankFilters,
+    sellableEquipmentEntries
+  ]);
+
+  const quickSellEstimate = useMemo(
+    () => quickSellFilteredEntries.reduce((sum, entry) => sum + entry.sellPrice, 0),
+    [quickSellFilteredEntries]
+  );
+
+  const forgeCandidates = useMemo(() => {
+    return items
+      .map((item) => ({
+        item,
+        enhanceLevel: getEquipmentEnhanceLevel(item.uid),
+        preview: getEquipmentEnhancementPreview(item.uid)
+      }))
+      .sort((left, right) => {
+        if ((right.preview?.targetLevel ?? 0) !== (left.preview?.targetLevel ?? 0)) {
+          return (right.preview?.targetLevel ?? 0) - (left.preview?.targetLevel ?? 0);
+        }
+        return left.item.templateName.localeCompare(right.item.templateName, "zh-CN");
+      });
+  }, [getEquipmentEnhanceLevel, getEquipmentEnhancementPreview, items]);
+
+  const selectedForgePreview = useMemo(() => {
+    if (!selectedForgeItemUid) {
+      return null;
+    }
+    return getEquipmentEnhancementPreview(selectedForgeItemUid);
+  }, [getEquipmentEnhancementPreview, selectedForgeItemUid]);
+
+  useEffect(() => {
+    if (action !== "forge") {
+      return;
+    }
+    if (forgeCandidates.length <= 0) {
+      if (selectedForgeItemUid) {
+        setSelectedForgeItemUid("");
+      }
+      return;
+    }
+    if (!selectedForgeItemUid || !forgeCandidates.some((entry) => entry.item.uid === selectedForgeItemUid)) {
+      setSelectedForgeItemUid(forgeCandidates[0].item.uid);
+    }
+  }, [action, forgeCandidates, selectedForgeItemUid]);
 
   const handleAcceptMission = (missionId: string) => {
     const mission = bulletinMissions.find((item) => item.id === missionId);
@@ -148,6 +397,86 @@ export function NodeActionPage() {
     setMissionFeedback(`任务已结算：${summary}`);
   };
 
+  const handleRefreshTradeOffers = () => {
+    setTradeRefreshToken((prev) => prev + 1);
+    setTradeFeedback(null);
+  };
+
+  const handleBuyOffer = (offer: GeneratedEquipment) => {
+    const result = buyEquipment(offer);
+    if (!result.ok) {
+      setTradeFeedback(result.reason ?? "买入失败。");
+      return;
+    }
+    setTradeFeedback(`买入成功：${offer.templateName}，${formatCurrency(result.price)} 金币。`);
+  };
+
+  const handleSellEquipment = (item: GeneratedEquipment) => {
+    const result = sellEquipment(item.uid);
+    if (!result.ok) {
+      setTradeFeedback(result.reason ?? "卖出失败。");
+      return;
+    }
+    setTradeFeedback(`卖出成功：${item.templateName}，${formatCurrency(result.price)} 金币。`);
+  };
+
+  const toggleQuickSellQuality = (quality: GeneratedEquipment["quality"]) => {
+    setQuickSellQualityFilters((prev) =>
+      prev.includes(quality) ? prev.filter((entry) => entry !== quality) : [...prev, quality]
+    );
+  };
+
+  const toggleQuickSellRank = (rank: GeneratedEquipment["rank"]) => {
+    setQuickSellRankFilters((prev) => (prev.includes(rank) ? prev.filter((entry) => entry !== rank) : [...prev, rank]));
+  };
+
+  const handleToggleEquipmentLock = (itemUid: string, locked: boolean) => {
+    const ok = setEquipmentLocked(itemUid, locked);
+    if (!ok) {
+      setTradeFeedback("锁定状态更新失败：装备不存在。");
+      return;
+    }
+    setTradeFeedback(locked ? "已锁定装备。" : "已解除锁定。");
+  };
+
+  const handleQuickSell = () => {
+    if (!isShopAction) {
+      return;
+    }
+    const result = sellEquipmentBulk({
+      minLevel: quickSellMinLevel === "" ? null : quickSellMinLevel,
+      maxLevel: quickSellMaxLevel === "" ? null : quickSellMaxLevel,
+      minEnhanceLevel: quickSellMinEnhanceLevel === "" ? null : quickSellMinEnhanceLevel,
+      maxEnhanceLevel: quickSellMaxEnhanceLevel === "" ? null : quickSellMaxEnhanceLevel,
+      minScore: quickSellMinScore === "" ? null : quickSellMinScore,
+      qualities: quickSellQualityFilters,
+      ranks: quickSellRankFilters,
+      excludeEnhanced: quickSellExcludeEnhanced
+    });
+    if (result.soldCount <= 0) {
+      setTradeFeedback("未找到满足筛选条件的可出售装备。");
+      return;
+    }
+    setTradeFeedback(`一键卖出完成：${result.soldCount} 件，获得 ${formatCurrency(result.totalPrice)} 金币。`);
+  };
+
+  const handleForgeEnhance = () => {
+    if (!selectedForgeItemUid) {
+      setForgeFeedback("请先选择一件装备。");
+      return;
+    }
+    const result = enhanceEquipment(selectedForgeItemUid);
+    if (!result.ok) {
+      setForgeFeedback(result.reason ?? "强化失败。");
+      return;
+    }
+    if (result.success) {
+      setForgeFeedback(`强化成功：+${result.previousLevel} -> +${result.currentLevel}，消耗 ${formatCurrency(result.goldCost)} 金币。`);
+      return;
+    }
+    setForgeFeedback(`强化失败：维持 +${result.currentLevel}，已消耗 ${formatCurrency(result.goldCost)} 金币与材料。`);
+  };
+
   const canSubmitMission = (mission: BulletinMissionState): boolean => {
     if (mission.type === "collect") {
       if (mission.status !== "in_progress") {
@@ -167,9 +496,7 @@ export function NodeActionPage() {
 
   const getMissionObjectiveText = (mission: BulletinMissionState): string => {
     if (mission.type === "collect") {
-      const summary = mission.collectTargets
-        .map((target) => `${target.materialName} x${target.requiredQuantity}`)
-        .join("，");
+      const summary = mission.collectTargets.map((target) => `${target.materialName} x${target.requiredQuantity}`).join("，");
       return summary.length > 0 ? `在${region.dominionName}收集并交付：${summary}` : `在${region.dominionName}收集并交付指定材料。`;
     }
     const summary = mission.huntTargets.map((target) => `${target.enemyName} x${target.requiredCount}`).join("，");
@@ -240,7 +567,161 @@ export function NodeActionPage() {
 
       {action === "shop" ? (
         <div className="module-grid">
-          <HeaderInfo title="商店库存（买入 / 卖出 / 回购）">
+          <HeaderInfo title="商店基础装备交易（ST1）">
+            <p>
+              当前金币：{formatCurrency(gold)}。装备容量：{normalEquipmentCount}/{normalEquipmentCapacity}
+              {isBackpackEquipmentFull ? "（已满）" : ""}。
+            </p>
+            <p>规则：已穿戴、已锁定与传说装备不可卖出。传说装备可强化但固定禁止出售。</p>
+            {tradeFeedback ? <p className="module-trade-feedback">{tradeFeedback}</p> : null}
+
+            <div className="module-actions-row">
+              <button type="button" className="ghost-btn" onClick={handleRefreshTradeOffers}>
+                刷新报价
+              </button>
+            </div>
+
+            <section className="module-quick-sell-panel">
+              <h4>一键卖出筛选</h4>
+              <div className="module-quick-sell-grid">
+                <label>
+                  最低等级
+                  <input type="number" min={1} value={quickSellMinLevel} onChange={(event) => setQuickSellMinLevel(parseOptionalInt(event.target.value))} />
+                </label>
+                <label>
+                  最高等级
+                  <input type="number" min={1} value={quickSellMaxLevel} onChange={(event) => setQuickSellMaxLevel(parseOptionalInt(event.target.value))} />
+                </label>
+                <label>
+                  最低强化
+                  <input type="number" min={0} value={quickSellMinEnhanceLevel} onChange={(event) => setQuickSellMinEnhanceLevel(parseOptionalInt(event.target.value))} />
+                </label>
+                <label>
+                  最高强化
+                  <input type="number" min={0} value={quickSellMaxEnhanceLevel} onChange={(event) => setQuickSellMaxEnhanceLevel(parseOptionalInt(event.target.value))} />
+                </label>
+                <label>
+                  最低评分
+                  <input type="number" min={0} value={quickSellMinScore} onChange={(event) => setQuickSellMinScore(parseOptionalInt(event.target.value))} />
+                </label>
+                <label className="module-quick-sell-check">
+                  <input type="checkbox" checked={quickSellExcludeEnhanced} onChange={(event) => setQuickSellExcludeEnhanced(event.target.checked)} />
+                  排除强化装备
+                </label>
+              </div>
+
+              <div className="module-quick-sell-chip-row">
+                {QUICK_SELL_QUALITY_OPTIONS.map((quality) => (
+                  <button
+                    key={quality}
+                    type="button"
+                    className={`inventory-tag-chip ${quickSellQualityFilters.includes(quality) ? "active" : ""}`}
+                    onClick={() => toggleQuickSellQuality(quality)}
+                  >
+                    品质：{quality}
+                  </button>
+                ))}
+              </div>
+
+              <div className="module-quick-sell-chip-row">
+                {QUICK_SELL_RANK_OPTIONS.map((rank) => (
+                  <button
+                    key={rank}
+                    type="button"
+                    className={`inventory-tag-chip ${quickSellRankFilters.includes(rank) ? "active" : ""}`}
+                    onClick={() => toggleQuickSellRank(rank)}
+                  >
+                    品阶：{rank}
+                  </button>
+                ))}
+              </div>
+
+              <div className="module-actions-row module-quick-sell-actions">
+                <small>
+                  可卖出 {quickSellFilteredEntries.length} 件，预计获得 {formatCurrency(quickSellEstimate)} 金币
+                </small>
+                <button type="button" className="primary-btn" onClick={handleQuickSell} disabled={quickSellFilteredEntries.length <= 0}>
+                  <Coins size={14} />
+                  一键卖出
+                </button>
+              </div>
+            </section>
+
+            <div className="module-trade-columns">
+              <section className="module-trade-column">
+                <h4>买入清单</h4>
+                <div className="module-trade-list custom-scrollbar">
+                  {tradeOffers.length > 0 ? (
+                    tradeOffers.map((entry) => {
+                      const alreadyOwned = ownedItemUidSet.has(entry.item.uid);
+                      const blockedByCapacity = !legendaryEquipmentIdByUid[entry.item.uid] && isBackpackEquipmentFull;
+                      const disabled = alreadyOwned || gold < entry.buyPrice || blockedByCapacity;
+                      return (
+                        <article key={entry.item.uid} className="module-trade-item">
+                          <div className="module-trade-item-main">
+                            <strong>{entry.item.templateName}</strong>
+                            <small>
+                              {EQUIPMENT_SUBTYPE_LABELS[entry.item.subtype]} · Lv.{entry.item.level} · 词条 {entry.item.affixCount}
+                            </small>
+                          </div>
+                          <div className="module-trade-item-actions">
+                            <span className="module-trade-item-price">买入 {formatCurrency(entry.buyPrice)}</span>
+                            <button type="button" className="ghost-btn small-btn" disabled={disabled} onClick={() => handleBuyOffer(entry.item)}>
+                              <ShoppingBag size={13} />
+                              {alreadyOwned ? "已拥有" : blockedByCapacity ? "背包已满" : "买入"}
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <p>当前无可买入装备。</p>
+                  )}
+                </div>
+              </section>
+
+              <section className="module-trade-column">
+                <h4>卖出清单</h4>
+                <div className="module-trade-list custom-scrollbar">
+                  {sellableEquipmentEntries.length > 0 ? (
+                    sellableEquipmentEntries.map((entry) => (
+                      <article key={entry.item.uid} className="module-trade-item">
+                        <div className="module-trade-item-main">
+                          <strong>{entry.item.templateName}</strong>
+                          <small>
+                            {EQUIPMENT_SUBTYPE_LABELS[entry.item.subtype]} · Lv.{entry.item.level} · 词条 {entry.item.affixCount}
+                          </small>
+                          <small>评分 {entry.score.toFixed(1)} · 强化 +{entry.enhanceLevel}</small>
+                          {entry.isEquipped ? <small>已穿戴：{entry.ownerText || "当前英雄装备中"}</small> : null}
+                          {entry.isLocked ? <small>状态：已锁定（不会被一键卖出）</small> : null}
+                        </div>
+                        <div className="module-trade-item-actions">
+                          <span className="module-trade-item-price">卖出 {formatCurrency(entry.sellPrice)}</span>
+                          <button type="button" className="ghost-btn small-btn" onClick={() => handleToggleEquipmentLock(entry.item.uid, !entry.isLocked)}>
+                            {entry.isLocked ? <Unlock size={13} /> : <Lock size={13} />}
+                            {entry.isLocked ? "解锁" : "锁定"}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-btn small-btn"
+                            disabled={entry.isEquipped || entry.isLocked || entry.sellPrice <= 0}
+                            onClick={() => handleSellEquipment(entry.item)}
+                          >
+                            <Coins size={13} />
+                            卖出
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p>当前无可卖出装备。</p>
+                  )}
+                </div>
+              </section>
+            </div>
+          </HeaderInfo>
+
+          <HeaderInfo title="静态库存（配置预览）">
             <div className="module-table-wrap">
               <table className="module-table">
                 <thead>
@@ -265,17 +746,6 @@ export function NodeActionPage() {
                 </tbody>
               </table>
             </div>
-            <div className="module-actions-row">
-              <button type="button" className="primary-btn">
-                <ShoppingBag size={14} /> 买入
-              </button>
-              <button type="button" className="ghost-btn">
-                卖出
-              </button>
-              <button type="button" className="ghost-btn">
-                回购
-              </button>
-            </div>
           </HeaderInfo>
         </div>
       ) : null}
@@ -283,6 +753,7 @@ export function NodeActionPage() {
       {action === "market" ? (
         <div className="module-grid">
           <HeaderInfo title="商铺（原材料与大宗贸易）">
+            <p>当前版本只在 ST1 商店开放装备买卖；ST2 商铺暂为静态配置预览。</p>
             <div className="module-table-wrap">
               <table className="module-table">
                 <thead>
@@ -304,17 +775,6 @@ export function NodeActionPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
-            <div className="module-actions-row">
-              <button type="button" className="primary-btn">
-                <Coins size={14} /> 买入
-              </button>
-              <button type="button" className="ghost-btn">
-                大宗贸易
-              </button>
-              <button type="button" className="ghost-btn">
-                回购
-              </button>
             </div>
           </HeaderInfo>
 
@@ -351,14 +811,55 @@ export function NodeActionPage() {
       {action === "forge" ? (
         <div className="module-grid">
           <HeaderInfo title="铁匠铺 - 强化">
-            <p>当前装备强化等级上限：+10（示例）</p>
-            <p>强化消耗：金币 + 强化石，成功率随等级降低。</p>
-            <button type="button" className="primary-btn">
-              <Hammer size={14} /> 强化
-            </button>
+            <p>规则：普通装备最高 +10；传说装备最高 +15；失败不掉级但会消耗金币与材料。</p>
+            {forgeFeedback ? <p className="module-trade-feedback">{forgeFeedback}</p> : null}
+            {forgeCandidates.length > 0 ? (
+              <>
+                <label className="module-forge-select">
+                  选择装备
+                  <select value={selectedForgeItemUid} onChange={(event) => setSelectedForgeItemUid(event.target.value)}>
+                    {forgeCandidates.map((entry) => (
+                      <option key={entry.item.uid} value={entry.item.uid}>
+                        {entry.item.templateName} · +{entry.enhanceLevel} · Lv.{entry.item.level}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {selectedForgePreview ? (
+                  <div className="module-forge-preview">
+                    <p>
+                      强化等级：+{selectedForgePreview.currentLevel} / +{selectedForgePreview.maxLevel}，下一次目标 +
+                      {selectedForgePreview.targetLevel}
+                    </p>
+                    <p>
+                      成功率：{Math.round(selectedForgePreview.successRate * 100)}% · 基础属性加成 {Math.round(selectedForgePreview.currentBonus * 100)}% -&gt; {Math.round(selectedForgePreview.targetBonus * 100)}%
+                    </p>
+                    <p>金币消耗：{formatCurrency(selectedForgePreview.goldCost)}</p>
+                    <div className="module-forge-material-list">
+                      {selectedForgePreview.materialCost.map((entry) => {
+                        const enough = entry.owned >= entry.quantity;
+                        return (
+                          <p key={`${selectedForgePreview.itemUid}-${entry.materialId}`} className={enough ? "" : "insufficient"}>
+                            {entry.materialId} x{entry.quantity}（拥有 {entry.owned}）
+                          </p>
+                        );
+                      })}
+                    </div>
+                    {selectedForgePreview.reason ? <p>{selectedForgePreview.reason}</p> : null}
+                    <button type="button" className="primary-btn" onClick={handleForgeEnhance} disabled={!selectedForgePreview.canEnhance}>
+                      <Hammer size={14} /> 强化
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p>当前没有可强化装备。</p>
+            )}
           </HeaderInfo>
 
-          <HeaderInfo title="铁匠铺 - 打造">
+          <HeaderInfo title="铁匠铺 - 打造（占位）">
+            <p>打造系统暂未接入正式经济闭环，当前仅保留配方预览。</p>
             {getForgeRecipes(node).map((recipe) => (
               <article key={recipe.id} className="recipe-row">
                 <div>
@@ -366,9 +867,9 @@ export function NodeActionPage() {
                   <p>
                     品质：{recipe.quality} · 金币：{recipe.goldCost}
                   </p>
-                  <p>{recipe.materials.map((item) => `${item.name} x${item.count}`).join("，")}</p>
+                  <p>{recipe.materials.map((item) => `${item.name} x${item.count}`).join(" / ")}</p>
                 </div>
-                <button type="button" className="ghost-btn small-btn">
+                <button type="button" className="ghost-btn small-btn" disabled>
                   <Sword size={13} /> 打造
                 </button>
               </article>
@@ -381,7 +882,7 @@ export function NodeActionPage() {
         <div className="module-grid">
           <HeaderInfo title="布告栏（地区任务）">
             <p>任务已接入可领取、进度累计与奖励结算闭环。</p>
-            <p>当前地区任务只会从本地区可讨伐敌人与掉落材料中生成，避免出现死任务。</p>
+            <p>赏金与声望都会写入正式状态；声望目前仅做数值展示，暂不提供额外玩法效果。</p>
             <p>
               当前已接取任务：{acceptedMissionCount} / {acceptedMissionLimit}
             </p>
@@ -400,8 +901,7 @@ export function NodeActionPage() {
                       收集目标：
                       {mission.collectTargets
                         .map(
-                          (target) =>
-                            `${target.materialName} ${materialCountMap[target.materialId] ?? 0}/${target.requiredQuantity}（${rarityLabel[target.rarity]}）`
+                          (target) => `${target.materialName} ${materialCountMap[target.materialId] ?? 0}/${target.requiredQuantity}（${rarityLabel[target.rarity]}）`
                         )
                         .join("，")}
                     </p>
@@ -411,8 +911,7 @@ export function NodeActionPage() {
                       讨伐目标：
                       {mission.huntTargets
                         .map(
-                          (target) =>
-                            `${target.enemyName} ${mission.progress.enemyKillCounts[target.enemyPrototypeId] ?? 0}/${target.requiredCount}`
+                          (target) => `${target.enemyName} ${mission.progress.enemyKillCounts[target.enemyPrototypeId] ?? 0}/${target.requiredCount}`
                         )
                         .join("，")}
                     </p>
@@ -420,8 +919,7 @@ export function NodeActionPage() {
                   <p>
                     奖励：
                     {mission.reward.materials.map((item) => `${item.materialName} x${item.quantity}`).join("，") || "无材料奖励"} /{" "}
-                    {mission.reward.consumables.map((item) => `${item.consumableName} x${item.quantity}`).join("，") || "无消耗品奖励"} / 赏金{" "}
-                    {mission.reward.bounty} / 声望 +{mission.reward.reputation}
+                    {mission.reward.consumables.map((item) => `${item.consumableName} x${item.quantity}`).join("，") || "无消耗品奖励"} / 赏金 {mission.reward.bounty} / 声望 +{mission.reward.reputation}
                   </p>
                   <div className="module-actions-row">
                     <button
@@ -432,12 +930,7 @@ export function NodeActionPage() {
                     >
                       <ScrollText size={13} /> 领取委派
                     </button>
-                    <button
-                      type="button"
-                      className="ghost-btn small-btn"
-                      disabled={!canSubmitMission(mission)}
-                      onClick={() => handleSubmitMission(mission.id)}
-                    >
+                    <button type="button" className="ghost-btn small-btn" disabled={!canSubmitMission(mission)} onClick={() => handleSubmitMission(mission.id)}>
                       <Sparkles size={13} /> 交付悬赏
                     </button>
                   </div>

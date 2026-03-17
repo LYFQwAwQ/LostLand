@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { heroes } from "../data/mockData";
 import { legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
@@ -202,7 +202,9 @@ export function InventoryPage() {
 
   const entries = useMemo(
     () =>
-      items.map((item) => {
+      items
+        .filter((item) => !legendaryEquipmentIdByUid[item.uid])
+        .map((item) => {
         const score = computeEquipmentInternalScore(item);
         const owner = getItemOwner(item.uid);
         return {
@@ -579,7 +581,7 @@ export function InventoryPage() {
             <aside className="inventory-summary-card">
               <h3>装备概览</h3>
               <p>
-                结果：{visibleEntries.length} / 总数：{items.length}
+                结果：{visibleEntries.length} / 总数：{entries.length}
               </p>
               <div className="inventory-quality-grid">
                 {(Object.keys(qualitySummary) as Array<keyof typeof qualitySummary>).map((quality) => (
@@ -686,25 +688,27 @@ export function InventoryPage() {
                 </div>
               </div>
 
-              <div className="inventory-grid">
-                {visibleEntries.map(({ item, tier, owner }) => (
-                  <button key={item.uid} type="button" className={`inventory-item-card tier-${tier}`} onClick={() => setSelected(item)}>
-                    <div className="inventory-thumb">{initialsBySubtype(item.subtype)}</div>
-                    <div className="inventory-item-meta">
-                      <h4>{item.templateName}</h4>
-                      <p>{EQUIPMENT_SUBTYPE_LABELS[item.subtype]}</p>
-                      {owner ? (
-                        <div className="inventory-owner-badge">
-                          已装备：{heroNameMap[owner.heroId] ?? owner.heroId}
+              <div className="inventory-result-scroll custom-scrollbar">
+                <div className="inventory-grid">
+                  {visibleEntries.map(({ item, tier, owner }) => (
+                    <button key={item.uid} type="button" className={`inventory-item-card tier-${tier}`} onClick={() => setSelected(item)}>
+                      <div className="inventory-thumb">{initialsBySubtype(item.subtype)}</div>
+                      <div className="inventory-item-meta">
+                        <h4>{item.templateName}</h4>
+                        <p>{EQUIPMENT_SUBTYPE_LABELS[item.subtype]}</p>
+                        {owner ? (
+                          <div className="inventory-owner-badge">
+                            已装备：{heroNameMap[owner.heroId] ?? owner.heroId}
+                          </div>
+                        ) : null}
+                        <div className="inventory-badges">
+                          <span className={`quality-badge ${getDisplayedQualityClass(item)}`}>{getDisplayedQualityLabel(item)}</span>
+                          <span className={`rank-badge rank-${item.rank}`}>{EQUIPMENT_RANK_LABELS[item.rank]}</span>
                         </div>
-                      ) : null}
-                      <div className="inventory-badges">
-                        <span className={`quality-badge ${getDisplayedQualityClass(item)}`}>{getDisplayedQualityLabel(item)}</span>
-                        <span className={`rank-badge rank-${item.rank}`}>{EQUIPMENT_RANK_LABELS[item.rank]}</span>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -772,28 +776,30 @@ export function InventoryPage() {
                 </div>
               </div>
 
-              {visibleMemoryEntries.length > 0 ? (
-                <div className="inventory-memory-grid">
-                  {visibleMemoryEntries.map(({ item, ownerHeroId }) => (
-                    <article key={item.id} className={`inventory-memory-card ${ownerHeroId ? "equipped" : ""}`}>
-                      <header>
-                        <h4>{item.title}</h4>
-                        <span className="rank-badge">{heroClassLabels[item.heroClass]}</span>
-                      </header>
-                      <p className="inventory-resource-effect">“{item.quote}”</p>
-                      <p className="inventory-resource-meta">{item.effect}</p>
-                      <p className="inventory-memory-owner">
-                        {ownerHeroId ? `已装备：${heroNameMap[ownerHeroId] ?? ownerHeroId}` : "未装备"}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="inventory-placeholder">
-                  <h3>记忆结果为空</h3>
-                  <p>当前筛选条件下没有可显示条目。</p>
-                </div>
-              )}
+              <div className="inventory-result-scroll custom-scrollbar">
+                {visibleMemoryEntries.length > 0 ? (
+                  <div className="inventory-memory-grid">
+                    {visibleMemoryEntries.map(({ item, ownerHeroId }) => (
+                      <article key={item.id} className={`inventory-memory-card ${ownerHeroId ? "equipped" : ""}`}>
+                        <header>
+                          <h4>{item.title}</h4>
+                          <span className="rank-badge">{heroClassLabels[item.heroClass]}</span>
+                        </header>
+                        <p className="inventory-resource-effect">“{item.quote}”</p>
+                        <p className="inventory-resource-meta">{item.effect}</p>
+                        <p className="inventory-memory-owner">
+                          {ownerHeroId ? `已装备：${heroNameMap[ownerHeroId] ?? ownerHeroId}` : "未装备"}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="inventory-placeholder">
+                    <h3>记忆结果为空</h3>
+                    <p>当前筛选条件下没有可显示条目。</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : tab === "legendary" ? (
@@ -850,47 +856,49 @@ export function InventoryPage() {
                 </div>
               </div>
 
-              {visibleLegendaryEntries.length > 0 ? (
-                <div className="inventory-legendary-grid">
-                  {visibleLegendaryEntries.map(({ equipment, ownerHeroId, passiveSkill }) => (
-                    <article key={equipment.id} className={`inventory-legendary-card ${ownerHeroId ? "equipped" : ""}`}>
-                      <header>
-                        <h4>{equipment.name}</h4>
-                        <span className="rank-badge">{equipment.title}</span>
-                      </header>
-                      <p className="inventory-resource-meta">{equipment.lore}</p>
-                      <p className="inventory-resource-quantity">
-                        装备位：{EQUIPMENT_SLOT_LABELS[equipment.slot]} · 类型：{EQUIPMENT_SUBTYPE_LABELS[equipment.subtype]}
-                      </p>
-                      <p className="inventory-resource-quantity">
-                        固定等级：{equipment.level} · 品阶：{EQUIPMENT_RANK_LABELS[equipment.rank]} · 品质：
-                        <span className="quality-badge quality-legendary-exclusive">{getEquipmentQualityLabel(equipment.quality, true)}</span>
-                      </p>
-                      <p className="inventory-resource-quantity">固定符文槽：{equipment.runeSlotCount}</p>
-                      <p className="inventory-resource-effect">
-                        装备技能（被动）：{passiveSkill?.name ?? "未配置技能"}
-                      </p>
-                      <p className="inventory-resource-meta">{passiveSkill?.description ?? "该装备缺少被动技能定义。"}</p>
-                      <p className="inventory-resource-meta">
-                        固定基础属性：
-                        {equipment.t1Stats.map((stat) => `${equipmentStatLabels[stat.key]} ${formatStatValue(stat.value)}`).join(" / ")}
-                      </p>
-                      <p className="inventory-resource-meta">
-                        固定词条：
-                        {equipment.affixes.map((stat) => `${equipmentStatLabels[stat.key]} ${formatStatValue(stat.value)}`).join(" / ")}
-                      </p>
-                      <p className="inventory-memory-owner">
-                        {ownerHeroId ? `已装备：${heroNameMap[ownerHeroId] ?? ownerHeroId}` : "未装备"}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="inventory-placeholder">
-                  <h3>传说装备结果为空</h3>
-                  <p>当前筛选条件下没有可显示条目。</p>
-                </div>
-              )}
+              <div className="inventory-result-scroll custom-scrollbar">
+                {visibleLegendaryEntries.length > 0 ? (
+                  <div className="inventory-legendary-grid">
+                    {visibleLegendaryEntries.map(({ equipment, ownerHeroId, passiveSkill }) => (
+                      <article key={equipment.id} className={`inventory-legendary-card ${ownerHeroId ? "equipped" : ""}`}>
+                        <header>
+                          <h4>{equipment.name}</h4>
+                          <span className="rank-badge">{equipment.title}</span>
+                        </header>
+                        <p className="inventory-resource-meta">{equipment.lore}</p>
+                        <p className="inventory-resource-quantity">
+                          装备位：{EQUIPMENT_SLOT_LABELS[equipment.slot]} · 类型：{EQUIPMENT_SUBTYPE_LABELS[equipment.subtype]}
+                        </p>
+                        <p className="inventory-resource-quantity">
+                          固定等级：{equipment.level} · 品阶：{EQUIPMENT_RANK_LABELS[equipment.rank]} · 品质：
+                          <span className="quality-badge quality-legendary-exclusive">{getEquipmentQualityLabel(equipment.quality, true)}</span>
+                        </p>
+                        <p className="inventory-resource-quantity">固定符文槽：{equipment.runeSlotCount}</p>
+                        <p className="inventory-resource-effect">
+                          装备技能（被动）：{passiveSkill?.name ?? "未配置技能"}
+                        </p>
+                        <p className="inventory-resource-meta">{passiveSkill?.description ?? "该装备缺少被动技能定义。"}</p>
+                        <p className="inventory-resource-meta">
+                          固定基础属性：
+                          {equipment.t1Stats.map((stat) => `${equipmentStatLabels[stat.key]} ${formatStatValue(stat.value)}`).join(" / ")}
+                        </p>
+                        <p className="inventory-resource-meta">
+                          固定词条：
+                          {equipment.affixes.map((stat) => `${equipmentStatLabels[stat.key]} ${formatStatValue(stat.value)}`).join(" / ")}
+                        </p>
+                        <p className="inventory-memory-owner">
+                          {ownerHeroId ? `已装备：${heroNameMap[ownerHeroId] ?? ownerHeroId}` : "未装备"}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="inventory-placeholder">
+                    <h3>传说装备结果为空</h3>
+                    <p>当前筛选条件下没有可显示条目。</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : (
@@ -958,45 +966,47 @@ export function InventoryPage() {
                 </div>
               </div>
 
-              {tab === "consumable" ? (
-                <div className="inventory-todo-note">TODO：消耗品当前为示例库存，待接入正式产出与消耗逻辑。</div>
-              ) : null}
+              <div className="inventory-result-scroll custom-scrollbar">
+                {tab === "consumable" ? (
+                  <div className="inventory-todo-note">TODO：消耗品当前为示例库存，待接入正式产出与消耗逻辑。</div>
+                ) : null}
 
-              {activeResourceItems.length > 0 ? (
-                <div className="inventory-resource-grid">
-                  {tab === "material"
-                    ? (activeResourceItems as InventoryMaterialStack[]).map((item) => (
-                        <article key={item.id} className="inventory-resource-card">
-                          <h4>{item.name}</h4>
-                          <p className="inventory-resource-quantity">库存 x{item.quantity}</p>
-                          <p className="inventory-resource-meta">来源怪物：{formatMaterialSources(item.sourceEnemyPrototypeIds)}</p>
-                          <div className="inventory-badges">
-                            <span className={`quality-badge quality-${item.rarity}`}>{resourceRarityLabels[item.rarity]}</span>
-                            <span className="rank-badge">ID: {item.id}</span>
-                          </div>
-                        </article>
-                      ))
-                    : (activeResourceItems as InventoryConsumableStack[]).map((item) => (
-                        <article key={item.id} className="inventory-resource-card">
-                          <h4>{item.name}</h4>
-                          <p className="inventory-resource-effect">{item.effectSummary}</p>
-                          <p className="inventory-resource-quantity">
-                            库存 x{item.quantity} / 上限 {item.maxStack}
-                          </p>
-                          <p className="inventory-resource-meta">来源：{item.source}</p>
-                          <div className="inventory-badges">
-                            <span className={`quality-badge quality-${item.rarity}`}>{resourceRarityLabels[item.rarity]}</span>
-                            <span className="rank-badge">ID: {item.id}</span>
-                          </div>
-                        </article>
-                      ))}
-                </div>
-              ) : (
-                <div className="inventory-placeholder">
-                  <h3>{tab === "consumable" ? "消耗品" : "材料"}结果为空</h3>
-                  <p>当前筛选条件下没有可显示条目。</p>
-                </div>
-              )}
+                {activeResourceItems.length > 0 ? (
+                  <div className="inventory-resource-grid">
+                    {tab === "material"
+                      ? (activeResourceItems as InventoryMaterialStack[]).map((item) => (
+                          <article key={item.id} className="inventory-resource-card">
+                            <h4>{item.name}</h4>
+                            <p className="inventory-resource-quantity">库存 x{item.quantity}</p>
+                            <p className="inventory-resource-meta">来源怪物：{formatMaterialSources(item.sourceEnemyPrototypeIds)}</p>
+                            <div className="inventory-badges">
+                              <span className={`quality-badge quality-${item.rarity}`}>{resourceRarityLabels[item.rarity]}</span>
+                              <span className="rank-badge">ID: {item.id}</span>
+                            </div>
+                          </article>
+                        ))
+                      : (activeResourceItems as InventoryConsumableStack[]).map((item) => (
+                          <article key={item.id} className="inventory-resource-card">
+                            <h4>{item.name}</h4>
+                            <p className="inventory-resource-effect">{item.effectSummary}</p>
+                            <p className="inventory-resource-quantity">
+                              库存 x{item.quantity} / 上限 {item.maxStack}
+                            </p>
+                            <p className="inventory-resource-meta">来源：{item.source}</p>
+                            <div className="inventory-badges">
+                              <span className={`quality-badge quality-${item.rarity}`}>{resourceRarityLabels[item.rarity]}</span>
+                              <span className="rank-badge">ID: {item.id}</span>
+                            </div>
+                          </article>
+                        ))}
+                  </div>
+                ) : (
+                  <div className="inventory-placeholder">
+                    <h3>{tab === "consumable" ? "消耗品" : "材料"}结果为空</h3>
+                    <p>当前筛选条件下没有可显示条目。</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1075,3 +1085,4 @@ export function InventoryPage() {
     </section>
   );
 }
+

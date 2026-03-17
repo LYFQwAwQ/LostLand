@@ -1,4 +1,5 @@
 ﻿import type { NodeAction, NodeActionMeta, NodeArchetype, RegionNode } from "../types/game";
+import { mapArchetypeEntityType } from "./archetypes";
 
 export const ACTION_META: Record<NodeAction, NodeActionMeta> = {
   detail: {
@@ -9,12 +10,12 @@ export const ACTION_META: Record<NodeAction, NodeActionMeta> = {
   shop: {
     key: "shop",
     label: "商店",
-    description: "成品道具交易与回购入口（占位 UI）。"
+    description: "ST1 节点装备基础买卖入口（材料与大宗贸易仍待补完）。"
   },
   market: {
     key: "market",
     label: "商铺",
-    description: "原材料交易与大宗贸易入口（占位 UI）。"
+    description: "ST2 节点原材料与大宗贸易入口（当前为静态预览）。"
   },
   tavern: {
     key: "tavern",
@@ -68,16 +69,10 @@ export function canAccessAction(node: RegionNode, action: NodeAction): boolean {
 }
 
 export function mapNodeTypeLabel(node: RegionNode): string {
-  const mapping: Record<NodeArchetype, string> = {
-    ST1: "定居中心 (ST1)",
-    ST2: "职能枢纽 (ST2)",
-    ST3: "前哨 (ST3)",
-    BL1: "灾厄源头 (BL1)",
-    BL2: "混沌区 (BL2)",
-    BL3: "无序区 (BL3)",
-    NOD: "资源点 (NOD)"
-  };
-  return mapping[node.archetype];
+  if (node.entityType && node.entityType.trim().length > 0) {
+    return node.entityType;
+  }
+  return mapArchetypeEntityType(node.archetype);
 }
 
 export function mapStateLabel(state: RegionNode["state"]): string {
@@ -99,3 +94,5 @@ export function mapFactionLabel(faction: RegionNode["faction"]): string {
   }
   return "中立";
 }
+
+

@@ -116,6 +116,16 @@ export const ARCHETYPE_PROFILES: Record<NodeArchetype, ArchetypeProfile> = {
   }
 };
 
+const entityTypeByArchetype: Record<NodeArchetype, string> = {
+  ST1: "主城",
+  ST2: "职能枢纽",
+  ST3: "前哨",
+  BL1: "灾厄源头",
+  BL2: "混沌区",
+  BL3: "无序区",
+  NOD: "资源点"
+};
+
 const namesByArchetype: Record<NodeArchetype, string[]> = {
   ST1: ["圣域国都", "中央行省", "誓约之城"],
   ST2: ["冒险家协会", "圣教修道院", "铁誓营地"],
@@ -164,6 +174,10 @@ export function randomBuffByArchetype(archetype: NodeArchetype, random: () => nu
 
 export function mapArchetypeDifficulty(archetype: NodeArchetype): RegionNode["difficulty"] {
   return ARCHETYPE_PROFILES[archetype].defaultDifficulty;
+}
+
+export function mapArchetypeEntityType(archetype: NodeArchetype): string {
+  return entityTypeByArchetype[archetype];
 }
 
 export function isStableArchetype(archetype: NodeArchetype): boolean {

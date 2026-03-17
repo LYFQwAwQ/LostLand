@@ -3,6 +3,7 @@
   isChaosArchetype,
   isStableArchetype,
   mapArchetypeDifficulty,
+  mapArchetypeEntityType,
   randomBuffByArchetype,
   randomEnvironmentByArchetype,
   randomNameByArchetype
@@ -119,6 +120,14 @@ function buildDistanceMatrix(region: RegionTopology): number[][] {
 function cloneNode(node: RegionNode): RegionNode {
   return {
     ...node,
+    battleConfig: node.battleConfig
+      ? {
+          enemyPool: node.battleConfig.enemyPool.map((entry) => ({ ...entry })),
+          countDistribution: node.battleConfig.countDistribution
+            ? { ...node.battleConfig.countDistribution }
+            : undefined
+        }
+      : undefined,
     field: { ...node.field },
     fog: { ...node.fog },
     sim: {
@@ -182,7 +191,8 @@ function getNearestIndices(
 function applyArchetype(node: RegionNode, archetype: NodeArchetype, random: () => number): void {
   const profile = ARCHETYPE_PROFILES[archetype];
   node.archetype = archetype;
-  node.name = randomNameByArchetype(archetype, random);
+  node.entityType = mapArchetypeEntityType(archetype);
+  node.name = node.name || randomNameByArchetype(archetype, random);
   node.environment = randomEnvironmentByArchetype(archetype, random);
   node.stayBuff = randomBuffByArchetype(archetype, random);
   node.difficulty = mapArchetypeDifficulty(archetype);
@@ -194,6 +204,7 @@ function applyArchetype(node: RegionNode, archetype: NodeArchetype, random: () =
 function toGhost(node: RegionNode): void {
   node.state = "ghost";
   node.archetype = "NOD";
+  node.entityType = mapArchetypeEntityType("NOD");
   node.fog.current = Math.max(30, Math.round(node.fog.target * 0.18));
   node.sim.positiveMonths = 0;
   node.sim.negativeMonths = 0;
@@ -658,3 +669,4 @@ export function sortFactionInfluence(map: InfluenceBreakdown): Array<{ faction: 
       return b.value - a.value;
     });
 }
+

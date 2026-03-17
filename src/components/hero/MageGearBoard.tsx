@@ -42,6 +42,7 @@ interface MageGearBoardProps {
   equippedBySlot: Record<string, GeneratedEquipment | undefined>;
   selectedSlotId: string | null;
   onSelectSlot: (slotId: string) => void;
+  onHoverSlot?: (slotId: string | null, x?: number, y?: number) => void;
 }
 
 function slotQualityText(item: GeneratedEquipment | undefined): string {
@@ -51,7 +52,7 @@ function slotQualityText(item: GeneratedEquipment | undefined): string {
   return `${getEquipmentQualityLabel(item.quality, Boolean(legendaryEquipmentIdByUid[item.uid]))} · ${EQUIPMENT_RANK_LABELS[item.rank]}`;
 }
 
-export function MageGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot }: MageGearBoardProps) {
+export function MageGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot, onHoverSlot }: MageGearBoardProps) {
   return (
     <div className="gear-board mage-gear-board">
       <svg className="gear-pentagon" viewBox="0 0 100 100" aria-hidden="true">
@@ -74,6 +75,9 @@ export function MageGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot }: 
             type="button"
             aria-label={`符文槽 ${idx + 1}`}
             onClick={() => onSelectSlot(slotId)}
+            onMouseEnter={(event) => onHoverSlot?.(slotId, event.clientX, event.clientY)}
+            onMouseMove={(event) => onHoverSlot?.(slotId, event.clientX, event.clientY)}
+            onMouseLeave={() => onHoverSlot?.(null)}
           >
             <Star size={16} />
             <span className="gear-slot-name" title={item?.templateName ?? `符文-${idx + 1}`}>
@@ -95,6 +99,9 @@ export function MageGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot }: 
             type="button"
             aria-label={slot.label}
             onClick={() => onSelectSlot(slot.key)}
+            onMouseEnter={(event) => onHoverSlot?.(slot.key, event.clientX, event.clientY)}
+            onMouseMove={(event) => onHoverSlot?.(slot.key, event.clientX, event.clientY)}
+            onMouseLeave={() => onHoverSlot?.(null)}
           >
             {slot.icon}
             <span className="gear-slot-name" title={item?.templateName ?? slot.label}>
@@ -110,6 +117,9 @@ export function MageGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot }: 
         type="button"
         aria-label="施法核心"
         onClick={() => onSelectSlot("core-1")}
+        onMouseEnter={(event) => onHoverSlot?.("core-1", event.clientX, event.clientY)}
+        onMouseMove={(event) => onHoverSlot?.("core-1", event.clientX, event.clientY)}
+        onMouseLeave={() => onHoverSlot?.(null)}
       >
         <Zap size={16} />
         <span className="gear-slot-name" title={equippedBySlot["core-1"]?.templateName ?? "施法核心"}>

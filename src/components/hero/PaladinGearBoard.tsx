@@ -21,6 +21,7 @@ interface PaladinGearBoardProps {
   equippedBySlot: Record<string, GeneratedEquipment | undefined>;
   selectedSlotId: string | null;
   onSelectSlot: (slotId: string) => void;
+  onHoverSlot?: (slotId: string | null, x?: number, y?: number) => void;
 }
 
 function slotQualityText(item: GeneratedEquipment | undefined): string {
@@ -30,7 +31,7 @@ function slotQualityText(item: GeneratedEquipment | undefined): string {
   return `${getEquipmentQualityLabel(item.quality, Boolean(legendaryEquipmentIdByUid[item.uid]))} · ${EQUIPMENT_RANK_LABELS[item.rank]}`;
 }
 
-export function PaladinGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot }: PaladinGearBoardProps) {
+export function PaladinGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot, onHoverSlot }: PaladinGearBoardProps) {
   return (
     <div className="paladin-gear-board">
       <div className="paladin-silhouette" aria-hidden="true">
@@ -50,6 +51,9 @@ export function PaladinGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot 
             className={`gear-slot paladin-slot ${slot.className} ${selectedSlotId === slot.key ? "active-slot" : ""}`}
             type="button"
             onClick={() => onSelectSlot(slot.key)}
+            onMouseEnter={(event) => onHoverSlot?.(slot.key, event.clientX, event.clientY)}
+            onMouseMove={(event) => onHoverSlot?.(slot.key, event.clientX, event.clientY)}
+            onMouseLeave={() => onHoverSlot?.(null)}
             aria-label={slot.label}
           >
             {slot.icon}

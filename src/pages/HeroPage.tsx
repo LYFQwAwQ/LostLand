@@ -22,10 +22,11 @@ import {
   parseHeroLoadoutImport,
   serializeHeroLoadout
 } from "../lib/battleLoadoutRules";
+import { buildAllyTeamTemplates } from "../lib/battleAdapters";
 import { useBattleSetup } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { heroes } from "../data/mockData";
-import type { BattleLoadout, BattleStatModifier, BattleTalentRarity } from "../types/battle";
+import type { BattleElement, BattleLoadout, BattleStatBlock, BattleStatModifier, BattleStatFlatKey, BattleTalentRarity } from "../types/battle";
 import type {
   EquipmentSlot,
   EquipmentStatKey,
@@ -37,41 +38,27 @@ import type {
 } from "../types/game";
 
 interface ElementRow {
-  id: string;
+  id: BattleElement;
   label: string;
   color: string;
-  bonus: string;
-  resist: string;
 }
 
 const elements: ElementRow[] = [
-  { id: "fire", label: "火焰", color: "#ef4444", bonus: "+15%", resist: "+24%" },
-  { id: "water", label: "流水", color: "#3b82f6", bonus: "+12%", resist: "+20%" },
-  { id: "ice", label: "寒冰", color: "#60a5fa", bonus: "+10%", resist: "+30%" },
-  { id: "wind", label: "疾风", color: "#10b981", bonus: "+8%", resist: "+18%" },
-  { id: "life", label: "生命", color: "#22c55e", bonus: "+7%", resist: "+16%" },
-  { id: "light", label: "光明", color: "#fbbf24", bonus: "+11%", resist: "+12%" },
-  { id: "undead", label: "亡灵", color: "#a855f7", bonus: "+9%", resist: "+14%" },
-  { id: "dark", label: "暗影", color: "#6b7280", bonus: "+13%", resist: "+19%" }
+  { id: "fire", label: "火焰", color: "#ef4444" },
+  { id: "water", label: "流水", color: "#3b82f6" },
+  { id: "ice", label: "寒冰", color: "#60a5fa" },
+  { id: "wind", label: "疾风", color: "#10b981" },
+  { id: "life", label: "生命", color: "#22c55e" },
+  { id: "light", label: "光明", color: "#fbbf24" },
+  { id: "undead", label: "亡灵", color: "#a855f7" },
+  { id: "dark", label: "暗影", color: "#6b7280" }
 ];
 
-const combatStats = [
-  { label: "物理防御", value: "450" },
-  { label: "物理穿透", value: "12%" },
-  { label: "暴击率", value: "15.2%" },
-  { label: "暴击伤害", value: "210%" },
-  { label: "闪避率", value: "5.8%" },
-  { label: "韧性", value: "80" },
-  { label: "吸血", value: "2.5%" },
-  { label: "反伤", value: "10%" }
-];
+type StatsViewMode = "origin" | "battle";
 
-const advancedStats = [
-  { label: "元素穿透", value: "18%" },
-  { label: "全元素抗性", value: "10%" },
-  { label: "全元素增伤", value: "5%" },
-  { label: "护甲百分比穿透", value: "25%" }
-];
+const BATTLE_ELEMENTS: BattleElement[] = ["fire", "water", "ice", "wind", "life", "light", "undead", "dark"];
+const EVA_CAP = 0.5;
+const MULTIPLICATIVE_MODIFIER_KEYS = new Set<BattleStatFlatKey>(["maxHp", "maxMp", "str", "int", "agi", "def"]);
 
 const qualityOrder = {
   common: 0,
@@ -149,6 +136,141 @@ function summarizeModifier(modifiers: BattleStatModifier): string[] {
   return lines;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function createElementRecord(initial = 0): Record<BattleElement, number> {
+  return {
+    fire: initial,
+    water: initial,
+    ice: initial,
+    wind: initial,
+    life: initial,
+    light: initial,
+    undead: initial,
+    dark: initial
+  };
+}
+
+type BattleStatPreviewInput = Omit<Partial<BattleStatBlock>, "elementBoost" | "elementRes"> & {
+  elementBoost?: Partial<Record<BattleElement, number>>;
+  elementRes?: Partial<Record<BattleElement, number>>;
+};
+
+function buildBattleStatBlock(baseStats: BattleStatPreviewInput | null | undefined): BattleStatBlock {
+  return {
+    maxHp: Math.max(1, Math.round(baseStats?.maxHp ?? 1)),
+    maxMp: Math.max(0, Math.round(baseStats?.maxMp ?? 0)),
+    str: Math.max(0, Math.round(baseStats?.str ?? 0)),
+    int: Math.max(0, Math.round(baseStats?.int ?? 0)),
+    agi: Math.max(1, Math.round(baseStats?.agi ?? 1)),
+    def: Math.max(0, Math.round(baseStats?.def ?? 0)),
+    penetration: Math.max(0, Math.round(baseStats?.penetration ?? 0)),
+    armorPenPct: clamp(baseStats?.armorPenPct ?? 0, 0, 0.95),
+    critRate: clamp(baseStats?.critRate ?? 0.05, 0, 0.95),
+    critDamage: Math.max(1.2, baseStats?.critDamage ?? 1.5),
+    evasion: clamp(baseStats?.evasion ?? 0.02, 0, EVA_CAP),
+    aggro: Math.max(1, Math.round(baseStats?.aggro ?? 50)),
+    lifeSteal: clamp(baseStats?.lifeSteal ?? 0, 0, 0.95),
+    thorns: clamp(baseStats?.thorns ?? 0, 0, 0.95),
+    damageBoost: baseStats?.damageBoost ?? 0,
+    damageReduction: baseStats?.damageReduction ?? 0,
+    elementalPierce: baseStats?.elementalPierce ?? 0,
+    allRes: baseStats?.allRes ?? 0,
+    allBoost: baseStats?.allBoost ?? 0,
+    elementBoost: {
+      ...createElementRecord(0),
+      ...(baseStats?.elementBoost ?? {})
+    },
+    elementRes: {
+      ...createElementRecord(0),
+      ...(baseStats?.elementRes ?? {})
+    }
+  };
+}
+
+function applyStatModifier(stats: BattleStatBlock, modifier: BattleStatModifier): BattleStatBlock {
+  const next: BattleStatBlock = {
+    ...stats,
+    elementBoost: { ...stats.elementBoost },
+    elementRes: { ...stats.elementRes }
+  };
+
+  if (modifier.flat) {
+    (Object.keys(modifier.flat) as BattleStatFlatKey[]).forEach((key) => {
+      const value = modifier.flat?.[key];
+      if (typeof value === "number") {
+        next[key] += value;
+      }
+    });
+  }
+
+  if (modifier.ratio) {
+    (Object.keys(modifier.ratio) as BattleStatFlatKey[]).forEach((key) => {
+      const ratio = modifier.ratio?.[key];
+      if (typeof ratio !== "number") {
+        return;
+      }
+      const prevValue = next[key];
+      next[key] = MULTIPLICATIVE_MODIFIER_KEYS.has(key) ? prevValue * (1 + ratio) : prevValue + ratio;
+    });
+  }
+
+  if (modifier.elementBoost) {
+    BATTLE_ELEMENTS.forEach((element) => {
+      const value = modifier.elementBoost?.[element];
+      if (typeof value === "number") {
+        next.elementBoost[element] += value;
+      }
+    });
+  }
+
+  if (modifier.elementRes) {
+    BATTLE_ELEMENTS.forEach((element) => {
+      const value = modifier.elementRes?.[element];
+      if (typeof value === "number") {
+        next.elementRes[element] += value;
+      }
+    });
+  }
+
+  next.maxHp = Math.max(1, Math.round(next.maxHp));
+  next.maxMp = Math.max(0, Math.round(next.maxMp));
+  next.str = Math.max(0, Math.round(next.str));
+  next.int = Math.max(0, Math.round(next.int));
+  next.agi = Math.max(1, Math.round(next.agi));
+  next.def = Math.max(0, Math.round(next.def));
+  next.penetration = Math.max(0, Math.round(next.penetration));
+  next.armorPenPct = clamp(next.armorPenPct, 0, 0.95);
+  next.critRate = clamp(next.critRate, 0, 0.95);
+  next.critDamage = Math.max(1, next.critDamage);
+  next.evasion = clamp(next.evasion, 0, EVA_CAP);
+  next.aggro = Math.max(1, next.aggro);
+  next.lifeSteal = clamp(next.lifeSteal, 0, 0.95);
+  next.thorns = clamp(next.thorns, 0, 0.95);
+  next.damageReduction = clamp(next.damageReduction, -0.5, 0.9);
+  next.damageBoost = clamp(next.damageBoost, -0.8, 2);
+  next.elementalPierce = clamp(next.elementalPierce, 0, 0.95);
+  next.allRes = clamp(next.allRes, -0.5, 0.95);
+  next.allBoost = clamp(next.allBoost, -0.5, 2);
+  BATTLE_ELEMENTS.forEach((element) => {
+    next.elementBoost[element] = clamp(next.elementBoost[element], -0.5, 2);
+    next.elementRes[element] = clamp(next.elementRes[element], -0.8, 0.95);
+  });
+  return next;
+}
+
+function formatPercent(value: number, digits = 1, showSign = false): string {
+  const amount = value * 100;
+  const prefix = showSign ? (amount >= 0 ? "+" : "") : "";
+  return `${prefix}${amount.toFixed(digits)}%`;
+}
+
+function formatInteger(value: number): string {
+  return `${Math.round(value)}`;
+}
+
 function nextTab(tab: HeroTab): HeroTab {
   if (tab === "stats") {
     return "gear";
@@ -178,6 +300,29 @@ function formatStatValue(value: number): string {
     return `${value}`;
   }
   return value.toFixed(2);
+}
+
+function buildHoverPanelStyle(
+  position: { x: number; y: number } | null,
+  panelWidth = 360,
+  panelHeight = 430
+): { left: string; top: string } | undefined {
+  if (!position) {
+    return undefined;
+  }
+
+  let left = position.x + 18;
+  let top = position.y + 18;
+
+  if (typeof window !== "undefined") {
+    left = Math.min(left, window.innerWidth - panelWidth - 12);
+    top = Math.min(top, window.innerHeight - panelHeight - 12);
+  }
+
+  return {
+    left: `${Math.max(12, left)}px`,
+    top: `${Math.max(12, top)}px`
+  };
 }
 
 function sumEquipmentStat(items: GeneratedEquipment[], key: EquipmentStatKey): number {
@@ -241,7 +386,44 @@ function StatTiny({ label, value }: { label: string; value: string }) {
   );
 }
 
-function HeroStatsContent({ hero }: { hero: Hero }) {
+function HeroStatsContent({
+  hero,
+  mode,
+  onToggleMode,
+  originStats,
+  battleStats
+}: {
+  hero: Hero;
+  mode: StatsViewMode;
+  onToggleMode: () => void;
+  originStats: BattleStatBlock;
+  battleStats: BattleStatBlock;
+}) {
+  const visibleStats = mode === "origin" ? originStats : battleStats;
+  const modeLabel = mode === "origin" ? "原始数值" : "战斗数值";
+  const modeDescription =
+    mode === "origin"
+      ? "仅显示英雄基础值（不含装备、被动、天赋、记忆）。"
+      : "显示进入战斗时结算后的面板值（含装备、被动、天赋；记忆暂未接入数值）。";
+
+  const combatRows = [
+    { label: "物理防御", value: formatInteger(visibleStats.def) },
+    { label: "物理穿透", value: formatInteger(visibleStats.penetration) },
+    { label: "暴击率", value: formatPercent(visibleStats.critRate) },
+    { label: "暴击伤害", value: formatPercent(visibleStats.critDamage) },
+    { label: "闪避率", value: formatPercent(visibleStats.evasion) },
+    { label: "韧性", value: "--" },
+    { label: "吸血", value: formatPercent(visibleStats.lifeSteal) },
+    { label: "反伤", value: formatPercent(visibleStats.thorns) }
+  ];
+
+  const advancedRows = [
+    { label: "元素穿透", value: formatPercent(visibleStats.elementalPierce) },
+    { label: "全元素抗性", value: formatPercent(visibleStats.allRes) },
+    { label: "全元素增伤", value: formatPercent(visibleStats.allBoost) },
+    { label: "护甲百分比穿透", value: formatPercent(visibleStats.armorPenPct) }
+  ];
+
   return (
     <div className="hero-stats-view">
       <div className="hero-portrait-card">
@@ -254,22 +436,32 @@ function HeroStatsContent({ hero }: { hero: Hero }) {
       </div>
 
       <div className="hero-stats-panel custom-scrollbar">
+        <div className="hero-stats-mode-bar">
+          <button type="button" className="ghost-btn hero-stats-toggle-btn" onClick={onToggleMode}>
+            {mode === "origin" ? "切换为战斗数值" : "切换为原始数值"}
+          </button>
+          <div className="hero-stats-mode-text">
+            <strong>{modeLabel}</strong>
+            <span>{modeDescription}</span>
+          </div>
+        </div>
+
         <div className="hero-stats-grid">
           <section>
             <SectionTitle title="1. 核心属性" />
             <div className="hero-stat-list">
-              <StatRow label="生命值 (HP)" value={hero.stats.hp} color="#ef4444" />
-              <StatRow label="法力值 (MP)" value={hero.stats.mp} color="#3b82f6" />
-              <StatRow label="力量 (STR)" value={hero.stats.str} />
-              <StatRow label="智力 (INT)" value={hero.stats.int} />
-              <StatRow label="敏捷 (AGI)" value={hero.stats.agi} />
+              <StatRow label="生命值 (HP)" value={formatInteger(visibleStats.maxHp)} color="#ef4444" />
+              <StatRow label="法力值 (MP)" value={formatInteger(visibleStats.maxMp)} color="#3b82f6" />
+              <StatRow label="力量 (STR)" value={formatInteger(visibleStats.str)} />
+              <StatRow label="智力 (INT)" value={formatInteger(visibleStats.int)} />
+              <StatRow label="敏捷 (AGI)" value={formatInteger(visibleStats.agi)} />
             </div>
           </section>
 
           <section>
             <SectionTitle title="2. 战斗辅助指标" />
             <div className="hero-combat-grid">
-              {combatStats.map((item) => (
+              {combatRows.map((item) => (
                 <StatTiny key={item.label} label={item.label} value={item.value} />
               ))}
             </div>
@@ -286,11 +478,11 @@ function HeroStatsContent({ hero }: { hero: Hero }) {
                   </header>
                   <p>
                     <span>加成</span>
-                    <strong>{item.bonus}</strong>
+                    <strong>{formatPercent(visibleStats.elementBoost[item.id], 1, true)}</strong>
                   </p>
                   <p>
                     <span>抗性</span>
-                    <strong>{item.resist}</strong>
+                    <strong>{formatPercent(visibleStats.elementRes[item.id], 1, true)}</strong>
                   </p>
                 </article>
               ))}
@@ -300,7 +492,7 @@ function HeroStatsContent({ hero }: { hero: Hero }) {
           <section className="full-width">
             <SectionTitle title="4. 高级属性" />
             <div className="hero-advanced-grid">
-              {advancedStats.map((item) => (
+              {advancedRows.map((item) => (
                 <StatTiny key={item.label} label={item.label} value={item.value} />
               ))}
             </div>
@@ -614,6 +806,7 @@ function HeroGearContent({
 }: HeroGearContentProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [hoveredPreview, setHoveredPreview] = useState<{ uid: string; x: number; y: number } | null>(null);
+  const [hoveredEquippedSlot, setHoveredEquippedSlot] = useState<{ slotId: string; x: number; y: number } | null>(null);
   const [pendingTwoHandConfirm, setPendingTwoHandConfirm] = useState<{
     itemUid: string;
     itemName: string;
@@ -702,29 +895,33 @@ function HeroGearContent({
   const totalSlotCount = slotItems.length;
   const availableSlotCount = slotEntries.filter((entry) => entry.canEquip).length;
   const hoveredEntry = hoveredPreview ? slotEntries.find((entry) => entry.item.uid === hoveredPreview.uid) ?? null : null;
+  const hoveredEquippedItem = hoveredEquippedSlot ? equippedBySlot[hoveredEquippedSlot.slotId] ?? null : null;
+  const hoveredEquippedOwnerText = useMemo(() => {
+    if (!hoveredEquippedItem) {
+      return "";
+    }
+    const owners = getItemOwners(hoveredEquippedItem.uid).filter((owner) => owner.heroId === hero.id);
+    const labels = owners
+      .map((owner) => heroSlots.find((slot) => slot.id === owner.slotId)?.label ?? owner.slotId)
+      .join("、");
+    if (labels.length > 0) {
+      return `当前装备于：${labels}`;
+    }
+    return "当前已装备";
+  }, [getItemOwners, hero.id, heroSlots, hoveredEquippedItem]);
   const hoveredStyle = useMemo(() => {
-    if (!hoveredPreview) {
-      return undefined;
-    }
-
-    const panelWidth = 360;
-    const panelHeight = 430;
-    let left = hoveredPreview.x + 18;
-    let top = hoveredPreview.y + 18;
-
-    if (typeof window !== "undefined") {
-      left = Math.min(left, window.innerWidth - panelWidth - 12);
-      top = Math.min(top, window.innerHeight - panelHeight - 12);
-    }
-
-    left = Math.max(12, left);
-    top = Math.max(12, top);
-
-    return {
-      left: `${left}px`,
-      top: `${top}px`
-    };
+    return buildHoverPanelStyle(hoveredPreview);
   }, [hoveredPreview]);
+  const hoveredEquippedStyle = useMemo(() => {
+    return buildHoverPanelStyle(
+      hoveredEquippedSlot
+        ? {
+            x: hoveredEquippedSlot.x,
+            y: hoveredEquippedSlot.y
+          }
+        : null
+    );
+  }, [hoveredEquippedSlot]);
 
   const equippedItems = heroSlots
     .map((slot) => equippedBySlot[slot.id])
@@ -812,9 +1009,17 @@ function HeroGearContent({
             <MageGearBoard
               equippedBySlot={equippedBySlot}
               selectedSlotId={selectedSlotId}
+              onHoverSlot={(slotId, x, y) => {
+                if (!slotId || typeof x !== "number" || typeof y !== "number") {
+                  setHoveredEquippedSlot(null);
+                  return;
+                }
+                setHoveredEquippedSlot({ slotId, x, y });
+              }}
               onSelectSlot={(slotId) => {
                 onSelectSlot(hero.id, slotId);
                 setHoveredPreview(null);
+                setHoveredEquippedSlot(null);
                 setIsPickerOpen(true);
               }}
             />
@@ -822,9 +1027,17 @@ function HeroGearContent({
             <RangerGearBoard
               equippedBySlot={equippedBySlot}
               selectedSlotId={selectedSlotId}
+              onHoverSlot={(slotId, x, y) => {
+                if (!slotId || typeof x !== "number" || typeof y !== "number") {
+                  setHoveredEquippedSlot(null);
+                  return;
+                }
+                setHoveredEquippedSlot({ slotId, x, y });
+              }}
               onSelectSlot={(slotId) => {
                 onSelectSlot(hero.id, slotId);
                 setHoveredPreview(null);
+                setHoveredEquippedSlot(null);
                 setIsPickerOpen(true);
               }}
             />
@@ -832,9 +1045,17 @@ function HeroGearContent({
             <PriestGearBoard
               equippedBySlot={equippedBySlot}
               selectedSlotId={selectedSlotId}
+              onHoverSlot={(slotId, x, y) => {
+                if (!slotId || typeof x !== "number" || typeof y !== "number") {
+                  setHoveredEquippedSlot(null);
+                  return;
+                }
+                setHoveredEquippedSlot({ slotId, x, y });
+              }}
               onSelectSlot={(slotId) => {
                 onSelectSlot(hero.id, slotId);
                 setHoveredPreview(null);
+                setHoveredEquippedSlot(null);
                 setIsPickerOpen(true);
               }}
             />
@@ -842,15 +1063,80 @@ function HeroGearContent({
             <PaladinGearBoard
               equippedBySlot={equippedBySlot}
               selectedSlotId={selectedSlotId}
+              onHoverSlot={(slotId, x, y) => {
+                if (!slotId || typeof x !== "number" || typeof y !== "number") {
+                  setHoveredEquippedSlot(null);
+                  return;
+                }
+                setHoveredEquippedSlot({ slotId, x, y });
+              }}
               onSelectSlot={(slotId) => {
                 onSelectSlot(hero.id, slotId);
                 setHoveredPreview(null);
+                setHoveredEquippedSlot(null);
                 setIsPickerOpen(true);
               }}
             />
           )}
         </div>
       </div>
+      {!isPickerOpen && hoveredEquippedItem && hoveredEquippedStyle ? (
+        <aside className="hero-equip-hover-detail custom-scrollbar" style={hoveredEquippedStyle}>
+          <header className="hero-equip-hover-head">
+            <h4>{hoveredEquippedItem.templateName}</h4>
+            <div className="hero-equip-hover-badges">
+              <span className={`quality-badge ${getDisplayedQualityClass(hoveredEquippedItem)}`}>
+                {getDisplayedQualityLabel(hoveredEquippedItem)}
+              </span>
+              <span className={`rank-badge rank-${hoveredEquippedItem.rank}`}>
+                {EQUIPMENT_RANK_LABELS[hoveredEquippedItem.rank]}
+              </span>
+            </div>
+          </header>
+
+          <p className="hero-equip-hover-subtype">
+            {EQUIPMENT_SUBTYPE_LABELS[hoveredEquippedItem.subtype]} · {EQUIPMENT_SLOT_LABELS[hoveredEquippedItem.slot]} ·
+            Lv.{hoveredEquippedItem.level}
+          </p>
+          <p className="hero-equip-hover-owner">{hoveredEquippedOwnerText}</p>
+          <p className="hero-equip-hover-meta">
+            Rank 增幅 {(hoveredEquippedItem.rankPercent * 100).toFixed(2)}% · 词条 {hoveredEquippedItem.affixCount} · 插槽{" "}
+            {hoveredEquippedItem.sockets}
+          </p>
+
+          <section className="hero-equip-hover-block">
+            <h5>T1 基础属性</h5>
+            <div className="hero-equip-hover-list">
+              {hoveredEquippedItem.t1Stats.map((stat) => (
+                <p key={`hover-equipped-t1-${hoveredEquippedItem.uid}-${stat.key}-${stat.label}`}>
+                  <span>{stat.label}</span>
+                  <strong>
+                    {formatStatValue(stat.baseValue)}
+                    {" -> "}
+                    {formatStatValue(stat.finalValue)}
+                  </strong>
+                </p>
+              ))}
+            </div>
+          </section>
+
+          <section className="hero-equip-hover-block">
+            <h5>T2 附加词条</h5>
+            {hoveredEquippedItem.affixes.length > 0 ? (
+              <div className="hero-equip-hover-list">
+                {hoveredEquippedItem.affixes.map((affix, idx) => (
+                  <p key={`hover-equipped-affix-${hoveredEquippedItem.uid}-${idx}-${affix.key}`}>
+                    <span>{affix.label}</span>
+                    <strong>{formatStatValue(affix.finalValue)}</strong>
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="hero-equip-hover-empty">当前品质无附加词条。</p>
+            )}
+          </section>
+        </aside>
+      ) : null}
       {isPickerOpen && selectedSlot ? (
         <div
           className="hero-equip-picker-backdrop"
@@ -1200,6 +1486,7 @@ export function HeroPage() {
     equipItem,
     unequipItem,
     getItemOwners,
+    getEquipmentEnhanceBonus,
     memoryItems,
     getMemoryOwner,
     getHeroMemory,
@@ -1208,6 +1495,49 @@ export function HeroPage() {
   const { getHeroLoadout, setHeroLoadout, resetHeroLoadout } = useBattleSetup();
   const heroLoadout = getHeroLoadout(hero.id);
   const selectedMemoryId = getHeroMemory(hero.id);
+  const [statsMode, setStatsMode] = useState<StatsViewMode>("origin");
+
+  useEffect(() => {
+    setStatsMode("origin");
+  }, [hero.id]);
+
+  const singleHeroFormation = useMemo(
+    () => [{ id: `hero-preview-${hero.id}`, line: "front" as const, index: 0 as const, heroId: hero.id }],
+    [hero.id]
+  );
+  const heroLoadoutMap = useMemo(() => ({ [hero.id]: heroLoadout }), [hero.id, heroLoadout]);
+  const emptyItemMap = useMemo(() => new Map<string, GeneratedEquipment>(), []);
+  const zeroEnhanceBonus = useMemo(() => () => 0, []);
+  const originTemplate = useMemo(
+    () => buildAllyTeamTemplates([hero], singleHeroFormation, heroLoadoutMap, {}, emptyItemMap, zeroEnhanceBonus)[0] ?? null,
+    [emptyItemMap, hero, heroLoadoutMap, singleHeroFormation, zeroEnhanceBonus]
+  );
+  const equippedTemplate = useMemo(
+    () => buildAllyTeamTemplates([hero], singleHeroFormation, heroLoadoutMap, equippedByHero, itemMap, getEquipmentEnhanceBonus)[0] ?? null,
+    [equippedByHero, getEquipmentEnhanceBonus, hero, heroLoadoutMap, itemMap, singleHeroFormation]
+  );
+  const originBattleStats = useMemo(() => {
+    return buildBattleStatBlock(originTemplate?.baseStats);
+  }, [originTemplate]);
+  const settledBattleStats = useMemo(() => {
+    let next = buildBattleStatBlock(equippedTemplate?.baseStats);
+    heroLoadout.passiveSlots
+      .filter((skillId): skillId is string => typeof skillId === "string" && skillId.length > 0)
+      .forEach((passiveId) => {
+        const passive = battlePassiveSkills[passiveId];
+        if (passive) {
+          next = applyStatModifier(next, passive.modifiers);
+        }
+      });
+    if (heroLoadout.talentSlot) {
+      const talent = battleTalents[heroLoadout.talentSlot];
+      if (talent) {
+        next = applyStatModifier(next, talent.modifiers);
+      }
+    }
+    return next;
+  }, [equippedTemplate, heroLoadout.passiveSlots, heroLoadout.talentSlot]);
+
   const heroMemoryOptions = useMemo(
     () => memoryItems.filter((item) => item.heroClass === hero.heroClass),
     [hero.heroClass, memoryItems]
@@ -1267,7 +1597,15 @@ export function HeroPage() {
 
           <article className="hero-card">
             <div className="hero-content">
-              {currentTab === "stats" && <HeroStatsContent hero={hero} />}
+              {currentTab === "stats" && (
+                <HeroStatsContent
+                  hero={hero}
+                  mode={statsMode}
+                  onToggleMode={() => setStatsMode((prev) => (prev === "origin" ? "battle" : "origin"))}
+                  originStats={originBattleStats}
+                  battleStats={settledBattleStats}
+                />
+              )}
               {currentTab === "gear" && (
                 <HeroGearContent
                   hero={hero}

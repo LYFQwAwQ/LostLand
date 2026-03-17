@@ -18,6 +18,7 @@ interface PriestGearBoardProps {
   equippedBySlot: Record<string, GeneratedEquipment | undefined>;
   selectedSlotId: string | null;
   onSelectSlot: (slotId: string) => void;
+  onHoverSlot?: (slotId: string | null, x?: number, y?: number) => void;
 }
 
 function slotQualityText(item: GeneratedEquipment | undefined): string {
@@ -27,7 +28,7 @@ function slotQualityText(item: GeneratedEquipment | undefined): string {
   return `${getEquipmentQualityLabel(item.quality, Boolean(legendaryEquipmentIdByUid[item.uid]))} · ${EQUIPMENT_RANK_LABELS[item.rank]}`;
 }
 
-export function PriestGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot }: PriestGearBoardProps) {
+export function PriestGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot, onHoverSlot }: PriestGearBoardProps) {
   return (
     <div className="gear-board priest-gear-board">
       <div className="priest-aura" aria-hidden="true">
@@ -45,6 +46,9 @@ export function PriestGearBoard({ equippedBySlot, selectedSlotId, onSelectSlot }
             type="button"
             aria-label={slot.label}
             onClick={() => onSelectSlot(slot.key)}
+            onMouseEnter={(event) => onHoverSlot?.(slot.key, event.clientX, event.clientY)}
+            onMouseMove={(event) => onHoverSlot?.(slot.key, event.clientX, event.clientY)}
+            onMouseLeave={() => onHoverSlot?.(null)}
           >
             {slot.icon}
             <span className="gear-slot-name" title={item?.templateName ?? slot.label}>
