@@ -733,6 +733,10 @@ body {
 
 .inventory-page {
   position: relative;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .inventory-shell {
@@ -741,6 +745,10 @@ body {
   border-radius: 12px;
   background: #14110e;
   overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .inventory-tabs {
@@ -770,12 +778,24 @@ body {
   grid-template-columns: 240px 1fr;
   gap: 12px;
   padding: 12px;
+  flex: 1;
+  min-height: 0;
 }
 
 .inventory-main {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  flex: 1;
   min-width: 0;
+  min-height: 0;
+}
+
+.inventory-result-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .inventory-toolbar {
@@ -1620,6 +1640,34 @@ body {
   border: 1px solid var(--line);
   background: #14110e;
   padding: 16px;
+}
+
+.hero-stats-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.hero-stats-toggle-btn {
+  white-space: nowrap;
+}
+
+.hero-stats-mode-text {
+  display: grid;
+  gap: 4px;
+}
+
+.hero-stats-mode-text strong {
+  color: var(--gold);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.hero-stats-mode-text span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .hero-stats-grid {
@@ -3269,6 +3317,11 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .hero-stats-mode-bar {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
   .gear-right-stage {
     min-height: 360px;
   }
@@ -3740,6 +3793,7 @@ body {
   position: absolute;
   top: 10px;
   right: 12px;
+  z-index: 5;
   width: 44px;
   height: 44px;
   border-radius: 999px;
@@ -3910,6 +3964,186 @@ body {
   gap: 8px;
 }
 
+.module-trade-feedback {
+  margin-top: 10px;
+  border: 1px solid rgb(212 175 55 / 35%);
+  border-radius: 8px;
+  background: rgb(212 175 55 / 10%);
+  color: #f1d9a9 !important;
+  padding: 8px 10px;
+}
+
+.module-trade-columns {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.module-trade-column {
+  border: 1px solid #5d4b38;
+  border-radius: 10px;
+  background: #1d160f;
+  padding: 10px;
+}
+
+.module-trade-column h4 {
+  margin: 0;
+  color: #f0d39a;
+  font-size: 14px;
+}
+
+.module-trade-list {
+  margin-top: 8px;
+  max-height: 320px;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.module-trade-item {
+  border: 1px solid rgb(108 85 60 / 62%);
+  border-radius: 8px;
+  background: rgb(31 24 17 / 82%);
+  padding: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.module-trade-item-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.module-trade-item-main strong {
+  color: #ecd3a5;
+  font-size: 13px;
+}
+
+.module-trade-item-main small {
+  color: #bfa47d;
+  font-size: 11px;
+}
+
+.module-trade-item-actions {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.module-trade-item-price {
+  color: var(--gold);
+  font-size: 12px;
+}
+
+.module-quick-sell-panel {
+  margin-top: 12px;
+  border: 1px solid #5e4a36;
+  border-radius: 10px;
+  background: rgb(31 24 17 / 76%);
+  padding: 10px;
+}
+
+.module-quick-sell-panel h4 {
+  margin: 0;
+  color: #f0d39a;
+  font-size: 14px;
+}
+
+.module-quick-sell-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.module-quick-sell-grid label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #ceb38a;
+}
+
+.module-quick-sell-grid input,
+.module-quick-sell-grid select {
+  width: 100%;
+  border: 1px solid #6a5742;
+  border-radius: 8px;
+  background: #18120d;
+  color: #f1d7a9;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.module-quick-sell-check {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.module-quick-sell-check input {
+  width: auto;
+}
+
+.module-quick-sell-chip-row {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.module-quick-sell-actions {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.module-quick-sell-actions small {
+  color: #c8ad86;
+}
+
+.module-forge-select {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #ceb38a;
+}
+
+.module-forge-select select {
+  border: 1px solid #6a5742;
+  border-radius: 8px;
+  background: #18120d;
+  color: #f1d7a9;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+.module-forge-preview {
+  margin-top: 10px;
+  border: 1px solid #5f4c39;
+  border-radius: 8px;
+  background: rgb(28 21 15 / 85%);
+  padding: 10px;
+}
+
+.module-forge-material-list {
+  margin-top: 8px;
+  border-top: 1px dashed rgb(116 90 62 / 70%);
+  padding-top: 6px;
+}
+
+.module-forge-material-list p {
+  margin: 4px 0;
+}
+
+.module-forge-material-list p.insufficient {
+  color: #ff9f9f;
+}
+
 .ghost-btn {
   border: 1px solid #6a5742;
   border-radius: 8px;
@@ -3995,6 +4229,14 @@ body {
 
   .offer-grid {
     grid-template-columns: 1fr;
+  }
+
+  .module-trade-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .module-quick-sell-grid {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
   }
 }
 
@@ -4171,6 +4413,52 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.map-stage {
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.map-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.map-pan-canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(100% * var(--map-canvas-scale, 1));
+  height: calc(100% * var(--map-canvas-scale, 1));
+  transform: translate(calc(-50% + var(--map-pan-x, 0px)), calc(-50% + var(--map-pan-y, 0px)));
+  transition: transform 0.2s ease-out;
+}
+
+.map-stage.is-dragging .map-pan-canvas {
+  transition: none;
+}
+
+.map-center-btn {
+  position: absolute;
+  top: 10px;
+  right: 66px;
+  z-index: 5;
+  border: 1px solid #6f553f;
+  border-radius: 999px;
+  background: rgb(253 236 208 / 76%);
+  color: #472f20;
+  padding: 6px 10px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.map-center-btn:hover {
+  border-color: #8a694c;
+  background: rgb(255 244 224 / 88%);
 }
 
 .map-node {

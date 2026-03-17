@@ -1,6 +1,6 @@
-﻿import { CalendarClock, Compass, Info, Play, Ruler, Sparkles } from "lucide-react";
-import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { CalendarClock, Compass, Info, LocateFixed, Play, Ruler, Sparkles } from "lucide-react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   buildWorldMapSearchParams,
@@ -19,6 +19,7 @@ import {
 } from "../data/worldMapData";
 import type { RegionMeta } from "../data/worldMapData";
 import { defaultFieldHooks } from "../lib/fieldVisual";
+import { mapNodeTypeLabel } from "../lib/mapRules";
 import { useMapSystem } from "../state/MapSystemProvider";
 import type { ContinentId, RegionEdge, RegionNode } from "../types/game";
 
@@ -36,6 +37,19 @@ interface PickerPosition {
   x: number;
   y: number;
 }
+
+interface MapPanOffset {
+  x: number;
+  y: number;
+}
+
+interface MapDragState {
+  pointerId: number;
+  lastX: number;
+  lastY: number;
+}
+
+const MAP_CANVAS_SCALE = 1.36;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -58,7 +72,7 @@ function nodeClassName(node: RegionNode): string {
 }
 
 function nodeBadge(node: RegionNode): string {
-  return `${node.name} ${node.archetype}`;
+  return `${node.name} ${mapNodeTypeLabel(node)}`;
 }
 
 function computeLabelOffsets(nodes: RegionNode[]): Record<string, LabelOffset> {
@@ -280,6 +294,11 @@ export function WorldMapPage() {
   const [measureToId, setMeasureToId] = useState<string | null>(null);
   const [playbackIndex, setPlaybackIndex] = useState(0);
   const [autoPlay, setAutoPlay] = useState(false);
+  const mapStageRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<MapDragState | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const [panOffset, setPanOffset] = useState<MapPanOffset>({ x: 0, y: 0 });
 
   const activeContinentId = pickerContinentId ?? selection?.continentId ?? WORLD_CONTINENTS[0].id;
   const activeDominionOptions = useMemo(() => getDominionsByContinent(activeContinentId), [activeContinentId]);
@@ -365,6 +384,29 @@ export function WorldMapPage() {
   const unstableSet = useMemo(() => new Set(activeFrame?.unstableNodeIds ?? []), [activeFrame]);
   const changedSet = useMemo(() => new Set(activeFrame?.changedNodeIds ?? []), [activeFrame]);
 
+  const maxPanX = useMemo(
+    () => Math.max(0, (stageSize.width * (MAP_CANVAS_SCALE - 1)) / 2),
+    [stageSize.width]
+  );
+  const maxPanY = useMemo(
+    () => Math.max(0, (stageSize.height * (MAP_CANVAS_SCALE - 1)) / 2),
+    [stageSize.height]
+  );
+
+  const clampPanOffset = useCallback(
+    (offset: MapPanOffset): MapPanOffset => ({
+      x: clamp(offset.x, -maxPanX, maxPanX),
+      y: clamp(offset.y, -maxPanY, maxPanY)
+    }),
+    [maxPanX, maxPanY]
+  );
+
+  const recenterMap = useCallback(() => {
+    dragRef.current = null;
+    setIsPanning(false);
+    setPanOffset({ x: 0, y: 0 });
+  }, []);
+
   useEffect(() => {
     setPlaybackIndex(0);
     setAutoPlay(false);
@@ -372,7 +414,45 @@ export function WorldMapPage() {
     setMeasureFromId(null);
     setMeasureToId(null);
     setMeasureMode(false);
-  }, [selection?.regionId]);
+    recenterMap();
+  }, [recenterMap, selection?.regionId]);
+
+  useEffect(() => {
+    const element = mapStageRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateSize = () => {
+      const rect = element.getBoundingClientRect();
+      setStageSize({ width: rect.width, height: rect.height });
+    };
+
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setPanOffset((prev) => clampPanOffset(prev));
+  }, [clampPanOffset]);
+
+  useEffect(() => {
+    if (!isPanning) {
+      return;
+    }
+
+    const clearOnWindowBlur = () => {
+      dragRef.current = null;
+      setIsPanning(false);
+    };
+
+    window.addEventListener("blur", clearOnWindowBlur);
+    return () => window.removeEventListener("blur", clearOnWindowBlur);
+  }, [isPanning]);
 
   useEffect(() => {
     if (!autoPlay || !report || playback.length <= 1) {
@@ -460,13 +540,77 @@ export function WorldMapPage() {
     navigate(`/node/${node.id}?${query.toString()}`);
   };
 
+  const beginMapPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (!target) {
+      return;
+    }
+
+    if (target.closest(".map-node") || target.closest(".map-center-btn")) {
+      return;
+    }
+
+    dragRef.current = {
+      pointerId: event.pointerId,
+      lastX: event.clientX,
+      lastY: event.clientY
+    };
+    setIsPanning(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const updateMapPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const dx = event.clientX - drag.lastX;
+    const dy = event.clientY - drag.lastY;
+
+    if (dx === 0 && dy === 0) {
+      return;
+    }
+
+    dragRef.current = {
+      pointerId: drag.pointerId,
+      lastX: event.clientX,
+      lastY: event.clientY
+    };
+
+    setPanOffset((prev) => clampPanOffset({ x: prev.x + dx, y: prev.y + dy }));
+  };
+
+  const stopMapPanning = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dragRef.current = null;
+    setIsPanning(false);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   const activeContinentMeta = getContinentMeta(activeContinentId);
+  const mapCanvasStyle = {
+    "--map-canvas-scale": MAP_CANVAS_SCALE,
+    "--map-pan-x": `${panOffset.x}px`,
+    "--map-pan-y": `${panOffset.y}px`
+  } as CSSProperties;
 
   return (
     <section className="page map-page">
       <header className="page-header">
         <h1>世界地图</h1>
-        <p>大陆 → 疆域 → 地区多层地图。地区拓扑为泊松盘采样 + 德劳内三角化，并支持月度演化回放。</p>
+        <p>大陆 → 疆域 → 地区多层地图。当前人族疆域使用固定拓扑（保留随机生成代码备用），并支持月度演化回放。</p>
         <p>测试阶段：仅开放中央大陆，其他大陆入口暂时置灰不可选。</p>
       </header>
 
@@ -646,7 +790,14 @@ export function WorldMapPage() {
           ) : null}
 
           <div className="map-main-grid">
-            <div className="map-stage">
+            <div
+              ref={mapStageRef}
+              className={`map-stage ${isPanning ? "is-dragging" : ""}`}
+              onPointerDown={beginMapPanning}
+              onPointerMove={updateMapPanning}
+              onPointerUp={stopMapPanning}
+              onPointerCancel={stopMapPanning}
+            >
               <div className="map-stage-atmosphere" />
 
               {measureMode ? (
@@ -656,88 +807,95 @@ export function WorldMapPage() {
                 </div>
               ) : null}
 
+              <button type="button" className="map-center-btn" onClick={recenterMap}>
+                <LocateFixed size={13} />
+                快速回中
+              </button>
+
               <div className="map-compass" aria-hidden="true">
                 <Compass size={18} />
                 <span>N</span>
               </div>
 
-              <svg className="map-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                {region.edges.map((edge) => {
-                  const from = nodeById[edge.from];
-                  const to = nodeById[edge.to];
-                  if (!from || !to) {
-                    return null;
-                  }
+              <div className="map-pan-canvas" style={mapCanvasStyle}>
+                <svg className="map-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  {region.edges.map((edge) => {
+                    const from = nodeById[edge.from];
+                    const to = nodeById[edge.to];
+                    if (!from || !to) {
+                      return null;
+                    }
 
-                  const edgeVisual = defaultFieldHooks.resolveEdgeVisual(edge);
-                  const emphasize = highlightSet.has(from.id) || highlightSet.has(to.id);
-                  const isMeasurePath = measureEdgeSet.has(edge.id);
+                    const edgeVisual = defaultFieldHooks.resolveEdgeVisual(edge);
+                    const emphasize = highlightSet.has(from.id) || highlightSet.has(to.id);
+                    const isMeasurePath = measureEdgeSet.has(edge.id);
+
+                    return (
+                      <line
+                        key={edge.id}
+                        x1={from.x}
+                        y1={from.y}
+                        x2={to.x}
+                        y2={to.y}
+                        stroke={isMeasurePath ? "#f1d085" : showFieldLayer ? edgeVisual.color : "#5c3d32"}
+                        strokeWidth={
+                          isMeasurePath
+                            ? 2.8
+                            : showFieldLayer
+                            ? edgeVisual.width + (emphasize ? 0.7 : 0)
+                            : 1.2
+                        }
+                        strokeOpacity={isMeasurePath ? 1 : emphasize ? 1 : 0.72}
+                        strokeDasharray=""
+                        strokeLinecap="round"
+                      />
+                    );
+                  })}
+                </svg>
+
+                {region.nodes.map((node) => {
+                  const visual = defaultFieldHooks.resolveNodeVisual(node);
+                  const prosperityRatio = clamp(Math.abs(node.sim.prosperity) / prosperityScale, 0, 1);
+                  const labelOffset = labelOffsets[node.id] ?? { x: 40, y: 24 };
+                  const linkLength = Math.max(12, Math.hypot(labelOffset.x, labelOffset.y) - 14);
+                  const linkAngle = Math.atan2(labelOffset.y, labelOffset.x);
+
+                  const style = {
+                    left: `${node.x}%`,
+                    top: `${node.y}%`,
+                    "--order-opacity": visual.orderOpacity,
+                    "--expansion-opacity": visual.expansionOpacity,
+                    "--ring-scale": visual.ringScale,
+                    "--prosperity-angle": `${Math.round(prosperityRatio * 360)}deg`,
+                    "--prosperity-color": node.sim.prosperity >= 0 ? "#efd08c" : "#db7c6d",
+                    "--tag-offset-x": `${labelOffset.x}px`,
+                    "--tag-offset-y": `${labelOffset.y}px`,
+                    "--tag-link-length": `${linkLength}px`,
+                    "--tag-link-angle": `${linkAngle}rad`
+                  } as CSSProperties;
 
                   return (
-                    <line
-                      key={edge.id}
-                      x1={from.x}
-                      y1={from.y}
-                      x2={to.x}
-                      y2={to.y}
-                      stroke={isMeasurePath ? "#f1d085" : showFieldLayer ? edgeVisual.color : "#5c3d32"}
-                      strokeWidth={
-                        isMeasurePath
-                          ? 2.8
-                          : showFieldLayer
-                          ? edgeVisual.width + (emphasize ? 0.7 : 0)
-                          : 1.2
-                      }
-                      strokeOpacity={isMeasurePath ? 1 : emphasize ? 1 : 0.72}
-                      strokeDasharray=""
-                      strokeLinecap="round"
-                    />
+                    <button
+                      key={node.id}
+                      className={`${nodeClassName(node)} ${
+                        highlightSet.has(node.id) ? "is-highlight" : ""
+                      } ${unstableSet.has(node.id) ? "is-unstable" : ""} ${changedSet.has(node.id) ? "is-changed" : ""} ${
+                        measureFromId === node.id ? "is-measure-from" : ""
+                      } ${measureToId === node.id ? "is-measure-to" : ""}`}
+                      style={style}
+                      title={`${node.name} ${mapNodeTypeLabel(node)} | 繁荣度 ${node.sim.prosperity.toFixed(1)}`}
+                      onClick={() => handleNodeClick(node)}
+                      type="button"
+                    >
+                      {showFieldLayer ? <span className="node-halo" aria-hidden="true" /> : null}
+                      <span className="prosperity-ring" aria-hidden="true" />
+                      <span className="map-node-point" aria-hidden="true" />
+                      <span className="map-node-link" aria-hidden="true" />
+                      <span className="map-node-tag">{nodeBadge(node)}</span>
+                    </button>
                   );
                 })}
-              </svg>
-
-              {region.nodes.map((node) => {
-                const visual = defaultFieldHooks.resolveNodeVisual(node);
-                const prosperityRatio = clamp(Math.abs(node.sim.prosperity) / prosperityScale, 0, 1);
-                const labelOffset = labelOffsets[node.id] ?? { x: 40, y: 24 };
-                const linkLength = Math.max(12, Math.hypot(labelOffset.x, labelOffset.y) - 14);
-                const linkAngle = Math.atan2(labelOffset.y, labelOffset.x);
-
-                const style = {
-                  left: `${node.x}%`,
-                  top: `${node.y}%`,
-                  "--order-opacity": visual.orderOpacity,
-                  "--expansion-opacity": visual.expansionOpacity,
-                  "--ring-scale": visual.ringScale,
-                  "--prosperity-angle": `${Math.round(prosperityRatio * 360)}deg`,
-                  "--prosperity-color": node.sim.prosperity >= 0 ? "#efd08c" : "#db7c6d",
-                  "--tag-offset-x": `${labelOffset.x}px`,
-                  "--tag-offset-y": `${labelOffset.y}px`,
-                  "--tag-link-length": `${linkLength}px`,
-                  "--tag-link-angle": `${linkAngle}rad`
-                } as CSSProperties;
-
-                return (
-                  <button
-                    key={node.id}
-                    className={`${nodeClassName(node)} ${
-                      highlightSet.has(node.id) ? "is-highlight" : ""
-                    } ${unstableSet.has(node.id) ? "is-unstable" : ""} ${changedSet.has(node.id) ? "is-changed" : ""} ${
-                      measureFromId === node.id ? "is-measure-from" : ""
-                    } ${measureToId === node.id ? "is-measure-to" : ""}`}
-                    style={style}
-                    title={`${node.name} ${node.archetype} | 繁荣度 ${node.sim.prosperity.toFixed(1)}`}
-                    onClick={() => handleNodeClick(node)}
-                    type="button"
-                  >
-                    {showFieldLayer ? <span className="node-halo" aria-hidden="true" /> : null}
-                    <span className="prosperity-ring" aria-hidden="true" />
-                    <span className="map-node-point" aria-hidden="true" />
-                    <span className="map-node-link" aria-hidden="true" />
-                    <span className="map-node-tag">{nodeBadge(node)}</span>
-                  </button>
-                );
-              })}
+              </div>
             </div>
           </div>
 
@@ -779,12 +937,12 @@ export function WorldMapPage() {
                 <div className="distance-content">
                   <div className="distance-node-row">
                     <span className="distance-badge from">{measureFromNode ? "起点" : "起点待选"}</span>
-                    <strong>{measureFromNode ? `${measureFromNode.name} ${measureFromNode.archetype}` : "点击任意地点"}</strong>
+                    <strong>{measureFromNode ? `${measureFromNode.name} ${mapNodeTypeLabel(measureFromNode)}` : "点击任意地点"}</strong>
                   </div>
 
                   <div className="distance-node-row">
                     <span className="distance-badge to">{measureToNode ? "终点" : "终点待选"}</span>
-                    <strong>{measureToNode ? `${measureToNode.name} ${measureToNode.archetype}` : "再点击一个地点"}</strong>
+                    <strong>{measureToNode ? `${measureToNode.name} ${mapNodeTypeLabel(measureToNode)}` : "再点击一个地点"}</strong>
                   </div>
 
                   {measureFromNode && measureToNode ? (
