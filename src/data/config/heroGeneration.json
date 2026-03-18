@@ -96,6 +96,24 @@
       "variance": { "hp": 1200, "mp": 520, "str": 20, "int": 58, "agi": 26, "def": 34 }
     }
   },
+  "growthProfileByClass": {
+    "paladin": {
+      "base": { "hp": 460, "mp": 24, "str": 9, "int": 3, "agi": 4, "def": 10 },
+      "variance": { "hp": 80, "mp": 6, "str": 2, "int": 1, "agi": 1, "def": 2 }
+    },
+    "mage": {
+      "base": { "hp": 180, "mp": 160, "str": 2, "int": 12, "agi": 5, "def": 3 },
+      "variance": { "hp": 35, "mp": 25, "str": 1, "int": 3, "agi": 1, "def": 1 }
+    },
+    "ranger": {
+      "base": { "hp": 280, "mp": 60, "str": 7, "int": 3, "agi": 10, "def": 5 },
+      "variance": { "hp": 50, "mp": 10, "str": 2, "int": 1, "agi": 2, "def": 1 }
+    },
+    "priest": {
+      "base": { "hp": 240, "mp": 130, "str": 3, "int": 11, "agi": 5, "def": 4 },
+      "variance": { "hp": 45, "mp": 20, "str": 1, "int": 2, "agi": 1, "def": 1 }
+    }
+  },
   "standardLoadoutPools": {
     "paladin": {
       "talentIds": ["talent_oathbound_guard", "talent_crusade_banner"],

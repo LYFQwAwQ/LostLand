@@ -8,10 +8,12 @@ import {
   getEquipmentSellPrice,
   type EquipmentQuickSellFilter
 } from "../data/config/economyConfig";
+import { getBuildingMaterialMarketConfig, resolveBuildingMaterialPriceQuote } from "../data/config/buildingMaterialMarketConfig";
 import { equipmentTemplates } from "../data/equipmentTemplates";
 import { legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
 import { heroes } from "../data/mockData";
 import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
+import { buildingMaterialDefinitions, type BuildingMaterialTier } from "../data/buildingMaterials";
 import { getForgeRecipes, getMarketInventory, getShopInventory, getTavernOffers, marketSellRules } from "../data/nodeModules";
 import { EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
 import { computeEquipmentInternalScore } from "../lib/equipmentScoring";
@@ -21,7 +23,17 @@ import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { useMapSystem } from "../state/MapSystemProvider";
 import type { BulletinMissionState, GeneratedEquipment, InventoryResourceRarity, NodeAction } from "../types/game";
 
-const validActions: NodeAction[] = ["detail", "shop", "market", "tavern", "forge", "bulletin", "battle", "ritual"];
+const validActions: NodeAction[] = [
+  "detail",
+  "shop",
+  "build_materials",
+  "market",
+  "tavern",
+  "forge",
+  "bulletin",
+  "battle",
+  "ritual"
+];
 
 const missionTypeLabel: Record<BulletinMissionState["type"], string> = {
   collect: "收集",
@@ -40,6 +52,12 @@ const rarityLabel: Record<InventoryResourceRarity, string> = {
   uncommon: "精良",
   rare: "稀有",
   epic: "史诗"
+};
+
+const buildingMaterialTierLabel: Record<BuildingMaterialTier, string> = {
+  basic: "普通材料",
+  composite: "复合材料",
+  refined: "精致材料"
 };
 
 const QUICK_SELL_QUALITY_OPTIONS: GeneratedEquipment["quality"][] = [
@@ -95,6 +113,7 @@ export function NodeActionPage() {
     gold,
     grantMissionRewards,
     buyEquipment,
+    buyMaterials,
     sellEquipment,
     sellEquipmentBulk,
     consumeMaterials,
@@ -115,6 +134,8 @@ export function NodeActionPage() {
   const [missionFeedback, setMissionFeedback] = useState<string | null>(null);
   const [tradeFeedback, setTradeFeedback] = useState<string | null>(null);
   const [tradeRefreshToken, setTradeRefreshToken] = useState(0);
+  const [buildingMaterialRefreshToken, setBuildingMaterialRefreshToken] = useState(0);
+  const [buildingMaterialBuyQuantityById, setBuildingMaterialBuyQuantityById] = useState<Record<string, number>>({});
   const [forgeFeedback, setForgeFeedback] = useState<string | null>(null);
   const defaultQuickSellFilter: Partial<EquipmentQuickSellFilter> = ECONOMY_CONFIG.equipmentTrade.quickSell.defaultFilter;
 
@@ -151,6 +172,8 @@ export function NodeActionPage() {
     setTradeFeedback(null);
     setForgeFeedback(null);
     setTradeRefreshToken(0);
+    setBuildingMaterialRefreshToken(0);
+    setBuildingMaterialBuyQuantityById({});
     setSelectedForgeItemUid("");
   }, [nodeId, action]);
 
@@ -205,6 +228,33 @@ export function NodeActionPage() {
       buyPrice: getEquipmentBuyPrice(item)
     }));
   }, [action, isShopAction, node.id, region.id, tradeOfferCount, tradeOfferLevel, tradeRefreshToken]);
+
+  const buildingMaterialMarketConfig = useMemo(() => getBuildingMaterialMarketConfig(node.id), [node.id]);
+  const buildingMaterialOffers = useMemo(() => {
+    if (action !== "build_materials") {
+      return [] as Array<{
+        id: string;
+        name: string;
+        tier: BuildingMaterialTier;
+        rarity: InventoryResourceRarity;
+        basePrice: number;
+        unitPrice: number;
+        floatPct: number;
+      }>;
+    }
+    return buildingMaterialDefinitions.map((material) => {
+      const quote = resolveBuildingMaterialPriceQuote(
+        material.basePrice,
+        node.id,
+        `${material.id}-${buildingMaterialRefreshToken}`
+      );
+      return {
+        ...material,
+        unitPrice: quote.unitPrice,
+        floatPct: quote.floatPct
+      };
+    });
+  }, [action, buildingMaterialRefreshToken, node.id]);
 
   const sellableEquipmentEntries = useMemo(() => {
     return items
@@ -400,6 +450,35 @@ export function NodeActionPage() {
   const handleRefreshTradeOffers = () => {
     setTradeRefreshToken((prev) => prev + 1);
     setTradeFeedback(null);
+  };
+
+  const handleRefreshBuildingMaterialOffers = () => {
+    setBuildingMaterialRefreshToken((prev) => prev + 1);
+    setTradeFeedback(null);
+  };
+
+  const handleChangeBuildingMaterialQuantity = (materialId: string, rawValue: string) => {
+    const parsed = Number(rawValue);
+    const quantity = Number.isFinite(parsed) ? Math.max(1, Math.floor(parsed)) : 1;
+    setBuildingMaterialBuyQuantityById((prev) => ({
+      ...prev,
+      [materialId]: quantity
+    }));
+  };
+
+  const handleBuyBuildingMaterial = (materialId: string) => {
+    const offer = buildingMaterialOffers.find((entry) => entry.id === materialId);
+    if (!offer) {
+      setTradeFeedback("当前建材报价不存在。");
+      return;
+    }
+    const quantity = Math.max(1, Math.floor(buildingMaterialBuyQuantityById[materialId] ?? 1));
+    const result = buyMaterials([{ materialId, quantity, unitPrice: offer.unitPrice }]);
+    if (!result.ok) {
+      setTradeFeedback(result.reason ?? "建材购买失败。");
+      return;
+    }
+    setTradeFeedback(`买入成功：${offer.name} x${quantity}，消耗 ${formatCurrency(result.totalCost)} 金币。`);
   };
 
   const handleBuyOffer = (offer: GeneratedEquipment) => {
@@ -746,6 +825,81 @@ export function NodeActionPage() {
                 </tbody>
               </table>
             </div>
+          </HeaderInfo>
+        </div>
+      ) : null}
+
+      {action === "build_materials" ? (
+        <div className="module-grid">
+          <HeaderInfo title="建材交易（ST1）">
+            <p>建筑材料仅可在 ST1 主城购买，价格按“基础价 + 主城浮动百分比”实时生成。</p>
+            <p>
+              当前主城浮动区间：{(buildingMaterialMarketConfig.priceFloatPctRange[0] * 100).toFixed(1)}% ~{" "}
+              {(buildingMaterialMarketConfig.priceFloatPctRange[1] * 100).toFixed(1)}%
+            </p>
+            <p>当前金币：{formatCurrency(gold)}</p>
+            {tradeFeedback ? <p className="module-trade-feedback">{tradeFeedback}</p> : null}
+            <div className="module-actions-row">
+              <button type="button" className="ghost-btn" onClick={handleRefreshBuildingMaterialOffers}>
+                刷新建材报价
+              </button>
+            </div>
+            <div className="module-table-wrap">
+              <table className="module-table">
+                <thead>
+                  <tr>
+                    <th>材料</th>
+                    <th>档次</th>
+                    <th>基础价</th>
+                    <th>浮动</th>
+                    <th>当前单价</th>
+                    <th>持有</th>
+                    <th>购买</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {buildingMaterialOffers.map((entry) => {
+                    const quantity = Math.max(1, Math.floor(buildingMaterialBuyQuantityById[entry.id] ?? 1));
+                    const totalCost = entry.unitPrice * quantity;
+                    const canBuy = gold >= totalCost;
+                    const floatText = `${entry.floatPct >= 0 ? "+" : ""}${(entry.floatPct * 100).toFixed(1)}%`;
+                    return (
+                      <tr key={entry.id}>
+                        <td>{entry.name}</td>
+                        <td>{buildingMaterialTierLabel[entry.tier]}</td>
+                        <td>{formatCurrency(entry.basePrice)}</td>
+                        <td>{floatText}</td>
+                        <td>{formatCurrency(entry.unitPrice)}</td>
+                        <td>{materialCountMap[entry.id] ?? 0}</td>
+                        <td>
+                          <div className="module-actions-row">
+                            <input
+                              type="number"
+                              min={1}
+                              value={quantity}
+                              onChange={(event) => handleChangeBuildingMaterialQuantity(entry.id, event.target.value)}
+                            />
+                            <button
+                              type="button"
+                              className="ghost-btn small-btn"
+                              disabled={!canBuy}
+                              onClick={() => handleBuyBuildingMaterial(entry.id)}
+                            >
+                              买入 x{quantity}（{formatCurrency(totalCost)}）
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </HeaderInfo>
+
+          <HeaderInfo title="规则说明">
+            <p>建筑材料与战斗材料共用同一背包，可在背包材料页筛选“建筑材料”。</p>
+            <p>当前版本不限制建筑材料堆叠上限，后续会补齐容量上限与库存规则。</p>
           </HeaderInfo>
         </div>
       ) : null}

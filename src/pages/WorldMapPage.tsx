@@ -429,12 +429,20 @@ export function WorldMapPage() {
     };
 
     updateSize();
+    window.addEventListener("resize", updateSize);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener("resize", updateSize);
+    }
 
     const observer = new ResizeObserver(updateSize);
     observer.observe(element);
 
-    return () => observer.disconnect();
-  }, []);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, [region?.id]);
 
   useEffect(() => {
     setPanOffset((prev) => clampPanOffset(prev));

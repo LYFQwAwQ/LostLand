@@ -6,6 +6,7 @@ import { PaladinGearBoard } from "../components/hero/PaladinGearBoard";
 import { PriestGearBoard } from "../components/hero/PriestGearBoard";
 import { RangerGearBoard } from "../components/hero/RangerGearBoard";
 import { battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
+import { HERO_PROGRESSION_CONFIG, getHeroNextLevelExp } from "../data/config/heroProgressionConfig";
 import { legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
 import {
   EQUIPMENT_SLOT_LABELS,
@@ -271,6 +272,14 @@ function formatInteger(value: number): string {
   return `${Math.round(value)}`;
 }
 
+function formatGrowthValue(value: number): string {
+  const rounded = Number(value.toFixed(2));
+  if (Number.isInteger(rounded)) {
+    return `+${rounded}`;
+  }
+  return `+${rounded.toFixed(2)}`;
+}
+
 function nextTab(tab: HeroTab): HeroTab {
   if (tab === "stats") {
     return "gear";
@@ -388,12 +397,18 @@ function StatTiny({ label, value }: { label: string; value: string }) {
 
 function HeroStatsContent({
   hero,
+  heroLevel,
+  heroExp,
+  nextLevelExp,
   mode,
   onToggleMode,
   originStats,
   battleStats
 }: {
   hero: Hero;
+  heroLevel: number;
+  heroExp: number;
+  nextLevelExp: number;
   mode: StatsViewMode;
   onToggleMode: () => void;
   originStats: BattleStatBlock;
@@ -401,10 +416,19 @@ function HeroStatsContent({
 }) {
   const visibleStats = mode === "origin" ? originStats : battleStats;
   const modeLabel = mode === "origin" ? "原始数值" : "战斗数值";
+  const expText = nextLevelExp > 0 ? `${heroExp}/${nextLevelExp}` : "MAX";
   const modeDescription =
     mode === "origin"
       ? "仅显示英雄基础值（不含装备、被动、天赋、记忆）。"
       : "显示进入战斗时结算后的面板值（含装备、被动、天赋；记忆暂未接入数值）。";
+  const growthRows = [
+    { label: "HP成长", value: formatGrowthValue(hero.statGrowth.hp) },
+    { label: "MP成长", value: formatGrowthValue(hero.statGrowth.mp) },
+    { label: "STR成长", value: formatGrowthValue(hero.statGrowth.str) },
+    { label: "INT成长", value: formatGrowthValue(hero.statGrowth.int) },
+    { label: "AGI成长", value: formatGrowthValue(hero.statGrowth.agi) },
+    { label: "DEF成长", value: formatGrowthValue(hero.statGrowth.def) }
+  ];
 
   const combatRows = [
     { label: "物理防御", value: formatInteger(visibleStats.def) },
@@ -432,6 +456,9 @@ function HeroStatsContent({
         <div className="hero-portrait-text">
           <h2>{hero.name}</h2>
           <p>{hero.title}</p>
+          <small>
+            Lv.{heroLevel} · EXP {expText}
+          </small>
         </div>
       </div>
 
@@ -444,6 +471,10 @@ function HeroStatsContent({
             <strong>{modeLabel}</strong>
             <span>{modeDescription}</span>
           </div>
+          <div className="hero-level-summary">
+            <strong>等级 {heroLevel}/{HERO_PROGRESSION_CONFIG.maxLevel}</strong>
+            <span>经验 {expText}</span>
+          </div>
         </div>
 
         <div className="hero-stats-grid">
@@ -455,6 +486,15 @@ function HeroStatsContent({
               <StatRow label="力量 (STR)" value={formatInteger(visibleStats.str)} />
               <StatRow label="智力 (INT)" value={formatInteger(visibleStats.int)} />
               <StatRow label="敏捷 (AGI)" value={formatInteger(visibleStats.agi)} />
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle title="1.5 每级成长" />
+            <div className="hero-combat-grid">
+              {growthRows.map((item) => (
+                <StatTiny key={item.label} label={item.label} value={item.value} />
+              ))}
             </div>
           </section>
 
@@ -1490,7 +1530,8 @@ export function HeroPage() {
     memoryItems,
     getMemoryOwner,
     getHeroMemory,
-    setHeroMemory
+    setHeroMemory,
+    heroProgressById
   } = useEquipmentInventory();
   const { getHeroLoadout, setHeroLoadout, resetHeroLoadout } = useBattleSetup();
   const heroLoadout = getHeroLoadout(hero.id);
@@ -1509,12 +1550,30 @@ export function HeroPage() {
   const emptyItemMap = useMemo(() => new Map<string, GeneratedEquipment>(), []);
   const zeroEnhanceBonus = useMemo(() => () => 0, []);
   const originTemplate = useMemo(
-    () => buildAllyTeamTemplates([hero], singleHeroFormation, heroLoadoutMap, {}, emptyItemMap, zeroEnhanceBonus)[0] ?? null,
-    [emptyItemMap, hero, heroLoadoutMap, singleHeroFormation, zeroEnhanceBonus]
+    () =>
+      buildAllyTeamTemplates(
+        [hero],
+        singleHeroFormation,
+        heroLoadoutMap,
+        heroProgressById,
+        {},
+        emptyItemMap,
+        zeroEnhanceBonus
+      )[0] ?? null,
+    [emptyItemMap, hero, heroLoadoutMap, heroProgressById, singleHeroFormation, zeroEnhanceBonus]
   );
   const equippedTemplate = useMemo(
-    () => buildAllyTeamTemplates([hero], singleHeroFormation, heroLoadoutMap, equippedByHero, itemMap, getEquipmentEnhanceBonus)[0] ?? null,
-    [equippedByHero, getEquipmentEnhanceBonus, hero, heroLoadoutMap, itemMap, singleHeroFormation]
+    () =>
+      buildAllyTeamTemplates(
+        [hero],
+        singleHeroFormation,
+        heroLoadoutMap,
+        heroProgressById,
+        equippedByHero,
+        itemMap,
+        getEquipmentEnhanceBonus
+      )[0] ?? null,
+    [equippedByHero, getEquipmentEnhanceBonus, hero, heroLoadoutMap, heroProgressById, itemMap, singleHeroFormation]
   );
   const originBattleStats = useMemo(() => {
     return buildBattleStatBlock(originTemplate?.baseStats);
@@ -1537,6 +1596,8 @@ export function HeroPage() {
     }
     return next;
   }, [equippedTemplate, heroLoadout.passiveSlots, heroLoadout.talentSlot]);
+  const heroProgress = heroProgressById[hero.id] ?? { level: HERO_PROGRESSION_CONFIG.initialLevel, exp: 0 };
+  const heroNextLevelExp = getHeroNextLevelExp(heroProgress.level);
 
   const heroMemoryOptions = useMemo(
     () => memoryItems.filter((item) => item.heroClass === hero.heroClass),
@@ -1600,6 +1661,9 @@ export function HeroPage() {
               {currentTab === "stats" && (
                 <HeroStatsContent
                   hero={hero}
+                  heroLevel={heroProgress.level}
+                  heroExp={heroProgress.exp}
+                  nextLevelExp={heroNextLevelExp}
                   mode={statsMode}
                   onToggleMode={() => setStatsMode((prev) => (prev === "origin" ? "battle" : "origin"))}
                   originStats={originBattleStats}

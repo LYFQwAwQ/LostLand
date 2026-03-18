@@ -1,6 +1,7 @@
 ﻿import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { getMaterialDropCatalog } from "../data/battleDrops";
+import { getBuildingMaterialCatalog } from "../data/buildingMaterials";
 import {
   getEnhancementStatBonus,
   getEnhancementSuccessRate,
@@ -14,6 +15,14 @@ import {
   getEquipmentSellPrice,
   type EquipmentQuickSellFilter
 } from "../data/config/economyConfig";
+import {
+  clampHeroLevel,
+  createInitialHeroProgressState,
+  getHeroNextLevelExp,
+  resolveBattleBaseExpByEnemyLevels,
+  resolveBattleEnemyAverageLevel,
+  resolveBattleLevelDeltaMultiplier
+} from "../data/config/heroProgressionConfig";
 import { initialConsumableStacks } from "../data/consumables";
 import { equipmentTemplates } from "../data/equipmentTemplates";
 import { heroMemoryMap, initialOwnedHeroMemoryIds } from "../data/heroMemories";
@@ -34,13 +43,16 @@ import type {
   EquipmentRank,
   EquipmentSlot,
   GeneratedEquipment,
+  HeroProgressState,
   InventoryConsumableStack,
   InventoryMaterialStack,
   InventoryMemoryStack,
+  InventoryMaterialSourceType,
   InventoryResourceRarity,
   LegendaryEquipmentDefinition,
   LegendaryEquipmentSkillDefinition
 } from "../types/game";
+import { useOrganization } from "./OrganizationProvider";
 
 export interface EquippedOwner {
   heroId: string;
@@ -60,6 +72,7 @@ export interface EquipmentInventorySnapshot {
   consumableStock?: Record<string, number>;
   memoryOwnedIds?: string[];
   equippedMemoryByHero?: Record<string, string>;
+  heroProgressById?: Record<string, HeroProgressState>;
   gold?: number;
   reputation?: number;
 }
@@ -106,6 +119,32 @@ export interface EquipmentEnhancementResult {
   reason: string | null;
 }
 
+export interface MaterialPurchaseEntry {
+  materialId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface MaterialPurchaseResult {
+  ok: boolean;
+  reason: string | null;
+  totalCost: number;
+}
+
+export interface InventoryCostPayResult {
+  ok: boolean;
+  reason: string | null;
+}
+
+export interface HeroBattleExpGainResult {
+  heroId: string;
+  gainedExp: number;
+  previousLevel: number;
+  currentLevel: number;
+  currentExp: number;
+  nextLevelExp: number;
+}
+
 interface EquipmentInventoryContextValue {
   items: GeneratedEquipment[];
   itemMap: Map<string, GeneratedEquipment>;
@@ -122,8 +161,11 @@ interface EquipmentInventoryContextValue {
   consumableItems: InventoryConsumableStack[];
   memoryItems: InventoryMemoryStack[];
   equippedMemoryByHero: Record<string, string>;
+  heroProgressById: Record<string, HeroProgressState>;
   refreshItems: () => void;
   collectBattleDrops: (drops: BattleDropSummary | null | undefined) => void;
+  grantBattleHeroExp: (allyHeroIds: string[], enemyLevels: number[]) => HeroBattleExpGainResult[];
+  getHeroProgress: (heroId: string) => HeroProgressState;
   grantMissionRewards: (reward: BulletinMissionReward | null | undefined) => void;
   buyEquipment: (item: GeneratedEquipment) => EquipmentTradeActionResult;
   sellEquipment: (itemUid: string) => EquipmentTradeActionResult;
@@ -134,6 +176,8 @@ interface EquipmentInventoryContextValue {
   getEquipmentEnhanceBonus: (itemUid: string) => number;
   getEquipmentEnhancementPreview: (itemUid: string) => EquipmentEnhancementPreview | null;
   enhanceEquipment: (itemUid: string) => EquipmentEnhancementResult;
+  buyMaterials: (entries: MaterialPurchaseEntry[]) => MaterialPurchaseResult;
+  payCost: (cost: { gold: number; materials: Array<{ materialId: string; quantity: number }> }) => InventoryCostPayResult;
   consumeMaterials: (materials: Array<{ materialId: string; quantity: number }>) => boolean;
   equipItem: (
     heroId: string,
@@ -153,8 +197,13 @@ interface EquipmentInventoryContextValue {
 }
 
 const DEFAULT_SEED = "global-inventory-seed";
-const MATERIAL_CATALOG = getMaterialDropCatalog();
+const MATERIAL_CATALOG = [
+  ...getMaterialDropCatalog().map((item) => ({ ...item, sourceType: "battle" as InventoryMaterialSourceType })),
+  ...getBuildingMaterialCatalog()
+];
 const MATERIAL_CATALOG_MAP = new Map(MATERIAL_CATALOG.map((item) => [item.id, item]));
+const HERO_IDS = heroes.map((hero) => hero.id);
+const HERO_ID_SET = new Set(HERO_IDS);
 const HERO_CLASS_BY_ID = new Map(heroes.map((hero) => [hero.id, hero.heroClass]));
 const LEGENDARY_EQUIPMENT_ID_SET = new Set(legendaryEquipments.map((item) => item.id));
 const LEGENDARY_EQUIPMENT_LIMIT_PER_HERO = 2;
@@ -364,6 +413,62 @@ function normalizeEquippedMemoryByHero(
   return next;
 }
 
+function buildDefaultHeroProgressById(): Record<string, HeroProgressState> {
+  return HERO_IDS.reduce<Record<string, HeroProgressState>>((acc, heroId) => {
+    acc[heroId] = createInitialHeroProgressState();
+    return acc;
+  }, {});
+}
+
+function normalizeHeroProgressById(
+  input: Record<string, HeroProgressState> | null | undefined
+): Record<string, HeroProgressState> {
+  const initialProgress = createInitialHeroProgressState();
+  return HERO_IDS.reduce<Record<string, HeroProgressState>>((acc, heroId) => {
+    const source = input?.[heroId];
+    const level = clampHeroLevel(source?.level ?? initialProgress.level);
+    const nextLevelExp = getHeroNextLevelExp(level);
+    const rawExp = typeof source?.exp === "number" && Number.isFinite(source.exp) ? Math.floor(source.exp) : 0;
+    const exp = nextLevelExp > 0 ? Math.max(0, Math.min(nextLevelExp - 1, rawExp)) : 0;
+    acc[heroId] = { level, exp };
+    return acc;
+  }, {});
+}
+
+function applyHeroExpGain(progress: HeroProgressState, gainExp: number): HeroProgressState {
+  const safeGain = Math.max(0, Math.floor(gainExp));
+  const normalizedLevel = clampHeroLevel(progress.level);
+  const normalizedCurrentExp = Math.max(0, Math.floor(progress.exp));
+
+  if (safeGain <= 0 || getHeroNextLevelExp(normalizedLevel) <= 0) {
+    return {
+      level: normalizedLevel,
+      exp: getHeroNextLevelExp(normalizedLevel) > 0 ? normalizedCurrentExp : 0
+    };
+  }
+
+  let level = normalizedLevel;
+  let exp = normalizedCurrentExp + safeGain;
+
+  while (true) {
+    const nextLevelExp = getHeroNextLevelExp(level);
+    if (nextLevelExp <= 0) {
+      return {
+        level,
+        exp: 0
+      };
+    }
+    if (exp < nextLevelExp) {
+      return {
+        level,
+        exp
+      };
+    }
+    exp -= nextLevelExp;
+    level = clampHeroLevel(level + 1);
+  }
+}
+
 function normalizeOwnedLegendaryEquipmentIds(equipmentIds: string[] | null | undefined): string[] {
   if (!Array.isArray(equipmentIds)) {
     return [];
@@ -405,6 +510,7 @@ function resolveClampedEnhancementLevel(item: GeneratedEquipment | undefined, le
 }
 
 export function EquipmentInventoryProvider({ children }: { children: ReactNode }) {
+  const { forgeEnhancementBonusRate } = useOrganization();
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [gold, setGold] = useState<number>(() => ECONOMY_CONFIG.initialGold);
   const [reputation, setReputation] = useState<number>(() => ECONOMY_CONFIG.initialReputation);
@@ -420,6 +526,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
   const [consumableStock, setConsumableStock] = useState<Record<string, number>>(() => buildDefaultConsumableStock());
   const [ownedMemoryIds, setOwnedMemoryIds] = useState<string[]>(() => buildDefaultOwnedMemoryIds());
   const [equippedMemoryByHero, setEquippedMemoryByHero] = useState<Record<string, string>>({});
+  const [heroProgressById, setHeroProgressById] = useState<Record<string, HeroProgressState>>(() => buildDefaultHeroProgressById());
 
   const ownedMemoryIdSet = useMemo(() => new Set(ownedMemoryIds), [ownedMemoryIds]);
   const soldEquipmentUidSet = useMemo(() => new Set(soldEquipmentItemUids), [soldEquipmentItemUids]);
@@ -476,7 +583,8 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       name: item.name,
       rarity: item.rarity,
       quantity: materialStock[item.id] ?? 0,
-      sourceEnemyPrototypeIds: [...item.sourceEnemyPrototypeIds]
+      sourceEnemyPrototypeIds: [...item.sourceEnemyPrototypeIds],
+      sourceType: item.sourceType
     }));
 
     Object.entries(materialStock).forEach(([materialId, quantity]) => {
@@ -488,7 +596,8 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
         name: materialId,
         rarity: "common",
         quantity,
-        sourceEnemyPrototypeIds: ["unknown"]
+        sourceEnemyPrototypeIds: ["unknown"],
+        sourceType: "battle"
       });
     });
 
@@ -644,6 +753,64 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     }
   };
 
+  const getHeroProgress = (heroId: string): HeroProgressState => {
+    return heroProgressById[heroId] ?? createInitialHeroProgressState();
+  };
+
+  const grantBattleHeroExp = (allyHeroIds: string[], enemyLevels: number[]): HeroBattleExpGainResult[] => {
+    const targetHeroIds = [...new Set(allyHeroIds.filter((heroId) => HERO_ID_SET.has(heroId)))];
+    const normalizedEnemyLevels = enemyLevels
+      .map((level) => Math.max(1, Math.floor(level)))
+      .filter((level) => Number.isFinite(level) && level > 0);
+
+    if (targetHeroIds.length <= 0 || normalizedEnemyLevels.length <= 0) {
+      return [];
+    }
+
+    const baseExp = resolveBattleBaseExpByEnemyLevels(normalizedEnemyLevels);
+    if (baseExp <= 0) {
+      return [];
+    }
+
+    const enemyAverageLevel = resolveBattleEnemyAverageLevel(normalizedEnemyLevels);
+    const resultByHeroId: Record<string, HeroBattleExpGainResult> = {};
+
+    setHeroProgressById((prev) => {
+      let changed = false;
+      const next: Record<string, HeroProgressState> = { ...prev };
+
+      targetHeroIds.forEach((heroId) => {
+        const current = prev[heroId] ?? createInitialHeroProgressState();
+        const previousLevel = clampHeroLevel(current.level);
+        const canGainExp = getHeroNextLevelExp(previousLevel) > 0;
+        const multiplier = resolveBattleLevelDeltaMultiplier(previousLevel, enemyAverageLevel);
+        const gainedExp = canGainExp ? Math.max(0, Math.floor(baseExp * multiplier)) : 0;
+        const updated = canGainExp ? applyHeroExpGain(current, gainedExp) : { level: previousLevel, exp: 0 };
+        const nextLevelExp = getHeroNextLevelExp(updated.level);
+
+        resultByHeroId[heroId] = {
+          heroId,
+          gainedExp,
+          previousLevel,
+          currentLevel: updated.level,
+          currentExp: updated.exp,
+          nextLevelExp
+        };
+
+        if (!prev[heroId] || prev[heroId].level !== updated.level || prev[heroId].exp !== updated.exp) {
+          changed = true;
+          next[heroId] = updated;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+
+    return targetHeroIds
+      .map((heroId) => resultByHeroId[heroId])
+      .filter((entry): entry is HeroBattleExpGainResult => Boolean(entry));
+  };
+
   const grantMissionRewards = (reward: BulletinMissionReward | null | undefined) => {
     if (!reward) {
       return;
@@ -779,7 +946,9 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     const maxLevel = resolveEnhancementMaxLevel(Boolean(legendaryEquipmentIdByUid[itemUid]));
     const targetLevel = Math.min(maxLevel, currentLevel + 1);
     const goldCost = resolveEnhancementGoldCost(item.level, targetLevel);
-    const successRate = getEnhancementSuccessRate(targetLevel);
+    const baseSuccessRate = getEnhancementSuccessRate(targetLevel);
+    const successRateCap = Math.min(1, baseSuccessRate * 1.2);
+    const successRate = Math.min(successRateCap, baseSuccessRate + Math.max(0, forgeEnhancementBonusRate));
     const materialCost = resolveEnhancementMaterialCost(item.templateId, targetLevel).map((entry) => ({
       materialId: entry.materialId,
       quantity: entry.quantity,
@@ -1055,6 +1224,107 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     };
   };
 
+  const buyMaterials = (entries: MaterialPurchaseEntry[]): MaterialPurchaseResult => {
+    if (!entries || entries.length <= 0) {
+      return {
+        ok: false,
+        reason: "没有可购买的材料。",
+        totalCost: 0
+      };
+    }
+
+    const purchaseEntries = entries
+      .map((entry) => ({
+        materialId: String(entry.materialId ?? "").trim(),
+        quantity: Math.max(0, Math.floor(entry.quantity)),
+        unitPrice: Math.max(0, Math.floor(entry.unitPrice))
+      }))
+      .filter((entry) => entry.materialId.length > 0 && entry.quantity > 0 && entry.unitPrice > 0);
+
+    if (purchaseEntries.length <= 0) {
+      return {
+        ok: false,
+        reason: "材料购买参数无效。",
+        totalCost: 0
+      };
+    }
+
+    const totalCost = purchaseEntries.reduce((sum, entry) => sum + entry.quantity * entry.unitPrice, 0);
+    if (totalCost <= 0) {
+      return {
+        ok: false,
+        reason: "购买金额无效。",
+        totalCost: 0
+      };
+    }
+
+    if (gold < totalCost) {
+      return {
+        ok: false,
+        reason: "金币不足。",
+        totalCost
+      };
+    }
+
+    setGold((prev) => Math.max(0, prev - totalCost));
+    setMaterialStock((prev) => {
+      const next = { ...prev };
+      purchaseEntries.forEach((entry) => {
+        next[entry.materialId] = (next[entry.materialId] ?? 0) + entry.quantity;
+      });
+      return next;
+    });
+
+    return {
+      ok: true,
+      reason: null,
+      totalCost
+    };
+  };
+
+  const payCost = (cost: { gold: number; materials: Array<{ materialId: string; quantity: number }> }): InventoryCostPayResult => {
+    const goldCost = Math.max(0, Math.floor(cost.gold));
+    const requirements = (cost.materials ?? [])
+      .map((item) => ({
+        materialId: String(item.materialId ?? "").trim(),
+        quantity: Math.max(0, Math.floor(item.quantity))
+      }))
+      .filter((item) => item.materialId.length > 0 && item.quantity > 0);
+
+    if (goldCost <= 0 && requirements.length <= 0) {
+      return { ok: true, reason: null };
+    }
+
+    if (gold < goldCost) {
+      return { ok: false, reason: "金币不足。" };
+    }
+
+    const hasEnoughMaterial = requirements.every((item) => (materialStock[item.materialId] ?? 0) >= item.quantity);
+    if (!hasEnoughMaterial) {
+      return { ok: false, reason: "材料不足。" };
+    }
+
+    if (goldCost > 0) {
+      setGold((prev) => Math.max(0, prev - goldCost));
+    }
+    if (requirements.length > 0) {
+      setMaterialStock((prev) => {
+        const next = { ...prev };
+        requirements.forEach((item) => {
+          const remain = (next[item.materialId] ?? 0) - item.quantity;
+          if (remain > 0) {
+            next[item.materialId] = remain;
+          } else {
+            delete next[item.materialId];
+          }
+        });
+        return next;
+      });
+    }
+
+    return { ok: true, reason: null };
+  };
+
   const consumeMaterials = (materials: Array<{ materialId: string; quantity: number }>): boolean => {
     if (!materials || materials.length <= 0) {
       return true;
@@ -1295,7 +1565,8 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       materialStock: { ...materialStock },
       consumableStock: { ...consumableStock },
       memoryOwnedIds: [...ownedMemoryIds],
-      equippedMemoryByHero: { ...equippedMemoryByHero }
+      equippedMemoryByHero: { ...equippedMemoryByHero },
+      heroProgressById: { ...heroProgressById }
     };
   };
 
@@ -1340,6 +1611,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     const normalizedOwned = importedOwned.length > 0 ? importedOwned : fallbackOwnedIds;
     setOwnedMemoryIds(normalizedOwned);
     setEquippedMemoryByHero(normalizeEquippedMemoryByHero(snapshot.equippedMemoryByHero, new Set(normalizedOwned)));
+    setHeroProgressById(normalizeHeroProgressById(snapshot.heroProgressById));
   };
 
   const value = useMemo<EquipmentInventoryContextValue>(
@@ -1359,8 +1631,11 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       consumableItems,
       memoryItems,
       equippedMemoryByHero,
+      heroProgressById,
       refreshItems,
       collectBattleDrops,
+      grantBattleHeroExp,
+      getHeroProgress,
       grantMissionRewards,
       buyEquipment,
       sellEquipment,
@@ -1371,6 +1646,8 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       getEquipmentEnhanceBonus,
       getEquipmentEnhancementPreview,
       enhanceEquipment,
+      buyMaterials,
+      payCost,
       consumeMaterials,
       equipItem,
       unequipItem,
@@ -1403,7 +1680,11 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       consumableItems,
       equippedByHero,
       equippedMemoryByHero,
+      forgeEnhancementBonusRate,
       gold,
+      grantBattleHeroExp,
+      getHeroProgress,
+      heroProgressById,
       itemMap,
       items,
       materialItems,

@@ -4,6 +4,20 @@ export type HeroTab = "stats" | "gear" | "skills" | "memory";
 
 export type HeroSkillRarity = "common" | "rare" | "epic" | "legendary";
 
+export interface HeroStatGrowth {
+  hp: number;
+  mp: number;
+  str: number;
+  int: number;
+  agi: number;
+  def: number;
+}
+
+export interface HeroProgressState {
+  level: number;
+  exp: number;
+}
+
 export interface Hero {
   id: string;
   name: string;
@@ -31,6 +45,7 @@ export interface Hero {
     agi: string;
     def: string;
   };
+  statGrowth: HeroStatGrowth;
 }
 
 export type ContinentId = "central" | "north" | "south" | "west" | "east";
@@ -49,6 +64,7 @@ export interface FactionWeight {
 export type NodeAction =
   | "detail"
   | "shop"
+  | "build_materials"
   | "market"
   | "tavern"
   | "forge"
@@ -372,12 +388,15 @@ export interface InventoryConsumableStack {
   source: string;
 }
 
+export type InventoryMaterialSourceType = "battle" | "building";
+
 export interface InventoryMaterialStack {
   id: string;
   name: string;
   rarity: InventoryResourceRarity;
   quantity: number;
   sourceEnemyPrototypeIds: string[];
+  sourceType: InventoryMaterialSourceType;
 }
 
 export interface InventoryMemoryStack {

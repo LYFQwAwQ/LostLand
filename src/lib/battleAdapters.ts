@@ -1,5 +1,5 @@
 import { buildEnemyTeam, getDefaultHeroLoadout } from "../data/battleUnits";
-import type { Hero, NodeArchetype } from "../types/game";
+import type { Hero, HeroProgressState, NodeArchetype } from "../types/game";
 import type { GeneratedEquipment } from "../types/game";
 import type { BattleElement, BattleLoadout, BattleUnitTemplate } from "../types/battle";
 import type { TeamFormationSlotState } from "../state/BattleSetupProvider";
@@ -171,6 +171,7 @@ export function buildAllyTeamTemplates(
   heroes: Hero[],
   formation: TeamFormationSlotState[],
   heroLoadouts: Record<string, BattleLoadout>,
+  heroProgressById: Record<string, HeroProgressState>,
   equippedByHero: Record<string, Record<string, string>>,
   itemMap: Map<string, GeneratedEquipment>,
   getEnhanceBonusByUid: (itemUid: string) => number
@@ -207,12 +208,15 @@ export function buildAllyTeamTemplates(
   return finalCandidates.map(({ hero, slot }) => {
     const line = slot.line;
     const slotIndex = slot.index;
-    const baseMaxHp = parseStatNumber(hero.stats.hp);
-    const baseMaxMp = parseStatNumber(hero.stats.mp);
-    const baseStr = parseStatNumber(hero.stats.str);
-    const baseInt = parseStatNumber(hero.stats.int);
-    const baseAgi = parseStatNumber(hero.stats.agi);
-    const baseDef = parseStatNumber(hero.stats.def);
+    const heroLevel = Math.max(1, Math.floor(heroProgressById[hero.id]?.level ?? 1));
+    const levelProgress = Math.max(0, heroLevel - 1);
+    const growth = hero.statGrowth ?? { hp: 0, mp: 0, str: 0, int: 0, agi: 0, def: 0 };
+    const baseMaxHp = parseStatNumber(hero.stats.hp) + growth.hp * levelProgress;
+    const baseMaxMp = parseStatNumber(hero.stats.mp) + growth.mp * levelProgress;
+    const baseStr = parseStatNumber(hero.stats.str) + growth.str * levelProgress;
+    const baseInt = parseStatNumber(hero.stats.int) + growth.int * levelProgress;
+    const baseAgi = parseStatNumber(hero.stats.agi) + growth.agi * levelProgress;
+    const baseDef = parseStatNumber(hero.stats.def) + growth.def * levelProgress;
     const equippedItems = getUniqueEquippedItems(hero.id, equippedByHero, itemMap);
     const equipBonus = mapEquipmentStats(equippedItems, getEnhanceBonusByUid);
     const elementPreset = heroElementPreset(hero);
@@ -227,7 +231,7 @@ export function buildAllyTeamTemplates(
       id: hero.id,
       name: hero.name,
       side: "ally",
-      level: 1,
+      level: heroLevel,
       slot: { line, index: slotIndex },
       avatar: hero.image,
       tags: [hero.heroClass],

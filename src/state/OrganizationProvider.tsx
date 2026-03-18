@@ -1,12 +1,17 @@
-import { createContext, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   ORGANIZATION_CONFIG,
+  getFoundryEnhancementBonusRate,
+  getMissionHallAcceptedLimitBonus,
+  getOrganizationBuildingMaxLevel,
   getOrganizationBuildingDefinition,
+  getOrganizationRankCapByBaseCoreLevel,
   getRankExpRequirement,
   organizationBuildingDefinitions,
   organizationMainQuestDefinitions
 } from "../data/organizationData";
+import { useMapSystem } from "./MapSystemProvider";
 import type {
   OrganizationBuildingDefinition,
   OrganizationBuildingPlacement,
@@ -28,13 +33,17 @@ interface OrganizationContextValue {
   revealedCells: Record<string, true>;
   revealedCellCount: number;
   rankState: OrganizationRankState;
+  organizationRankCap: number;
+  missionAcceptedLimitBonus: number;
+  forgeEnhancementBonusRate: number;
+  getBuildingLevel: (definitionId: string) => number;
   pendingExpansionCount: number;
   checkPlacement: (definitionId: string, origin: OrganizationGridCell) => OrganizationPlacementCheckResult;
   checkTerritoryExpansion: (center: OrganizationGridCell) => OrganizationTerritoryExpandCheckResult;
   expandTerritory: (center: OrganizationGridCell) => OrganizationTerritoryExpandResult;
   placeBuilding: (definitionId: string, origin: OrganizationGridCell) => { ok: boolean; message: string; instanceId: string | null };
   removeBuilding: (instanceId: string) => void;
-  upgradeBuilding: (instanceId: string) => void;
+  upgradeBuilding: (instanceId: string) => { ok: boolean; message: string };
   mainQuests: OrganizationMainQuestState[];
   acceptMainQuest: (questId: string) => { ok: boolean; message: string };
   completeMainQuest: (questId: string) => { ok: boolean; message: string };
@@ -113,6 +122,7 @@ function placementCells(placement: OrganizationBuildingPlacement, definitions: R
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
+  const { setAcceptedMissionExtraCapacity } = useMapSystem();
   const [placements, setPlacements] = useState<OrganizationBuildingPlacement[]>([]);
   const [revealedCells, setRevealedCells] = useState<Record<string, true>>(() => createInitialRevealedCells());
   const [mainQuestStatusById, setMainQuestStatusById] = useState<Record<string, OrganizationMainQuestStatus>>(
@@ -147,6 +157,24 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     return next;
   }, [buildingById, placements]);
 
+  const buildingLevelByDefinition = useMemo<Record<string, number>>(() => {
+    return placements.reduce<Record<string, number>>((acc, placement) => {
+      const nextLevel = Math.max(1, Math.floor(placement.level));
+      const currentLevel = acc[placement.definitionId] ?? 0;
+      acc[placement.definitionId] = Math.max(currentLevel, nextLevel);
+      return acc;
+    }, {});
+  }, [placements]);
+
+  const getBuildingLevel = (definitionId: string): number => {
+    return buildingLevelByDefinition[definitionId] ?? 0;
+  };
+
+  const baseCoreLevel = Math.max(1, getBuildingLevel("base_core"));
+  const organizationRankCap = getOrganizationRankCapByBaseCoreLevel(baseCoreLevel);
+  const missionAcceptedLimitBonus = getMissionHallAcceptedLimitBonus(getBuildingLevel("mission_hall"));
+  const forgeEnhancementBonusRate = getFoundryEnhancementBonusRate(getBuildingLevel("foundry"));
+
   const revealedCellCount = useMemo(() => Object.keys(revealedCells).length, [revealedCells]);
   const rankState = progressState.rankState;
   const pendingExpansionCount = progressState.pendingExpansionCount;
@@ -158,6 +186,37 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       })),
     [mainQuestStatusById]
   );
+
+  useEffect(() => {
+    setAcceptedMissionExtraCapacity(missionAcceptedLimitBonus);
+  }, [missionAcceptedLimitBonus, setAcceptedMissionExtraCapacity]);
+
+  useEffect(() => {
+    setProgressState((prev) => {
+      const currentRank = Math.max(1, Math.floor(prev.rankState.rank));
+      const clampedRank = Math.min(currentRank, organizationRankCap);
+      const nextRankExp = clampedRank >= organizationRankCap ? 0 : getRankExpRequirement(clampedRank);
+      const currentExp =
+        nextRankExp > 0 ? Math.min(Math.max(0, Math.floor(prev.rankState.currentExp)), nextRankExp) : 0;
+
+      if (
+        clampedRank === prev.rankState.rank &&
+        currentExp === prev.rankState.currentExp &&
+        nextRankExp === prev.rankState.nextRankExp
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        rankState: {
+          rank: clampedRank,
+          currentExp,
+          nextRankExp
+        }
+      };
+    });
+  }, [organizationRankCap]);
 
   const checkPlacement = (definitionId: string, origin: OrganizationGridCell): OrganizationPlacementCheckResult => {
     const definition = buildingById[definitionId];
@@ -268,17 +327,34 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setPlacements((prev) => prev.filter((placement) => placement.instanceId !== instanceId));
   };
 
-  const upgradeBuilding = (instanceId: string) => {
+  const upgradeBuilding = (instanceId: string): { ok: boolean; message: string } => {
+    const placement = placements.find((item) => item.instanceId === instanceId);
+    if (!placement) {
+      return { ok: false, message: "建筑实例不存在。" };
+    }
+    const definition = buildingById[placement.definitionId];
+    if (!definition) {
+      return { ok: false, message: "建筑定义不存在。" };
+    }
+
+    const maxLevel = getOrganizationBuildingMaxLevel(placement.definitionId);
+    const safeCurrentLevel = Math.max(1, Math.floor(placement.level));
+    if (safeCurrentLevel >= maxLevel) {
+      return { ok: false, message: `${definition.name} 已达到当前开放等级上限（Lv.${maxLevel}）。` };
+    }
+
+    const nextLevel = safeCurrentLevel + 1;
     setPlacements((prev) =>
-      prev.map((placement) =>
-        placement.instanceId === instanceId
+      prev.map((item) =>
+        item.instanceId === instanceId
           ? {
-              ...placement,
-              level: Math.min(99, placement.level + 1)
+              ...item,
+              level: nextLevel
             }
-          : placement
+          : item
       )
     );
+    return { ok: true, message: `${definition.name} 已升级至 Lv.${nextLevel}。` };
   };
 
   const acceptMainQuest = (questId: string): { ok: boolean; message: string } => {
@@ -350,20 +426,25 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setProgressState((prev) => {
       let rank = prev.rankState.rank;
       let exp = prev.rankState.currentExp + gain;
-      let next = prev.rankState.nextRankExp;
+      let next =
+        prev.rankState.nextRankExp > 0
+          ? prev.rankState.nextRankExp
+          : rank >= organizationRankCap
+            ? 0
+            : getRankExpRequirement(rank);
       let rankUpCount = 0;
 
-      while (rank < ORGANIZATION_CONFIG.maxRank && exp >= next) {
+      while (rank < organizationRankCap && next > 0 && exp >= next) {
         exp -= next;
         rank += 1;
         rankUpCount += 1;
-        next = rank >= ORGANIZATION_CONFIG.maxRank ? 0 : getRankExpRequirement(rank);
+        next = rank >= organizationRankCap ? 0 : getRankExpRequirement(rank);
       }
 
-      if (rank >= ORGANIZATION_CONFIG.maxRank) {
+      if (rank >= organizationRankCap) {
         return {
           rankState: {
-            rank: ORGANIZATION_CONFIG.maxRank,
+            rank: organizationRankCap,
             currentExp: 0,
             nextRankExp: 0
           },
@@ -392,6 +473,10 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       revealedCells,
       revealedCellCount,
       rankState,
+      organizationRankCap,
+      missionAcceptedLimitBonus,
+      forgeEnhancementBonusRate,
+      getBuildingLevel,
       pendingExpansionCount,
       checkPlacement,
       checkTerritoryExpansion,
@@ -404,7 +489,19 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       completeMainQuest,
       addMockOrganizationExp
     }),
-    [buildingById, mainQuests, occupancy, pendingExpansionCount, placements, rankState, revealedCellCount, revealedCells]
+    [
+      buildingById,
+      forgeEnhancementBonusRate,
+      mainQuests,
+      missionAcceptedLimitBonus,
+      occupancy,
+      organizationRankCap,
+      pendingExpansionCount,
+      placements,
+      rankState,
+      revealedCellCount,
+      revealedCells
+    ]
   );
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;

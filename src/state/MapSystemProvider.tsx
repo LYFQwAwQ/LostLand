@@ -29,6 +29,7 @@ interface MapSystemContextValue {
   worldLogs: string[];
   acceptedMissionLimit: number;
   acceptedMissionCount: number;
+  setAcceptedMissionExtraCapacity: (extraCapacity: number) => void;
   ensureRegionLoaded: (regionId: string) => RegionTopology;
   advanceOneMonth: (regionId: string) => void;
   getRegionById: (regionId?: string | null) => RegionTopology | undefined;
@@ -62,7 +63,8 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
   const [worldLogs, setWorldLogs] = useState<string[]>(initialLogs);
   const [missionsByRegionId, setMissionsByRegionId] = useState<Record<string, BulletinMissionState[]>>({});
   const [missionWarningByRegionId, setMissionWarningByRegionId] = useState<Record<string, string>>({});
-  const acceptedMissionLimit = getBulletinMissionAcceptedLimit();
+  const [acceptedMissionExtraCapacity, setAcceptedMissionExtraCapacityState] = useState(0);
+  const acceptedMissionLimit = getBulletinMissionAcceptedLimit(acceptedMissionExtraCapacity);
 
   const regions = useMemo(() => Object.values(regionsById), [regionsById]);
   const acceptedMissionCount = useMemo(
@@ -73,6 +75,11 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
       ),
     [missionsByRegionId]
   );
+
+  const setAcceptedMissionExtraCapacity = useCallback((extraCapacity: number) => {
+    const normalized = Number.isFinite(extraCapacity) ? Math.max(0, Math.floor(extraCapacity)) : 0;
+    setAcceptedMissionExtraCapacityState((prev) => (prev === normalized ? prev : normalized));
+  }, []);
 
   const ensureRegionLoaded = useCallback(
     (regionId: string): RegionTopology => {
@@ -371,6 +378,7 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
       },
       acceptedMissionLimit,
       acceptedMissionCount,
+      setAcceptedMissionExtraCapacity,
       acceptBulletinMission,
       submitBulletinMission,
       reportMissionBattleOutcome
@@ -381,6 +389,7 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
       acceptBulletinMission,
       advanceOneMonth,
       ensureRegionLoaded,
+      setAcceptedMissionExtraCapacity,
       missionWarningByRegionId,
       missionsByRegionId,
       regions,

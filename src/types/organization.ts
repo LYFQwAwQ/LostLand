@@ -17,6 +17,20 @@ export interface OrganizationBuildingDefinition {
   clickable: boolean;
 }
 
+export interface OrganizationBuildingUpgradeMaterialCost {
+  materialId: string;
+  materialName: string;
+  quantity: number;
+}
+
+export interface OrganizationBuildingUpgradeStep {
+  fromLevel: number;
+  toLevel: number;
+  effect: string;
+  goldCost: number;
+  materials: OrganizationBuildingUpgradeMaterialCost[];
+}
+
 export interface OrganizationBuildingPlacement {
   instanceId: string;
   definitionId: string;

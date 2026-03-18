@@ -23,6 +23,19 @@ import type {
 import type { EquipmentQuality, EquipmentRank, EquipmentSlot } from "../types/game";
 
 type DropEquipmentSortBy = "qualityDesc" | "rankDesc" | "nameAsc" | "nameDesc";
+type ReplayData = BattleRuntimeState["replay"];
+type ReplayUnitStat = ReplayData["unitStats"][number];
+type ReplayMaterialStat = ReplayData["dropStats"]["materials"][number];
+type ReplayActionSnapshot = ReplayData["actionSnapshots"][number];
+type ReplayStatusChange = ReplayData["statusChanges"][number];
+type ReplayDamageEvent = ReplayData["damageEvents"][number];
+type ReplayDropEntry = NonNullable<BattleRuntimeState["drops"]>["entries"][number];
+
+interface CampaignReplayState {
+  rounds: number;
+  replay: ReplayData;
+  dropEntries: ReplayDropEntry[];
+}
 
 const qualityOrder: Record<EquipmentQuality, number> = {
   common: 0,
@@ -67,6 +80,134 @@ function resolveEnemyPrototypeId(unit: BattleRuntimeUnit): string {
     return tagged.slice("enemy:".length);
   }
   return unit.id.replace(/-\d+$/, "");
+}
+
+function createEmptyCampaignReplay(): CampaignReplayState {
+  return {
+    rounds: 0,
+    replay: {
+      views: [],
+      unitStats: [],
+      actionSnapshots: [],
+      damageEvents: [],
+      statusChanges: [],
+      dropStats: {
+        totalEntries: 0,
+        byCategory: {
+          equipment: 0,
+          material: 0
+        },
+        materials: []
+      }
+    },
+    dropEntries: []
+  };
+}
+
+function mergeReplayUnitStats(previousStats: ReplayUnitStat[], nextStats: ReplayUnitStat[]): ReplayUnitStat[] {
+  const map = new Map<string, ReplayUnitStat>();
+  previousStats.forEach((stat) => {
+    map.set(stat.unitId, { ...stat });
+  });
+
+  nextStats.forEach((stat) => {
+    const key = `${stat.side}:${stat.unitName}`;
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...stat, unitId: key });
+      return;
+    }
+    existing.damageDealt += stat.damageDealt;
+    existing.damageTaken += stat.damageTaken;
+    existing.healDone += stat.healDone;
+    existing.healTaken += stat.healTaken;
+    existing.kills += stat.kills;
+    existing.deaths += stat.deaths;
+    existing.actionCount += stat.actionCount;
+  });
+
+  return [...map.values()];
+}
+
+function mergeReplayMaterialStats(previousStats: ReplayMaterialStat[], nextStats: ReplayMaterialStat[]): ReplayMaterialStat[] {
+  const map = new Map<string, ReplayMaterialStat>();
+  previousStats.forEach((stat) => {
+    map.set(stat.materialId, { ...stat });
+  });
+
+  nextStats.forEach((stat) => {
+    const existing = map.get(stat.materialId);
+    if (existing) {
+      existing.quantity += stat.quantity;
+      return;
+    }
+    map.set(stat.materialId, { ...stat });
+  });
+
+  return [...map.values()].sort((left, right) => {
+    if (right.quantity !== left.quantity) {
+      return right.quantity - left.quantity;
+    }
+    return left.name.localeCompare(right.name, "zh-CN");
+  });
+}
+
+function mergeCampaignReplayState(previous: CampaignReplayState, runtime: BattleRuntimeState): CampaignReplayState {
+  const sourceReplay = runtime.replay;
+  const views =
+    previous.replay.views.length > 0
+      ? previous.replay.views.map((view) => ({ ...view }))
+      : sourceReplay.views.map((view) => ({ ...view }));
+  const unitStats = mergeReplayUnitStats(previous.replay.unitStats, sourceReplay.unitStats);
+  const actionSnapshots: ReplayActionSnapshot[] = [
+    ...previous.replay.actionSnapshots,
+    ...sourceReplay.actionSnapshots.map((snapshot) => ({
+      ...snapshot,
+      id: `${runtime.battleId}-${snapshot.id}`
+    }))
+  ];
+  const statusChanges: ReplayStatusChange[] = [
+    ...previous.replay.statusChanges,
+    ...sourceReplay.statusChanges.map((change) => ({
+      ...change,
+      id: `${runtime.battleId}-${change.id}`
+    }))
+  ];
+  const damageEvents: ReplayDamageEvent[] = [
+    ...previous.replay.damageEvents,
+    ...sourceReplay.damageEvents.map((event) => ({
+      ...event,
+      id: `${runtime.battleId}-${event.id}`
+    }))
+  ];
+  const materials = mergeReplayMaterialStats(previous.replay.dropStats.materials, sourceReplay.dropStats.materials);
+  const dropEntries: ReplayDropEntry[] = [
+    ...previous.dropEntries,
+    ...(runtime.drops?.entries.map((entry) => ({
+      ...entry,
+      id: `${runtime.battleId}-${entry.id}`
+    })) ?? [])
+  ];
+
+  return {
+    rounds: previous.rounds + 1,
+    replay: {
+      views,
+      unitStats,
+      actionSnapshots,
+      damageEvents,
+      statusChanges,
+      dropStats: {
+        totalEntries: previous.replay.dropStats.totalEntries + sourceReplay.dropStats.totalEntries,
+        byCategory: {
+          equipment: previous.replay.dropStats.byCategory.equipment + sourceReplay.dropStats.byCategory.equipment,
+          material: previous.replay.dropStats.byCategory.material + sourceReplay.dropStats.byCategory.material
+        },
+        materials
+      }
+    },
+    dropEntries
+  };
 }
 
 function UnitSlot({ unit, side }: { unit: BattleRuntimeUnit | null; side: BattleSide }) {
@@ -181,10 +322,12 @@ export function BattlePage() {
   const { nodeId } = useParams<{ nodeId: string }>();
   const { findNodeById, reportMissionBattleOutcome } = useMapSystem();
   const { formation, heroLoadouts } = useBattleSetup();
-  const { equippedByHero, itemMap, collectBattleDrops, getEquipmentEnhanceBonus } = useEquipmentInventory();
+  const { equippedByHero, itemMap, collectBattleDrops, grantBattleHeroExp, heroProgressById, getEquipmentEnhanceBonus } =
+    useEquipmentInventory();
   const [battleSeed, setBattleSeed] = useState(() => Date.now());
   const [chainRound, setChainRound] = useState(1);
   const [campaignLogs, setCampaignLogs] = useState<BattleLogEntry[]>([]);
+  const [campaignReplay, setCampaignReplay] = useState<CampaignReplayState>(() => createEmptyCampaignReplay());
   const [activeReplayView, setActiveReplayView] = useState("stats");
   const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
   const battleStateRef = useRef<{ battleId: string; status: BattleRuntimeState["status"] } | null>(null);
@@ -203,8 +346,16 @@ export function BattlePage() {
     if (!context) {
       return null;
     }
-    return buildAllyTeamTemplates(heroes, formation, heroLoadouts, equippedByHero, itemMap, getEquipmentEnhanceBonus);
-  }, [context, equippedByHero, formation, getEquipmentEnhanceBonus, heroLoadouts, itemMap]);
+    return buildAllyTeamTemplates(
+      heroes,
+      formation,
+      heroLoadouts,
+      heroProgressById,
+      equippedByHero,
+      itemMap,
+      getEquipmentEnhanceBonus
+    );
+  }, [context, equippedByHero, formation, getEquipmentEnhanceBonus, heroLoadouts, heroProgressById, itemMap]);
 
   const buildRuntimeForRound = (round: number, previous?: BattleRuntimeState | null): BattleRuntimeState | null => {
     if (!context || !baseAllies) {
@@ -266,6 +417,7 @@ export function BattlePage() {
     setChainRound(1);
     setRuntime(nextInitialRuntime);
     setCampaignLogs([]);
+    setCampaignReplay(createEmptyCampaignReplay());
     setIsReplayModalOpen(false);
     campaignLogCursorRef.current = null;
   }, [runtimeResetKey]);
@@ -369,8 +521,15 @@ export function BattlePage() {
     if (runtime && runtime.status === "finished") {
       const shouldProcess = !previous || previous.battleId !== runtime.battleId || previous.status !== "finished";
       if (shouldProcess) {
-        if (runtime.winner === "ally" && runtime.drops) {
-          collectBattleDrops(runtime.drops);
+        setCampaignReplay((prev) => mergeCampaignReplayState(prev, runtime));
+
+        if (runtime.winner === "ally") {
+          const allyHeroIds = runtime.units.filter((unit) => unit.side === "ally").map((unit) => unit.id);
+          const enemyLevels = runtime.units.filter((unit) => unit.side === "enemy").map((unit) => unit.level);
+          grantBattleHeroExp(allyHeroIds, enemyLevels);
+          if (runtime.drops) {
+            collectBattleDrops(runtime.drops);
+          }
         }
 
         const materialGainCounts = runtime.drops?.entries.reduce<Record<string, number>>((acc, entry) => {
@@ -398,17 +557,18 @@ export function BattlePage() {
       }
     }
     battleStateRef.current = runtime ? { battleId: runtime.battleId, status: runtime.status } : null;
-  }, [collectBattleDrops, context?.region.id, reportMissionBattleOutcome, runtime]);
+  }, [collectBattleDrops, context?.region.id, grantBattleHeroExp, reportMissionBattleOutcome, runtime]);
 
   useEffect(() => {
     if (!runtime) {
       return;
     }
-    const views = runtime.replay.views.map((view) => view.key);
+    const replayViews = campaignReplay.replay.views.length > 0 ? campaignReplay.replay.views : runtime.replay.views;
+    const views = replayViews.map((view) => view.key);
     if (views.length > 0 && !views.includes(activeReplayView)) {
       setActiveReplayView(views[0]);
     }
-  }, [activeReplayView, runtime]);
+  }, [activeReplayView, campaignReplay.replay.views, runtime]);
 
   const visibleLogList = useMemo(() => {
     if (campaignLogs.length > 0) {
@@ -447,17 +607,20 @@ export function BattlePage() {
   const shouldShowReplayUi = isFinished && !canChainToNextRound;
   const allyAlive = runtime.units.filter((unit) => unit.side === "ally" && unit.alive).length;
   const enemyAlive = runtime.units.filter((unit) => unit.side === "enemy" && unit.alive).length;
-  const allyStats = runtime.replay.unitStats
+  const replayData = campaignReplay.rounds > 0 ? campaignReplay.replay : runtime.replay;
+  const replayViews = replayData.views.length > 0 ? replayData.views : runtime.replay.views;
+  const replayRoundCount = campaignReplay.rounds > 0 ? campaignReplay.rounds : 1;
+  const allyStats = replayData.unitStats
     .filter((stat) => stat.side === "ally")
     .sort((left, right) => right.damageDealt - left.damageDealt);
-  const enemyStats = runtime.replay.unitStats
+  const enemyStats = replayData.unitStats
     .filter((stat) => stat.side === "enemy")
     .sort((left, right) => right.damageDealt - left.damageDealt);
-  const actionSnapshots = runtime.replay.actionSnapshots.slice(-30).reverse();
-  const statusChanges = runtime.replay.statusChanges.slice(-30).reverse();
+  const actionSnapshots = [...replayData.actionSnapshots].reverse();
+  const statusChanges = [...replayData.statusChanges].reverse();
 
-  const dropEntries = runtime.drops?.entries ?? [];
-  const materialDrops = runtime.replay.dropStats.materials;
+  const dropEntries = campaignReplay.rounds > 0 ? campaignReplay.dropEntries : runtime.drops?.entries ?? [];
+  const materialDrops = replayData.dropStats.materials;
   const equipmentDrops = dropEntries
     .filter((entry) => entry.category === "equipment" && entry.equipment)
     .map((entry) => entry.equipment!)
@@ -569,6 +732,7 @@ export function BattlePage() {
               setChainRound(1);
               setRuntime(nextInitialRuntime);
               setCampaignLogs([]);
+              setCampaignReplay(createEmptyCampaignReplay());
               setIsReplayModalOpen(false);
               campaignLogCursorRef.current = null;
             }}
@@ -665,7 +829,7 @@ export function BattlePage() {
               </button>
             </header>
             <div className="battle-replay-tabs">
-              {runtime.replay.views.map((view) => (
+              {replayViews.map((view) => (
                 <button
                   key={view.key}
                   type="button"
@@ -709,9 +873,10 @@ export function BattlePage() {
             {activeReplayView === "drops" ? (
               <div className="battle-replay-panel">
                 <div className="battle-drop-summary-row">
-                  <p>掉落条目：{runtime.replay.dropStats.totalEntries}</p>
-                  <p>装备：{runtime.replay.dropStats.byCategory.equipment}</p>
-                  <p>材料：{runtime.replay.dropStats.byCategory.material}</p>
+                  <p>场次：{replayRoundCount}</p>
+                  <p>掉落条目：{replayData.dropStats.totalEntries}</p>
+                  <p>装备：{replayData.dropStats.byCategory.equipment}</p>
+                  <p>材料：{replayData.dropStats.byCategory.material}</p>
                 </div>
 
                 <div className="battle-replay-category-tabs">

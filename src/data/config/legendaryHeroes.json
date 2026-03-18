@@ -7,6 +7,7 @@
       "heroClass": "paladin",
       "image": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=900",
       "stats": { "hp": 14600, "mp": 980, "str": 286, "int": 118, "agi": 124, "def": 528 },
+      "growth": { "hp": 520, "mp": 28, "str": 11, "int": 3, "agi": 4, "def": 12 },
       "loadout": {
         "talentId": "talent_legend_sun_oath",
         "activeSkillIds": [
@@ -28,6 +29,7 @@
       "heroClass": "mage",
       "image": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&q=80&w=900",
       "stats": { "hp": 5200, "mp": 5600, "str": 66, "int": 462, "agi": 180, "def": 142 },
+      "growth": { "hp": 210, "mp": 180, "str": 2, "int": 14, "agi": 5, "def": 3 },
       "loadout": {
         "talentId": "talent_legend_arcane_singularity",
         "activeSkillIds": [
@@ -50,6 +52,7 @@
       "heroClass": "ranger",
       "image": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=900",
       "stats": { "hp": 8900, "mp": 2100, "str": 218, "int": 126, "agi": 338, "def": 286 },
+      "growth": { "hp": 320, "mp": 68, "str": 8, "int": 3, "agi": 12, "def": 6 },
       "loadout": {
         "talentId": "talent_legend_starseeker",
         "activeSkillIds": [
@@ -71,6 +74,7 @@
       "heroClass": "priest",
       "image": "/images/heroes/Miya.png",
       "stats": { "hp": 7600, "mp": 6200, "str": 88, "int": 520, "agi": 166, "def": 232 },
+      "growth": { "hp": 260, "mp": 200, "str": 3, "int": 16, "agi": 5, "def": 5 },
       "loadout": {
         "talentId": "talent_legend_miya_pulse_of_yggdrasil",
         "activeSkillIds": [

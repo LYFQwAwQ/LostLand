@@ -10,7 +10,12 @@ export const ACTION_META: Record<NodeAction, NodeActionMeta> = {
   shop: {
     key: "shop",
     label: "商店",
-    description: "ST1 节点装备基础买卖入口（材料与大宗贸易仍待补完）。"
+    description: "ST1 节点装备基础买卖入口。"
+  },
+  build_materials: {
+    key: "build_materials",
+    label: "建材交易",
+    description: "ST1 节点建筑材料购买入口（基础价 + 主城浮动百分比）。"
   },
   market: {
     key: "market",
@@ -45,7 +50,7 @@ export const ACTION_META: Record<NodeAction, NodeActionMeta> = {
 };
 
 const archetypeActionMap: Record<NodeArchetype, NodeAction[]> = {
-  ST1: ["detail", "shop", "tavern", "forge", "bulletin"],
+  ST1: ["detail", "shop", "build_materials", "tavern", "forge", "bulletin"],
   ST2: ["detail", "market", "bulletin"],
   ST3: ["detail"],
   BL1: ["detail", "battle"],

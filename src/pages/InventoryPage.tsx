@@ -185,6 +185,7 @@ export function InventoryPage() {
   const [resourceKeyword, setResourceKeyword] = useState("");
   const [resourceRarityFilters, setResourceRarityFilters] = useState<InventoryResourceRarity[]>([]);
   const [resourceSortBy, setResourceSortBy] = useState<ResourceSortBy>("quantityDesc");
+  const [buildingMaterialOnly, setBuildingMaterialOnly] = useState(false);
   const [memoryKeyword, setMemoryKeyword] = useState("");
   const [memoryClassFilters, setMemoryClassFilters] = useState<Array<InventoryMemoryStack["heroClass"]>>([]);
   const [memorySortBy, setMemorySortBy] = useState<MemorySortBy>("equippedFirst");
@@ -275,6 +276,9 @@ export function InventoryPage() {
       if (item.quantity <= 0) {
         return false;
       }
+      if (buildingMaterialOnly && item.sourceType !== "building") {
+        return false;
+      }
       if (resourceRarityFilters.length > 0 && !resourceRarityFilters.includes(item.rarity)) {
         return false;
       }
@@ -288,7 +292,7 @@ export function InventoryPage() {
       );
     });
     return sortResourceEntries(filtered, resourceSortBy);
-  }, [materialItems, resourceKeyword, resourceRarityFilters, resourceSortBy]);
+  }, [buildingMaterialOnly, materialItems, resourceKeyword, resourceRarityFilters, resourceSortBy]);
 
   const visibleConsumableItems = useMemo(() => {
     const key = resourceKeyword.trim().toLowerCase();
@@ -520,6 +524,7 @@ export function InventoryPage() {
     setResourceKeyword("");
     setResourceRarityFilters([]);
     setResourceSortBy("quantityDesc");
+    setBuildingMaterialOnly(false);
   };
 
   const toggleMemoryClass = (heroClass: InventoryMemoryStack["heroClass"]) => {
@@ -960,6 +965,15 @@ export function InventoryPage() {
                   </div>
                 </section>
                 <div className="inventory-tag-actions">
+                  {tab === "material" ? (
+                    <button
+                      type="button"
+                      className={`ghost-btn ${buildingMaterialOnly ? "active" : ""}`}
+                      onClick={() => setBuildingMaterialOnly((prev) => !prev)}
+                    >
+                      {buildingMaterialOnly ? "显示全部材料" : "仅建筑材料"}
+                    </button>
+                  ) : null}
                   <button type="button" className="ghost-btn" onClick={clearResourceFilters}>
                     一键清空
                   </button>
@@ -978,7 +992,7 @@ export function InventoryPage() {
                           <article key={item.id} className="inventory-resource-card">
                             <h4>{item.name}</h4>
                             <p className="inventory-resource-quantity">库存 x{item.quantity}</p>
-                            <p className="inventory-resource-meta">来源怪物：{formatMaterialSources(item.sourceEnemyPrototypeIds)}</p>
+                            <p className="inventory-resource-meta">来源：{formatMaterialSources(item.sourceEnemyPrototypeIds)}</p>
                             <div className="inventory-badges">
                               <span className={`quality-badge quality-${item.rarity}`}>{resourceRarityLabels[item.rarity]}</span>
                               <span className="rank-badge">ID: {item.id}</span>

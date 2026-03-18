@@ -1,7 +1,13 @@
 import { Building2, Compass, Hand, Plus, Search, ScrollText, Trash2, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent, WheelEvent } from "react";
-import { ORGANIZATION_CONFIG } from "../data/organizationData";
+import {
+  ORGANIZATION_CONFIG,
+  getOrganizationBuildingMaxLevel,
+  getOrganizationBuildingUpgradeStep,
+  getTrainingCampGlobalExpBonusRate,
+  getTrainingCampSlotCount
+} from "../data/organizationData";
 import { getRegionMeta } from "../data/worldMapData";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import { useMapSystem } from "../state/MapSystemProvider";
@@ -81,7 +87,7 @@ function getMissionProgressText(mission: BulletinMissionState, materialCountMap:
 
 export function OrganizationPage() {
   const { getAcceptedBulletinMissions, acceptedMissionCount, acceptedMissionLimit } = useMapSystem();
-  const { materialItems } = useEquipmentInventory();
+  const { gold, materialItems, payCost } = useEquipmentInventory();
   const {
     gridSize,
     buildings,
@@ -91,6 +97,10 @@ export function OrganizationPage() {
     revealedCells,
     revealedCellCount,
     rankState,
+    organizationRankCap,
+    missionAcceptedLimitBonus,
+    forgeEnhancementBonusRate,
+    getBuildingLevel,
     pendingExpansionCount,
     checkPlacement,
     checkTerritoryExpansion,
@@ -193,6 +203,13 @@ export function OrganizationPage() {
   const visibleHoverDefinition = visibleHoverPlacement ? buildingById[visibleHoverPlacement.definitionId] ?? null : null;
   const selectedPlacement = selectedPlacementId ? placementById[selectedPlacementId] ?? null : null;
   const selectedPlacementDefinition = selectedPlacement ? buildingById[selectedPlacement.definitionId] ?? null : null;
+  const selectedPlacementMaxLevel = selectedPlacement ? getOrganizationBuildingMaxLevel(selectedPlacement.definitionId) : 1;
+  const selectedPlacementUpgradeStep =
+    selectedPlacement && selectedPlacementDefinition
+      ? getOrganizationBuildingUpgradeStep(selectedPlacement.definitionId, selectedPlacement.level)
+      : null;
+  const activeFunctionalPlacement = activeFunctionalPlacementId ? placementById[activeFunctionalPlacementId] ?? null : null;
+  const activeFunctionalLevel = Math.max(1, Math.floor(activeFunctionalPlacement?.level ?? 1));
   const rankProgress =
     rankState.nextRankExp > 0 ? Math.min(1, rankState.currentExp / rankState.nextRankExp) : 1;
   const expansionPatchLabel = `${ORGANIZATION_CONFIG.expansionPatchSize}x${ORGANIZATION_CONFIG.expansionPatchSize}`;
@@ -218,9 +235,13 @@ export function OrganizationPage() {
     const completed = mainQuests.filter((quest) => quest.status === "completed");
     return [...notCompleted, ...completed];
   }, [mainQuests]);
-  const activeFunctionalDefinition = activeFunctionalPlacementId
-    ? buildingById[placementById[activeFunctionalPlacementId]?.definitionId ?? ""]
+  const activeFunctionalDefinition = activeFunctionalPlacement
+    ? buildingById[activeFunctionalPlacement.definitionId] ?? null
     : null;
+  const activeTrainingCampExpBonusRate =
+    activeFunctionalDefinition?.id === "training_camp" ? getTrainingCampGlobalExpBonusRate(activeFunctionalLevel) : 0;
+  const activeTrainingCampSlotCount =
+    activeFunctionalDefinition?.id === "training_camp" ? getTrainingCampSlotCount(activeFunctionalLevel) : 1;
 
   useEffect(() => {
     const viewportElement = viewportRef.current;
@@ -517,6 +538,32 @@ export function OrganizationPage() {
     setFunctionalFeedback(result.message);
   };
 
+  const handleUpgradeSelectedPlacement = () => {
+    if (!selectedPlacement || !selectedPlacementDefinition) {
+      setFeedback("请先选中一个建筑。");
+      return;
+    }
+    if (!selectedPlacementUpgradeStep) {
+      setFeedback(`${selectedPlacementDefinition.name} 已达到当前开放等级上限（Lv.${selectedPlacementMaxLevel}）。`);
+      return;
+    }
+
+    const payResult = payCost({
+      gold: selectedPlacementUpgradeStep.goldCost,
+      materials: selectedPlacementUpgradeStep.materials.map((item) => ({
+        materialId: item.materialId,
+        quantity: item.quantity
+      }))
+    });
+    if (!payResult.ok) {
+      setFeedback(`${selectedPlacementDefinition.name} 升级失败：${payResult.reason ?? "资源不足。"}。`);
+      return;
+    }
+
+    const upgradeResult = upgradeBuilding(selectedPlacement.instanceId);
+    setFeedback(upgradeResult.message);
+  };
+
   return (
     <section className="page organization-page">
       <header className="organization-page-header">
@@ -527,7 +574,7 @@ export function OrganizationPage() {
           </h3>
           <div className="organization-rank-inline-main">
             <p>
-              Rank {rankState.rank} / {ORGANIZATION_CONFIG.maxRank}
+              Rank {rankState.rank} / {organizationRankCap}
             </p>
             <div className="organization-rank-progress">
               <span style={{ width: `${rankProgress * 100}%` }} />
@@ -537,6 +584,10 @@ export function OrganizationPage() {
             </p>
             <p>
               当前领地：{revealedCellCount} 格 · 可扩展次数：{pendingExpansionCount}
+            </p>
+            <p>
+              基地核心上限：Lv.{getBuildingLevel("base_core") || 1} · 任务上限加成：+{missionAcceptedLimitBonus} · 铁匠成功率加成：+
+              {Math.round(forgeEnhancementBonusRate * 100)}%
             </p>
           </div>
           <button type="button" className="ghost-btn" onClick={() => addMockOrganizationExp(120)}>
@@ -560,9 +611,21 @@ export function OrganizationPage() {
                 <p>
                   坐标：({selectedPlacement.origin.x}, {selectedPlacement.origin.y})
                 </p>
+                <p>
+                  当前等级上限：Lv.{selectedPlacementMaxLevel}
+                  {selectedPlacementUpgradeStep ? ` · 下一阶段：${selectedPlacementUpgradeStep.effect}` : " · 已达当前上限"}
+                </p>
+                {selectedPlacementUpgradeStep ? (
+                  <p>
+                    升级消耗：金币 {selectedPlacementUpgradeStep.goldCost.toLocaleString("zh-CN")} /{" "}
+                    {selectedPlacementUpgradeStep.materials
+                      .map((item) => `${item.materialName} x${item.quantity}（持有 ${materialCountMap[item.materialId] ?? 0}）`)
+                      .join("，")}
+                  </p>
+                ) : null}
                 <div className="organization-row-actions">
-                  <button type="button" className="ghost-btn" onClick={() => upgradeBuilding(selectedPlacement.instanceId)}>
-                    <Plus size={12} /> 升级（占位）
+                  <button type="button" className="ghost-btn" onClick={handleUpgradeSelectedPlacement} disabled={!selectedPlacementUpgradeStep}>
+                    <Plus size={12} /> 升级建筑
                   </button>
                   <button
                     type="button"
@@ -796,6 +859,7 @@ export function OrganizationPage() {
                 <p>
                   当前建筑：<strong>{selectedDefinition.name}</strong>
                 </p>
+                <p>当前资金：{gold.toLocaleString("zh-CN")} 金币</p>
                 <p>{selectedDefinition.description}</p>
                 {pendingExpansionCount > 0 ? (
                   <p className="warn">当前有 {pendingExpansionCount} 次可用扩展（每次 {expansionPatchLabel}）。</p>
@@ -851,6 +915,9 @@ export function OrganizationPage() {
                 </div>
                 {activeCoreTab === "status" ? (
                   <>
+                    <p>
+                      当前评级上限：Rank {organizationRankCap}（基地核心 Lv.{getBuildingLevel("base_core") || 1}）
+                    </p>
                     <p>当前组织已建造建筑总数：{placements.length}</p>
                     <div className="organization-core-status-list">
                       {Object.entries(buildingCountByDefinition).length > 0 ? (
@@ -906,6 +973,7 @@ export function OrganizationPage() {
                 <p>
                   当前已接取任务：{acceptedMissionCount} / {acceptedMissionLimit}
                 </p>
+                <p>任务大厅等级加成：+{missionAcceptedLimitBonus} 任务栏上限。</p>
                 <p className="organization-mission-note">收集任务的可交付判定以背包实时材料为准，此处展示任务目标与当前记录。</p>
                 {acceptedMissions.length > 0 ? (
                   <div className="organization-mission-list">
@@ -929,6 +997,26 @@ export function OrganizationPage() {
                 ) : (
                   <p>当前没有已接取任务。可前往任意节点布告栏领取后再查看。</p>
                 )}
+              </>
+            ) : activeFunctionalDefinition?.id === "training_camp" ? (
+              <>
+                <p>训练营等级：Lv.{activeFunctionalLevel}</p>
+                <p>全局经验收益加成（展示）：+{Math.round(activeTrainingCampExpBonusRate * 100)}%</p>
+                <p>训练槽位：{activeTrainingCampSlotCount}（当前点击仅占位，不触发训练流程）。</p>
+                {functionalFeedback ? <p>{functionalFeedback}</p> : null}
+                <div className="organization-row-actions">
+                  {Array.from({ length: activeTrainingCampSlotCount }).map((_, index) => (
+                    <button
+                      key={`training-slot-${index + 1}`}
+                      type="button"
+                      className="ghost-btn small-btn"
+                      onClick={() => setFunctionalFeedback(`训练槽位 ${index + 1} 已选中（训练流程暂未接入）。`)}
+                    >
+                      槽位 {index + 1}
+                    </button>
+                  ))}
+                </div>
+                <p className="organization-mission-note">后续将接入“驻训英雄持续获取经验”正式流程。</p>
               </>
             ) : (
               <>

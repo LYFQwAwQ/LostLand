@@ -1,7 +1,7 @@
 ﻿import heroGenerationConfigJson from "./config/heroGeneration.json";
 import legendaryHeroesConfigJson from "./config/legendaryHeroes.json";
 import { battleActiveSkills, battlePassiveSkills, battleTalents } from "./battleSkills";
-import type { Hero, HeroClass, HeroSkillRarity } from "../types/game";
+import type { Hero, HeroClass, HeroSkillRarity, HeroStatGrowth } from "../types/game";
 
 interface HeroStatsNumeric {
   hp: number;
@@ -47,6 +47,7 @@ interface HeroGenerationConfig {
   titlePoolByClass: Record<HeroClass, string[]>;
   imagePoolByClass: Record<HeroClass, string[]>;
   statProfileByClass: Record<HeroClass, { base: HeroStatsNumeric; variance: HeroStatsNumeric }>;
+  growthProfileByClass: Record<HeroClass, { base: HeroStatsNumeric; variance: HeroStatsNumeric }>;
   standardLoadoutPools: Record<HeroClass, HeroLoadoutPool>;
 }
 
@@ -57,6 +58,7 @@ interface LegendaryHeroConfigEntry {
   heroClass: HeroClass;
   image: string;
   stats: HeroStatsNumeric;
+  growth: HeroStatsNumeric;
   loadout: {
     talentId: string | null;
     activeSkillIds: string[];
@@ -119,7 +121,8 @@ const BASE_FIXED_HEROES: Hero[] = [
       ],
       passiveSkillIds: ["passive_plate_mastery", "passive_resolute_heart"]
     },
-    stats: { hp: "12,500", mp: "800", str: "245", int: "85", agi: "112", def: "450" }
+    stats: { hp: "12,500", mp: "800", str: "245", int: "85", agi: "112", def: "450" },
+    statGrowth: { hp: 480, mp: 22, str: 10, int: 2, agi: 4, def: 11 }
   },
   {
     id: "selene",
@@ -158,7 +161,8 @@ const BASE_FIXED_HEROES: Hero[] = [
       ],
       passiveSkillIds: ["passive_arcane_flow", "passive_frost_focus"]
     },
-    stats: { hp: "4,200", mp: "4,500", str: "42", int: "380", agi: "156", def: "120" }
+    stats: { hp: "4,200", mp: "4,500", str: "42", int: "380", agi: "156", def: "120" },
+    statGrowth: { hp: 170, mp: 170, str: 2, int: 13, agi: 5, def: 3 }
   },
   // TODO(test): 测试结束后，从固定初始英雄中移除弥亚（legendary-priest-miya），恢复为纯随机传奇产出。
   {
@@ -185,7 +189,8 @@ const BASE_FIXED_HEROES: Hero[] = [
       ],
       passiveSkillIds: ["passive_legend_miya_universal_resonance"]
     },
-    stats: { hp: "7,600", mp: "6,200", str: "88", int: "520", agi: "166", def: "232" }
+    stats: { hp: "7,600", mp: "6,200", str: "88", int: "520", agi: "166", def: "232" },
+    statGrowth: { hp: 260, mp: 200, str: 3, int: 16, agi: 5, def: 5 }
   }
 ];
 
@@ -253,6 +258,26 @@ function rollNumericStats(heroClass: HeroClass, random: () => number): HeroStats
   });
 }
 
+function rollNumericGrowth(heroClass: HeroClass, random: () => number): HeroStatsNumeric {
+  const profile = heroGenerationConfig.growthProfileByClass[heroClass];
+  const keys: Array<keyof HeroStatsNumeric> = ["hp", "mp", "str", "int", "agi", "def"];
+
+  return keys.reduce<HeroStatsNumeric>((acc, key) => {
+    const base = profile.base[key];
+    const variance = profile.variance[key];
+    const delta = (random() * 2 - 1) * variance;
+    acc[key] = Math.max(0, Math.round(base + delta));
+    return acc;
+  }, {
+    hp: 0,
+    mp: 0,
+    str: 0,
+    int: 0,
+    agi: 0,
+    def: 0
+  });
+}
+
 function mapStatsToHero(stats: HeroStatsNumeric): Hero["stats"] {
   return {
     hp: toDisplayStat(stats.hp),
@@ -261,6 +286,17 @@ function mapStatsToHero(stats: HeroStatsNumeric): Hero["stats"] {
     int: toDisplayStat(stats.int),
     agi: toDisplayStat(stats.agi),
     def: toDisplayStat(stats.def)
+  };
+}
+
+function mapGrowthToHero(growth: HeroStatsNumeric): HeroStatGrowth {
+  return {
+    hp: Math.max(0, Math.round(growth.hp)),
+    mp: Math.max(0, Math.round(growth.mp)),
+    str: Math.max(0, Math.round(growth.str)),
+    int: Math.max(0, Math.round(growth.int)),
+    agi: Math.max(0, Math.round(growth.agi)),
+    def: Math.max(0, Math.round(growth.def))
   };
 }
 
@@ -411,6 +447,17 @@ function cloneLearnedSkills(learnedSkills: Hero["learnedSkills"] | undefined): H
     activeSkillIds,
     passiveSkillIds,
     rarityBySkillId: { ...fallback, ...fromSource }
+  };
+}
+
+function cloneStatGrowth(statGrowth: HeroStatGrowth): HeroStatGrowth {
+  return {
+    hp: statGrowth.hp,
+    mp: statGrowth.mp,
+    str: statGrowth.str,
+    int: statGrowth.int,
+    agi: statGrowth.agi,
+    def: statGrowth.def
   };
 }
 
@@ -594,6 +641,7 @@ function buildGeneratedStandardHero(
   usedIds.add(heroId);
 
   const stats = rollNumericStats(heroClass, random);
+  const growth = rollNumericGrowth(heroClass, random);
   const titlePool = heroGenerationConfig.titlePoolByClass[heroClass];
   const imagePool = heroGenerationConfig.imagePoolByClass[heroClass];
   const usedTalentIdsByClass = usedTalentIdsByClassMap.get(heroClass) ?? new Set<string>();
@@ -612,7 +660,8 @@ function buildGeneratedStandardHero(
     origin: "generated",
     learnedSkills: skillPackage.learnedSkills,
     loadoutPreset: skillPackage.loadoutPreset,
-    stats: mapStatsToHero(stats)
+    stats: mapStatsToHero(stats),
+    statGrowth: mapGrowthToHero(growth)
   };
 }
 
@@ -646,7 +695,8 @@ function buildLegendaryHero(entry: LegendaryHeroConfigEntry): Hero {
       activeSkillIds,
       passiveSkillIds
     },
-    stats: mapStatsToHero(entry.stats)
+    stats: mapStatsToHero(entry.stats),
+    statGrowth: mapGrowthToHero(entry.growth)
   };
 }
 
@@ -684,6 +734,7 @@ export function createStartupHeroes(): Hero[] {
     ...BASE_FIXED_HEROES.map((hero) => ({
       ...hero,
       learnedSkills: cloneLearnedSkills(hero.learnedSkills),
+      statGrowth: cloneStatGrowth(hero.statGrowth),
       loadoutPreset: hero.loadoutPreset
         ? {
             talentId: hero.loadoutPreset.talentId,

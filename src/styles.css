@@ -1633,6 +1633,13 @@ body {
   text-transform: uppercase;
 }
 
+.hero-portrait-text small {
+  display: block;
+  margin-top: 4px;
+  color: #d7c6b2;
+  font-size: 11px;
+}
+
 .hero-stats-panel {
   flex: 1;
   min-height: 0;
@@ -1668,6 +1675,24 @@ body {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.4;
+}
+
+.hero-level-summary {
+  margin-left: auto;
+  display: grid;
+  gap: 4px;
+  text-align: right;
+}
+
+.hero-level-summary strong {
+  color: var(--gold);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.hero-level-summary span {
+  color: #d7c6b2;
+  font-size: 11px;
 }
 
 .hero-stats-grid {
@@ -4783,6 +4808,7 @@ body {
   grid-template-columns: 1fr 360px;
   gap: 12px;
   min-height: 540px;
+  align-items: start;
 }
 
 .battle-main-board {
@@ -4966,8 +4992,9 @@ body {
   background: #15120f;
   padding: 10px;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
+  min-height: 0;
 }
 
 .battle-side-card {
@@ -4994,8 +5021,10 @@ body {
 
 .battle-log-card {
   min-height: 260px;
+  max-height: clamp(260px, 56vh, 620px);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .battle-log-list {
@@ -5004,6 +5033,9 @@ body {
   display: grid;
   gap: 6px;
   font-size: 11px;
+  flex: 1;
+  min-height: 0;
+  padding-right: 2px;
 }
 
 .battle-log-list p {
