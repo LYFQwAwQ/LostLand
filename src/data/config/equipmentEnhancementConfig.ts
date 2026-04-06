@@ -147,6 +147,10 @@ export const ENHANCEMENT_CONFIG = {
     levelFactor: 100,
     enhancementGrowth: 1.2
   },
+  successRate: {
+    capByBaseMultiplier: 1.2,
+    absoluteCap: 1
+  },
   materialStageMultiplier: [
     { minLevel: 1, maxLevel: 3, multiplier: 1 },
     { minLevel: 4, maxLevel: 6, multiplier: 1.2 },

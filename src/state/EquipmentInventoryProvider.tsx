@@ -3,12 +3,19 @@ import type { ReactNode } from "react";
 import { getMaterialDropCatalog } from "../data/battleDrops";
 import { getBuildingMaterialCatalog } from "../data/buildingMaterials";
 import {
+  ENHANCEMENT_CONFIG,
   getEnhancementStatBonus,
   getEnhancementSuccessRate,
   resolveEnhancementGoldCost,
   resolveEnhancementMaterialCost,
   resolveEnhancementMaxLevel
 } from "../data/config/equipmentEnhancementConfig";
+import {
+  ENHANCEMENT_AID_BY_ID,
+  ENHANCEMENT_AID_DEFINITIONS,
+  buildDefaultEnhancementAidStock,
+  type EnhancementAidDefinition
+} from "../data/config/equipmentEnhancementAidConfig";
 import {
   ECONOMY_CONFIG,
   getEquipmentBuyPrice,
@@ -68,6 +75,7 @@ export interface EquipmentInventorySnapshot {
   soldEquipmentItemUids?: string[];
   lockedEquipmentItemUids?: string[];
   equipmentEnhancementByUid?: Record<string, number>;
+  enhancementAidStock?: Record<string, number>;
   materialStock?: Record<string, number>;
   consumableStock?: Record<string, number>;
   memoryOwnedIds?: string[];
@@ -99,9 +107,16 @@ export interface EquipmentEnhancementPreview {
   maxLevel: number;
   currentBonus: number;
   targetBonus: number;
+  baseSuccessRate: number;
+  forgeBonusRate: number;
+  aidSuccessRateBonus: number;
+  successRateCap: number;
   successRate: number;
   goldCost: number;
-  materialCost: Array<{ materialId: string; quantity: number; owned: number }>;
+  materialCost: Array<{ materialId: string; materialName: string; rarity: InventoryResourceRarity; quantity: number; owned: number }>;
+  selectedAid: EquipmentEnhancementAidItem | null;
+  aidCost: number;
+  materialConsumedOnFailure: boolean;
   canEnhance: boolean;
   reason: string | null;
 }
@@ -116,7 +131,26 @@ export interface EquipmentEnhancementResult {
   successRate: number;
   goldCost: number;
   materialCost: Array<{ materialId: string; quantity: number }>;
+  usedAidId: string | null;
+  usedAidName: string | null;
+  aidConsumed: boolean;
+  materialConsumed: boolean;
+  materialPreservedByAid: boolean;
   reason: string | null;
+}
+
+export interface EquipmentEnhancementAidItem {
+  id: string;
+  name: string;
+  description: string;
+  effectType: EnhancementAidDefinition["effectType"];
+  successRateBonus: number;
+  preserveMaterialOnFailure: boolean;
+  owned: number;
+}
+
+export interface EquipmentEnhancementAttemptOptions {
+  aidId?: string | null;
 }
 
 export interface MaterialPurchaseEntry {
@@ -158,6 +192,7 @@ interface EquipmentInventoryContextValue {
   legendaryEquipmentSkillsById: Record<string, LegendaryEquipmentSkillDefinition>;
   ownedLegendaryEquipmentIds: string[];
   materialItems: InventoryMaterialStack[];
+  enhancementAidItems: EquipmentEnhancementAidItem[];
   consumableItems: InventoryConsumableStack[];
   memoryItems: InventoryMemoryStack[];
   equippedMemoryByHero: Record<string, string>;
@@ -174,8 +209,8 @@ interface EquipmentInventoryContextValue {
   setEquipmentLocked: (itemUid: string, locked: boolean) => boolean;
   getEquipmentEnhanceLevel: (itemUid: string) => number;
   getEquipmentEnhanceBonus: (itemUid: string) => number;
-  getEquipmentEnhancementPreview: (itemUid: string) => EquipmentEnhancementPreview | null;
-  enhanceEquipment: (itemUid: string) => EquipmentEnhancementResult;
+  getEquipmentEnhancementPreview: (itemUid: string, options?: EquipmentEnhancementAttemptOptions) => EquipmentEnhancementPreview | null;
+  enhanceEquipment: (itemUid: string, options?: EquipmentEnhancementAttemptOptions) => EquipmentEnhancementResult;
   buyMaterials: (entries: MaterialPurchaseEntry[]) => MaterialPurchaseResult;
   payCost: (cost: { gold: number; materials: Array<{ materialId: string; quantity: number }> }) => InventoryCostPayResult;
   consumeMaterials: (materials: Array<{ materialId: string; quantity: number }>) => boolean;
@@ -336,6 +371,17 @@ function normalizeResourceStock(input: Record<string, number> | null | undefined
       return acc;
     }
     acc[id] = safeQuantity;
+    return acc;
+  }, {});
+}
+
+function normalizeEnhancementAidStock(input: Record<string, number> | null | undefined): Record<string, number> {
+  const normalized = normalizeResourceStock(input);
+  return Object.entries(normalized).reduce<Record<string, number>>((acc, [aidId, quantity]) => {
+    if (!ENHANCEMENT_AID_BY_ID[aidId]) {
+      return acc;
+    }
+    acc[aidId] = quantity;
     return acc;
   }, {});
 }
@@ -522,6 +568,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
   const [soldEquipmentItemUids, setSoldEquipmentItemUids] = useState<string[]>([]);
   const [lockedEquipmentItemUids, setLockedEquipmentItemUids] = useState<string[]>([]);
   const [equipmentEnhancementByUid, setEquipmentEnhancementByUid] = useState<Record<string, number>>({});
+  const [enhancementAidStock, setEnhancementAidStock] = useState<Record<string, number>>(() => buildDefaultEnhancementAidStock());
   const [materialStock, setMaterialStock] = useState<Record<string, number>>({});
   const [consumableStock, setConsumableStock] = useState<Record<string, number>>(() => buildDefaultConsumableStock());
   const [ownedMemoryIds, setOwnedMemoryIds] = useState<string[]>(() => buildDefaultOwnedMemoryIds());
@@ -612,6 +659,18 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     });
   }, [materialStock]);
 
+  const enhancementAidItems = useMemo(() => {
+    return ENHANCEMENT_AID_DEFINITIONS.map<EquipmentEnhancementAidItem>((definition) => ({
+      id: definition.id,
+      name: definition.name,
+      description: definition.description,
+      effectType: definition.effectType,
+      successRateBonus: definition.successRateBonus,
+      preserveMaterialOnFailure: definition.preserveMaterialOnFailure,
+      owned: enhancementAidStock[definition.id] ?? 0
+    }));
+  }, [enhancementAidStock]);
+
   const consumableItems = useMemo(() => {
     return initialConsumableStacks
       .map((item) => ({
@@ -701,6 +760,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     setSoldEquipmentItemUids([]);
     setLockedEquipmentItemUids([]);
     setEquipmentEnhancementByUid({});
+    setEnhancementAidStock(buildDefaultEnhancementAidStock());
     setSeed(`${Date.now()}`);
   };
 
@@ -936,21 +996,45 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     return true;
   };
 
-  const getEquipmentEnhancementPreview = (itemUid: string): EquipmentEnhancementPreview | null => {
+  const getEquipmentEnhancementPreview = (
+    itemUid: string,
+    options?: EquipmentEnhancementAttemptOptions
+  ): EquipmentEnhancementPreview | null => {
     const item = itemMap.get(itemUid);
     if (!item) {
       return null;
     }
 
+    const selectedAidDefinition = options?.aidId ? ENHANCEMENT_AID_BY_ID[options.aidId] ?? null : null;
+    const selectedAid: EquipmentEnhancementAidItem | null = selectedAidDefinition
+      ? {
+          id: selectedAidDefinition.id,
+          name: selectedAidDefinition.name,
+          description: selectedAidDefinition.description,
+          effectType: selectedAidDefinition.effectType,
+          successRateBonus: selectedAidDefinition.successRateBonus,
+          preserveMaterialOnFailure: selectedAidDefinition.preserveMaterialOnFailure,
+          owned: enhancementAidStock[selectedAidDefinition.id] ?? 0
+        }
+      : null;
+    const aidCost = selectedAid ? 1 : 0;
     const currentLevel = getEquipmentEnhanceLevel(itemUid);
     const maxLevel = resolveEnhancementMaxLevel(Boolean(legendaryEquipmentIdByUid[itemUid]));
     const targetLevel = Math.min(maxLevel, currentLevel + 1);
     const goldCost = resolveEnhancementGoldCost(item.level, targetLevel);
     const baseSuccessRate = getEnhancementSuccessRate(targetLevel);
-    const successRateCap = Math.min(1, baseSuccessRate * 1.2);
-    const successRate = Math.min(successRateCap, baseSuccessRate + Math.max(0, forgeEnhancementBonusRate));
+    const maxConfigCap = Math.max(0, Math.min(1, ENHANCEMENT_CONFIG.successRate.absoluteCap));
+    const successRateCapByMultiplier = Math.min(1, baseSuccessRate * ENHANCEMENT_CONFIG.successRate.capByBaseMultiplier);
+    const successRateCap = Math.max(baseSuccessRate, Math.min(maxConfigCap, successRateCapByMultiplier));
+    const forgeBonusRate = Math.max(0, forgeEnhancementBonusRate);
+    const aidSuccessRateBonus = Math.max(0, selectedAid?.successRateBonus ?? 0);
+    const successRate = Math.min(successRateCap, baseSuccessRate + forgeBonusRate + aidSuccessRateBonus);
+    const materialConsumedOnFailure =
+      selectedAid?.preserveMaterialOnFailure === true ? false : ENHANCEMENT_CONFIG.failureConsumesResources;
     const materialCost = resolveEnhancementMaterialCost(item.templateId, targetLevel).map((entry) => ({
       materialId: entry.materialId,
+      materialName: MATERIAL_CATALOG_MAP.get(entry.materialId)?.name ?? entry.materialId,
+      rarity: MATERIAL_CATALOG_MAP.get(entry.materialId)?.rarity ?? "common",
       quantity: entry.quantity,
       owned: materialStock[entry.materialId] ?? 0
     }));
@@ -958,6 +1042,8 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     let reason: string | null = null;
     if (currentLevel >= maxLevel) {
       reason = "强化等级已达上限。";
+    } else if (selectedAid && selectedAid.owned < aidCost) {
+      reason = "辅助材料不足。";
     } else if (gold < goldCost) {
       reason = "金币不足。";
     } else if (materialCost.some((entry) => entry.owned < entry.quantity)) {
@@ -972,17 +1058,24 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       maxLevel,
       currentBonus: getEnhancementStatBonus(currentLevel),
       targetBonus: getEnhancementStatBonus(targetLevel),
+      baseSuccessRate,
+      forgeBonusRate,
+      aidSuccessRateBonus,
+      successRateCap,
       successRate,
       goldCost,
       materialCost,
+      selectedAid,
+      aidCost,
+      materialConsumedOnFailure,
       canEnhance: reason === null,
       reason
     };
   };
 
-  const enhanceEquipment = (itemUid: string): EquipmentEnhancementResult => {
+  const enhanceEquipment = (itemUid: string, options?: EquipmentEnhancementAttemptOptions): EquipmentEnhancementResult => {
     const item = itemMap.get(itemUid);
-    const preview = getEquipmentEnhancementPreview(itemUid);
+    const preview = getEquipmentEnhancementPreview(itemUid, options);
     if (!item || !preview) {
       return {
         ok: false,
@@ -994,6 +1087,11 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
         successRate: 0,
         goldCost: 0,
         materialCost: [],
+        usedAidId: null,
+        usedAidName: null,
+        aidConsumed: false,
+        materialConsumed: false,
+        materialPreservedByAid: false,
         reason: "装备不存在。"
       };
     }
@@ -1012,25 +1110,47 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
           materialId: entry.materialId,
           quantity: entry.quantity
         })),
+        usedAidId: preview.selectedAid?.id ?? null,
+        usedAidName: preview.selectedAid?.name ?? null,
+        aidConsumed: false,
+        materialConsumed: false,
+        materialPreservedByAid: false,
         reason: preview.reason
       };
     }
 
     setGold((prev) => Math.max(0, prev - preview.goldCost));
-    setMaterialStock((prev) => {
-      const next = { ...prev };
-      preview.materialCost.forEach((entry) => {
-        const remain = (next[entry.materialId] ?? 0) - entry.quantity;
+    if (preview.selectedAid && preview.aidCost > 0) {
+      const aidId = preview.selectedAid.id;
+      setEnhancementAidStock((prev) => {
+        const next = { ...prev };
+        const remain = (next[aidId] ?? 0) - preview.aidCost;
         if (remain > 0) {
-          next[entry.materialId] = remain;
+          next[aidId] = remain;
         } else {
-          delete next[entry.materialId];
+          delete next[aidId];
         }
+        return next;
       });
-      return next;
-    });
+    }
 
     const success = Math.random() <= preview.successRate;
+    const materialConsumed = success || preview.materialConsumedOnFailure;
+    if (materialConsumed) {
+      setMaterialStock((prev) => {
+        const next = { ...prev };
+        preview.materialCost.forEach((entry) => {
+          const remain = (next[entry.materialId] ?? 0) - entry.quantity;
+          if (remain > 0) {
+            next[entry.materialId] = remain;
+          } else {
+            delete next[entry.materialId];
+          }
+        });
+        return next;
+      });
+    }
+
     const nextLevel = success ? preview.targetLevel : preview.currentLevel;
     if (success) {
       setEquipmentEnhancementByUid((prev) => ({
@@ -1049,6 +1169,11 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       successRate: preview.successRate,
       goldCost: preview.goldCost,
       materialCost: preview.materialCost.map((entry) => ({ materialId: entry.materialId, quantity: entry.quantity })),
+      usedAidId: preview.selectedAid?.id ?? null,
+      usedAidName: preview.selectedAid?.name ?? null,
+      aidConsumed: preview.selectedAid !== null && preview.aidCost > 0,
+      materialConsumed,
+      materialPreservedByAid: !success && !materialConsumed && preview.selectedAid?.preserveMaterialOnFailure === true,
       reason: null
     };
   };
@@ -1562,6 +1687,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       soldEquipmentItemUids: [...soldEquipmentItemUids],
       lockedEquipmentItemUids: [...lockedEquipmentItemUids],
       equipmentEnhancementByUid: { ...equipmentEnhancementByUid },
+      enhancementAidStock: { ...enhancementAidStock },
       materialStock: { ...materialStock },
       consumableStock: { ...consumableStock },
       memoryOwnedIds: [...ownedMemoryIds],
@@ -1595,6 +1721,10 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     setSoldEquipmentItemUids(normalizeSoldEquipmentItemUids(snapshot.soldEquipmentItemUids));
     setLockedEquipmentItemUids(normalizeLockedEquipmentItemUids(snapshot.lockedEquipmentItemUids));
     setEquipmentEnhancementByUid(normalizeEquipmentEnhancementByUid(snapshot.equipmentEnhancementByUid));
+    setEnhancementAidStock({
+      ...buildDefaultEnhancementAidStock(),
+      ...normalizeEnhancementAidStock(snapshot.enhancementAidStock)
+    });
 
     if (snapshot.materialStock) {
       setMaterialStock(normalizeResourceStock(snapshot.materialStock));
@@ -1628,6 +1758,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       legendaryEquipmentSkillsById,
       ownedLegendaryEquipmentIds,
       materialItems,
+      enhancementAidItems,
       consumableItems,
       memoryItems,
       equippedMemoryByHero,
@@ -1689,10 +1820,12 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       items,
       materialItems,
       memoryItems,
+      enhancementAidItems,
       memoryOwnerMap,
       ownerMap,
       ownedLegendaryEquipmentIds,
       droppedEquipmentItems,
+      enhancementAidStock,
       equipmentEnhancementByUid,
       lockedEquipmentItemUids,
       lockedEquipmentUidSet,

@@ -4138,6 +4138,11 @@ body {
   color: #ceb38a;
 }
 
+.module-forge-panel {
+  display: grid;
+  gap: 8px;
+}
+
 .module-forge-select select {
   border: 1px solid #6a5742;
   border-radius: 8px;
@@ -4167,6 +4172,20 @@ body {
 
 .module-forge-material-list p.insufficient {
   color: #ff9f9f;
+}
+
+.module-forge-rate-breakdown {
+  color: #e1c89e;
+}
+
+.module-forge-aid-note {
+  color: #d6b68a;
+}
+
+.module-forge-panel-organization {
+  max-height: min(48vh, 420px);
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .ghost-btn {

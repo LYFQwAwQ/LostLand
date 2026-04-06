@@ -1,6 +1,7 @@
 import { Building2, Compass, Hand, Plus, Search, ScrollText, Trash2, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent, WheelEvent } from "react";
+import { ForgeEnhancementPanel } from "../components/forge/ForgeEnhancementPanel";
 import {
   ORGANIZATION_CONFIG,
   getOrganizationBuildingMaxLevel,
@@ -997,6 +998,12 @@ export function OrganizationPage() {
                 ) : (
                   <p>当前没有已接取任务。可前往任意节点布告栏领取后再查看。</p>
                 )}
+              </>
+            ) : activeFunctionalDefinition?.id === "foundry" ? (
+              <>
+                <p>铁匠铺等级：Lv.{activeFunctionalLevel}</p>
+                <ForgeEnhancementPanel context="organization" />
+                <p className="organization-mission-note">打造系统当前仍为占位，不在本次强化开发范围内。</p>
               </>
             ) : activeFunctionalDefinition?.id === "training_camp" ? (
               <>

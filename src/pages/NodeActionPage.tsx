@@ -1,7 +1,8 @@
-﻿import { Coins, Hammer, Lock, ScrollText, Shield, ShoppingBag, Sparkles, Sword, Unlock, Users } from "lucide-react";
+﻿import { Coins, Lock, ScrollText, Shield, ShoppingBag, Sparkles, Sword, Unlock, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { ForgeEnhancementPanel } from "../components/forge/ForgeEnhancementPanel";
 import {
   ECONOMY_CONFIG,
   getEquipmentBuyPrice,
@@ -122,8 +123,6 @@ export function NodeActionPage() {
     isEquipmentLocked,
     setEquipmentLocked,
     getEquipmentEnhanceLevel,
-    getEquipmentEnhancementPreview,
-    enhanceEquipment,
     normalEquipmentCapacity,
     normalEquipmentCount,
     isBackpackEquipmentFull
@@ -136,7 +135,6 @@ export function NodeActionPage() {
   const [tradeRefreshToken, setTradeRefreshToken] = useState(0);
   const [buildingMaterialRefreshToken, setBuildingMaterialRefreshToken] = useState(0);
   const [buildingMaterialBuyQuantityById, setBuildingMaterialBuyQuantityById] = useState<Record<string, number>>({});
-  const [forgeFeedback, setForgeFeedback] = useState<string | null>(null);
   const defaultQuickSellFilter: Partial<EquipmentQuickSellFilter> = ECONOMY_CONFIG.equipmentTrade.quickSell.defaultFilter;
 
   const [quickSellMinLevel, setQuickSellMinLevel] = useState<number | "">(
@@ -163,18 +161,15 @@ export function NodeActionPage() {
   const [quickSellRankFilters, setQuickSellRankFilters] = useState<GeneratedEquipment["rank"][]>(
     defaultQuickSellFilter.ranks ?? []
   );
-  const [selectedForgeItemUid, setSelectedForgeItemUid] = useState("");
 
   const context = findNodeById(nodeId);
 
   useEffect(() => {
     setMissionFeedback(null);
     setTradeFeedback(null);
-    setForgeFeedback(null);
     setTradeRefreshToken(0);
     setBuildingMaterialRefreshToken(0);
     setBuildingMaterialBuyQuantityById({});
-    setSelectedForgeItemUid("");
   }, [nodeId, action]);
 
   if (!context) {
@@ -346,43 +341,6 @@ export function NodeActionPage() {
     [quickSellFilteredEntries]
   );
 
-  const forgeCandidates = useMemo(() => {
-    return items
-      .map((item) => ({
-        item,
-        enhanceLevel: getEquipmentEnhanceLevel(item.uid),
-        preview: getEquipmentEnhancementPreview(item.uid)
-      }))
-      .sort((left, right) => {
-        if ((right.preview?.targetLevel ?? 0) !== (left.preview?.targetLevel ?? 0)) {
-          return (right.preview?.targetLevel ?? 0) - (left.preview?.targetLevel ?? 0);
-        }
-        return left.item.templateName.localeCompare(right.item.templateName, "zh-CN");
-      });
-  }, [getEquipmentEnhanceLevel, getEquipmentEnhancementPreview, items]);
-
-  const selectedForgePreview = useMemo(() => {
-    if (!selectedForgeItemUid) {
-      return null;
-    }
-    return getEquipmentEnhancementPreview(selectedForgeItemUid);
-  }, [getEquipmentEnhancementPreview, selectedForgeItemUid]);
-
-  useEffect(() => {
-    if (action !== "forge") {
-      return;
-    }
-    if (forgeCandidates.length <= 0) {
-      if (selectedForgeItemUid) {
-        setSelectedForgeItemUid("");
-      }
-      return;
-    }
-    if (!selectedForgeItemUid || !forgeCandidates.some((entry) => entry.item.uid === selectedForgeItemUid)) {
-      setSelectedForgeItemUid(forgeCandidates[0].item.uid);
-    }
-  }, [action, forgeCandidates, selectedForgeItemUid]);
-
   const handleAcceptMission = (missionId: string) => {
     const mission = bulletinMissions.find((item) => item.id === missionId);
     const accepted = acceptBulletinMission(region.id, missionId);
@@ -537,23 +495,6 @@ export function NodeActionPage() {
       return;
     }
     setTradeFeedback(`一键卖出完成：${result.soldCount} 件，获得 ${formatCurrency(result.totalPrice)} 金币。`);
-  };
-
-  const handleForgeEnhance = () => {
-    if (!selectedForgeItemUid) {
-      setForgeFeedback("请先选择一件装备。");
-      return;
-    }
-    const result = enhanceEquipment(selectedForgeItemUid);
-    if (!result.ok) {
-      setForgeFeedback(result.reason ?? "强化失败。");
-      return;
-    }
-    if (result.success) {
-      setForgeFeedback(`强化成功：+${result.previousLevel} -> +${result.currentLevel}，消耗 ${formatCurrency(result.goldCost)} 金币。`);
-      return;
-    }
-    setForgeFeedback(`强化失败：维持 +${result.currentLevel}，已消耗 ${formatCurrency(result.goldCost)} 金币与材料。`);
   };
 
   const canSubmitMission = (mission: BulletinMissionState): boolean => {
@@ -965,51 +906,7 @@ export function NodeActionPage() {
       {action === "forge" ? (
         <div className="module-grid">
           <HeaderInfo title="铁匠铺 - 强化">
-            <p>规则：普通装备最高 +10；传说装备最高 +15；失败不掉级但会消耗金币与材料。</p>
-            {forgeFeedback ? <p className="module-trade-feedback">{forgeFeedback}</p> : null}
-            {forgeCandidates.length > 0 ? (
-              <>
-                <label className="module-forge-select">
-                  选择装备
-                  <select value={selectedForgeItemUid} onChange={(event) => setSelectedForgeItemUid(event.target.value)}>
-                    {forgeCandidates.map((entry) => (
-                      <option key={entry.item.uid} value={entry.item.uid}>
-                        {entry.item.templateName} · +{entry.enhanceLevel} · Lv.{entry.item.level}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                {selectedForgePreview ? (
-                  <div className="module-forge-preview">
-                    <p>
-                      强化等级：+{selectedForgePreview.currentLevel} / +{selectedForgePreview.maxLevel}，下一次目标 +
-                      {selectedForgePreview.targetLevel}
-                    </p>
-                    <p>
-                      成功率：{Math.round(selectedForgePreview.successRate * 100)}% · 基础属性加成 {Math.round(selectedForgePreview.currentBonus * 100)}% -&gt; {Math.round(selectedForgePreview.targetBonus * 100)}%
-                    </p>
-                    <p>金币消耗：{formatCurrency(selectedForgePreview.goldCost)}</p>
-                    <div className="module-forge-material-list">
-                      {selectedForgePreview.materialCost.map((entry) => {
-                        const enough = entry.owned >= entry.quantity;
-                        return (
-                          <p key={`${selectedForgePreview.itemUid}-${entry.materialId}`} className={enough ? "" : "insufficient"}>
-                            {entry.materialId} x{entry.quantity}（拥有 {entry.owned}）
-                          </p>
-                        );
-                      })}
-                    </div>
-                    {selectedForgePreview.reason ? <p>{selectedForgePreview.reason}</p> : null}
-                    <button type="button" className="primary-btn" onClick={handleForgeEnhance} disabled={!selectedForgePreview.canEnhance}>
-                      <Hammer size={14} /> 强化
-                    </button>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <p>当前没有可强化装备。</p>
-            )}
+            <ForgeEnhancementPanel context="node" />
           </HeaderInfo>
 
           <HeaderInfo title="铁匠铺 - 打造（占位）">
