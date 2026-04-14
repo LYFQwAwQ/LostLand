@@ -60,7 +60,7 @@ export const organizationBuildingDefinitions: OrganizationBuildingDefinition[] =
     shape: createRect(3, 3),
     color: "#d86c2e",
     description: "装备打造与品质突破核心设施，后续接入打造/宝石子系统。",
-    effect: "可点击进入铁匠铺强化界面（打造当前仍为占位）。",
+    effect: "可点击进入铁匠铺界面（强化与打造）。",
     unique: true,
     clickable: true
   },

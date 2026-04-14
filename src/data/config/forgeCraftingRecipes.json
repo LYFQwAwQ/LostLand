@@ -1,0 +1,43 @@
+{
+  "recipes": [
+    {
+      "id": "r1",
+      "name": "灰烬长剑",
+      "templateId": "iron-longsword",
+      "targetQuality": "uncommon",
+      "level": 10,
+      "materials": [
+        { "materialId": "human_refined_steel", "count": 8 },
+        { "materialId": "human_forged_rivet", "count": 10 },
+        { "materialId": "human_treated_leather", "count": 6 }
+      ],
+      "goldCost": 3200
+    },
+    {
+      "id": "r2",
+      "name": "圣辉胸甲",
+      "templateId": "fortress-armor",
+      "targetQuality": "rare",
+      "level": 12,
+      "materials": [
+        { "materialId": "human_reinforced_plate", "count": 12 },
+        { "materialId": "human_runed_bearing", "count": 6 },
+        { "materialId": "human_command_seal", "count": 3 }
+      ],
+      "goldCost": 6800
+    },
+    {
+      "id": "r3",
+      "name": "风语法杖",
+      "templateId": "storm-medium",
+      "targetQuality": "uncommon",
+      "level": 11,
+      "materials": [
+        { "materialId": "human_rune_ink", "count": 10 },
+        { "materialId": "human_watchspring", "count": 7 },
+        { "materialId": "human_masterwork_gear", "count": 2 }
+      ],
+      "goldCost": 5400
+    }
+  ]
+}

@@ -1,4 +1,5 @@
-﻿import type { RegionNode } from "../types/game";
+﻿import { getForgeCraftRecipeConfigList } from "./config/forgeCraftingConfig";
+import type { EquipmentQuality, RegionNode } from "../types/game";
 
 export interface ShopItem {
   id: string;
@@ -21,8 +22,11 @@ export interface TavernHeroOffer {
 export interface ForgeRecipe {
   id: string;
   name: string;
-  quality: "普通" | "精良" | "稀有";
-  materials: Array<{ name: string; count: number }>;
+  templateId: string;
+  targetQuality: EquipmentQuality;
+  qualityLabel: "普通" | "精良" | "稀有" | "史诗" | "圣铸" | "神话";
+  level: number;
+  materials: Array<{ materialId: string; materialName: string; count: number }>;
   goldCost: number;
 }
 
@@ -79,40 +83,7 @@ const tavernPool: TavernHeroOffer[] = [
   }
 ];
 
-const recipePool: ForgeRecipe[] = [
-  {
-    id: "r1",
-    name: "灰烬长剑",
-    quality: "精良",
-    materials: [
-      { name: "黑铁矿石", count: 8 },
-      { name: "硬木原胚", count: 3 }
-    ],
-    goldCost: 980
-  },
-  {
-    id: "r2",
-    name: "圣辉胸甲",
-    quality: "稀有",
-    materials: [
-      { name: "黑铁矿石", count: 16 },
-      { name: "净化盐晶", count: 5 },
-      { name: "辉光宝石", count: 2 }
-    ],
-    goldCost: 2280
-  },
-  {
-    id: "r3",
-    name: "风语法杖",
-    quality: "精良",
-    materials: [
-      { name: "硬木原胚", count: 10 },
-      { name: "琥珀凝脂", count: 4 }
-    ],
-    goldCost: 1420
-  }
-];
-
+const recipePool: ForgeRecipe[] = getForgeCraftRecipeConfigList();
 
 function hashNumber(source: string): number {
   let h = 0;
@@ -161,7 +132,15 @@ export function getForgeRecipes(node: RegionNode): ForgeRecipe[] {
   const offset = hashNumber(`${node.id}-forge`) % recipePool.length;
   return rotate(recipePool, offset).map((recipe, index) => ({
     ...recipe,
+    materials: recipe.materials.map((entry) => ({ ...entry })),
     goldCost: Math.round(recipe.goldCost * (1 + index * 0.08))
+  }));
+}
+
+export function getFoundryForgeRecipes(): ForgeRecipe[] {
+  return recipePool.map((recipe) => ({
+    ...recipe,
+    materials: recipe.materials.map((entry) => ({ ...entry }))
   }));
 }
 

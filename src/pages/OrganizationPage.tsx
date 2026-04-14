@@ -1,7 +1,9 @@
 import { Building2, Compass, Hand, Plus, Search, ScrollText, Trash2, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent, WheelEvent } from "react";
+import { ForgeCraftPanel } from "../components/forge/ForgeCraftPanel";
 import { ForgeEnhancementPanel } from "../components/forge/ForgeEnhancementPanel";
+import { getFoundryForgeRecipes } from "../data/nodeModules";
 import {
   ORGANIZATION_CONFIG,
   getOrganizationBuildingMaxLevel,
@@ -243,6 +245,7 @@ export function OrganizationPage() {
     activeFunctionalDefinition?.id === "training_camp" ? getTrainingCampGlobalExpBonusRate(activeFunctionalLevel) : 0;
   const activeTrainingCampSlotCount =
     activeFunctionalDefinition?.id === "training_camp" ? getTrainingCampSlotCount(activeFunctionalLevel) : 1;
+  const foundryRecipes = useMemo(() => getFoundryForgeRecipes(), []);
 
   useEffect(() => {
     const viewportElement = viewportRef.current;
@@ -1003,7 +1006,8 @@ export function OrganizationPage() {
               <>
                 <p>铁匠铺等级：Lv.{activeFunctionalLevel}</p>
                 <ForgeEnhancementPanel context="organization" />
-                <p className="organization-mission-note">打造系统当前仍为占位，不在本次强化开发范围内。</p>
+                <ForgeCraftPanel recipes={foundryRecipes} context="organization" />
+                <p className="organization-mission-note">组织入口当前使用固定打造配方；节点入口会叠加地区化金币浮动。</p>
               </>
             ) : activeFunctionalDefinition?.id === "training_camp" ? (
               <>

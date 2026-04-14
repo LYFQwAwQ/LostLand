@@ -1,7 +1,8 @@
-﻿import { Coins, Lock, ScrollText, Shield, ShoppingBag, Sparkles, Sword, Unlock, Users } from "lucide-react";
+﻿import { Coins, Lock, ScrollText, Shield, ShoppingBag, Sparkles, Unlock, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { ForgeCraftPanel } from "../components/forge/ForgeCraftPanel";
 import { ForgeEnhancementPanel } from "../components/forge/ForgeEnhancementPanel";
 import {
   ECONOMY_CONFIG,
@@ -909,22 +910,8 @@ export function NodeActionPage() {
             <ForgeEnhancementPanel context="node" />
           </HeaderInfo>
 
-          <HeaderInfo title="铁匠铺 - 打造（占位）">
-            <p>打造系统暂未接入正式经济闭环，当前仅保留配方预览。</p>
-            {getForgeRecipes(node).map((recipe) => (
-              <article key={recipe.id} className="recipe-row">
-                <div>
-                  <h4>{recipe.name}</h4>
-                  <p>
-                    品质：{recipe.quality} · 金币：{recipe.goldCost}
-                  </p>
-                  <p>{recipe.materials.map((item) => `${item.name} x${item.count}`).join(" / ")}</p>
-                </div>
-                <button type="button" className="ghost-btn small-btn" disabled>
-                  <Sword size={13} /> 打造
-                </button>
-              </article>
-            ))}
+          <HeaderInfo title="铁匠铺 - 打造">
+            <ForgeCraftPanel recipes={getForgeRecipes(node)} context="node" />
           </HeaderInfo>
         </div>
       ) : null}

@@ -30,7 +30,7 @@ export const ACTION_META: Record<NodeAction, NodeActionMeta> = {
   forge: {
     key: "forge",
     label: "铁匠铺",
-    description: "强化系统入口（打造仍为占位预览）。"
+    description: "装备强化与打造入口。"
   },
   bulletin: {
     key: "bulletin",

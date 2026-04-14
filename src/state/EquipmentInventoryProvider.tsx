@@ -42,10 +42,11 @@ import {
 import { heroes } from "../data/mockData";
 import { getPairedPaladinHandSlot, isPaladinHandSlot } from "../lib/equipmentCatalog";
 import { computeEquipmentInternalScore } from "../lib/equipmentScoring";
-import { generateEquipmentBatch } from "../lib/equipmentSystem";
+import { generateEquipmentBatch, generateEquipmentFromTemplate } from "../lib/equipmentSystem";
 import type { BattleDropSummary } from "../types/battle";
 import type {
   BulletinMissionReward,
+  EquipmentTemplate,
   EquipmentQuality,
   EquipmentRank,
   EquipmentSlot,
@@ -89,6 +90,27 @@ export interface EquipmentTradeActionResult {
   ok: boolean;
   reason: string | null;
   price: number;
+}
+
+export interface EquipmentCraftRequest {
+  recipeId: string;
+  recipeName: string;
+  templateId: string;
+  level: number;
+  targetQuality: EquipmentQuality;
+  goldCost: number;
+  materials: Array<{ materialId: string; quantity: number }>;
+  sourceTag?: string;
+}
+
+export interface EquipmentCraftResult {
+  ok: boolean;
+  reason: string | null;
+  recipeId: string;
+  recipeName: string;
+  craftedItem: GeneratedEquipment | null;
+  goldCost: number;
+  materials: Array<{ materialId: string; quantity: number }>;
 }
 
 export interface EquipmentBulkSellResult {
@@ -203,6 +225,7 @@ interface EquipmentInventoryContextValue {
   getHeroProgress: (heroId: string) => HeroProgressState;
   grantMissionRewards: (reward: BulletinMissionReward | null | undefined) => void;
   buyEquipment: (item: GeneratedEquipment) => EquipmentTradeActionResult;
+  craftEquipment: (request: EquipmentCraftRequest) => EquipmentCraftResult;
   sellEquipment: (itemUid: string) => EquipmentTradeActionResult;
   sellEquipmentBulk: (filter: EquipmentBulkSellFilter) => EquipmentBulkSellResult;
   isEquipmentLocked: (itemUid: string) => boolean;
@@ -240,8 +263,10 @@ const MATERIAL_CATALOG_MAP = new Map(MATERIAL_CATALOG.map((item) => [item.id, it
 const HERO_IDS = heroes.map((hero) => hero.id);
 const HERO_ID_SET = new Set(HERO_IDS);
 const HERO_CLASS_BY_ID = new Map(heroes.map((hero) => [hero.id, hero.heroClass]));
+const EQUIPMENT_TEMPLATE_BY_ID = new Map<string, EquipmentTemplate>(equipmentTemplates.map((template) => [template.id, template]));
 const LEGENDARY_EQUIPMENT_ID_SET = new Set(legendaryEquipments.map((item) => item.id));
 const LEGENDARY_EQUIPMENT_LIMIT_PER_HERO = 2;
+const EQUIPMENT_QUALITY_KEYS: EquipmentQuality[] = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
 const RESOURCE_RARITY_ORDER: Record<InventoryResourceRarity, number> = {
   common: 0,
   uncommon: 1,
@@ -384,6 +409,17 @@ function normalizeEnhancementAidStock(input: Record<string, number> | null | und
     acc[aidId] = quantity;
     return acc;
   }, {});
+}
+
+function createQualityLockedTemplate(template: EquipmentTemplate, quality: EquipmentQuality): EquipmentTemplate {
+  const qualityWeights = EQUIPMENT_QUALITY_KEYS.reduce<Record<EquipmentQuality, number>>((acc, key) => {
+    acc[key] = key === quality ? 1 : 0;
+    return acc;
+  }, {} as Record<EquipmentQuality, number>);
+  return {
+    ...template,
+    qualityWeights
+  };
 }
 
 function buildDefaultConsumableStock(): Record<string, number> {
@@ -960,6 +996,84 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       ok: true,
       reason: null,
       price
+    };
+  };
+
+  const craftEquipment = (request: EquipmentCraftRequest): EquipmentCraftResult => {
+    const recipeId = String(request.recipeId ?? "").trim();
+    const recipeName = String(request.recipeName ?? "").trim();
+    const templateId = String(request.templateId ?? "").trim();
+    const safeLevel = Number.isFinite(request.level) ? Math.max(1, Math.floor(request.level)) : 1;
+    const goldCost = Number.isFinite(request.goldCost) ? Math.max(0, Math.floor(request.goldCost)) : 0;
+    const targetQuality = EQUIPMENT_QUALITY_KEYS.includes(request.targetQuality) ? request.targetQuality : "common";
+    const sourceTag = String(request.sourceTag ?? "").trim();
+
+    const normalizedMaterials = (request.materials ?? [])
+      .map((entry) => ({
+        materialId: String(entry.materialId ?? "").trim(),
+        quantity: Number.isFinite(entry.quantity) ? Math.max(0, Math.floor(entry.quantity)) : 0
+      }))
+      .filter((entry) => entry.materialId.length > 0 && entry.quantity > 0);
+
+    const fail = (reason: string): EquipmentCraftResult => ({
+      ok: false,
+      reason,
+      recipeId,
+      recipeName,
+      craftedItem: null,
+      goldCost,
+      materials: normalizedMaterials
+    });
+
+    if (recipeId.length <= 0 || recipeName.length <= 0) {
+      return fail("打造配方无效。");
+    }
+    const template = EQUIPMENT_TEMPLATE_BY_ID.get(templateId);
+    if (!template) {
+      return fail("配方模板不存在。");
+    }
+    if (goldCost <= 0 || normalizedMaterials.length <= 0) {
+      return fail("配方消耗配置无效。");
+    }
+    if (isBackpackEquipmentFull) {
+      return fail("背包已满，无法打造。");
+    }
+    if (gold < goldCost) {
+      return fail("金币不足。");
+    }
+    const enoughMaterials = normalizedMaterials.every((entry) => (materialStock[entry.materialId] ?? 0) >= entry.quantity);
+    if (!enoughMaterials) {
+      return fail("打造材料不足。");
+    }
+
+    const payResult = payCost({
+      gold: goldCost,
+      materials: normalizedMaterials
+    });
+    if (!payResult.ok) {
+      return fail(payResult.reason ?? "打造扣费失败。");
+    }
+
+    const templateForCraft = createQualityLockedTemplate(template, targetQuality);
+    const craftedItem = generateEquipmentFromTemplate(
+      templateForCraft,
+      {
+        level: safeLevel,
+        seed: `forge-${recipeId}-${Date.now()}-${Math.random()}`,
+        source: `forge:${sourceTag || "node"}:${recipeId}`
+      },
+      0
+    );
+    setDroppedEquipmentItems((prev) => [...prev, craftedItem]);
+
+    return {
+      ok: true,
+      reason: null,
+      recipeId,
+      recipeName,
+      craftedItem,
+      goldCost,
+      materials: normalizedMaterials
     };
   };
 
@@ -1769,6 +1883,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       getHeroProgress,
       grantMissionRewards,
       buyEquipment,
+      craftEquipment,
       sellEquipment,
       sellEquipmentBulk,
       isEquipmentLocked,

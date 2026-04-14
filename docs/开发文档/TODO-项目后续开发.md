@@ -29,7 +29,8 @@
 - [ ] 记忆获取流程接入正式产出链路（当前仅提供默认初始拥有记忆）。
 - [ ] 记忆数值效果接入战斗结算链路（当前记忆仅有文案与穿戴状态，不会影响战斗面板）；建议从 `src/data/heroMemories.ts` 增加结构化数值字段，并在 `src/lib/battleAdapters.ts` / `src/lib/battleEngine.ts` 接入结算。
 - [ ] 删除“同次启动同职业天赋优先去重”测试逻辑，改回正式版抽样分布。
-- [ ] 组织功能建筑子界面继续从占位弹窗升级为可操作页面（远征调度室/秘法图书馆），并与组织等级、资源消耗、结算回写打通。当前铁匠铺已接入真实强化功能，可参考 `src/pages/OrganizationPage.tsx` 中 `foundry` 分支与 `src/components/forge/ForgeEnhancementPanel.tsx` 的复用方式扩展其余功能建筑。
+- [ ] 组织功能建筑子界面继续从占位弹窗升级为可操作页面（远征调度室/秘法图书馆），并与组织等级、资源消耗、结算回写打通。当前铁匠铺已接入真实强化/打造功能，可参考 `src/pages/OrganizationPage.tsx` 中 `foundry` 分支与 `src/components/forge/ForgeEnhancementPanel.tsx`、`src/components/forge/ForgeCraftPanel.tsx` 的复用方式扩展其余功能建筑。
+- [ ] 组织入口铁匠铺打造补齐“地区化配方经济”联动：当前 `foundry` 弹窗使用固定基础配方，而 `ST1/forge` 节点入口会按节点做价格浮动。后续建议在 `src/pages/OrganizationPage.tsx` 引入地区上下文选择或最近主城映射，再通过 `src/data/nodeModules.ts` 的节点配方输出统一价格口径，避免组织入口与节点入口价格认知割裂。
 - [ ] 强化辅助材料接入正式产出与循环消耗链路：当前“幸运护符/固守符印”仅以内置初始库存联调，尚未接入战斗掉落、任务奖励或商店兑换。后续需在 `src/state/EquipmentInventoryProvider.tsx` 建立统一入包接口，再从 `src/lib/battleEngine.ts` 战斗结算、`src/lib/bulletinMissionSystem.ts` 任务奖励、`src/pages/NodeActionPage.tsx` 节点交易入口中选择至少一条稳定产出来源，最后在 `src/data/config/equipmentEnhancementAidConfig.ts` 沉淀可调参数（掉率/奖励数量/兑换价格）。
 - [ ] 基地核心“基地状态”补齐完整组织信息面板（当前仅展示已建造建筑数量）；建议从 `src/pages/OrganizationPage.tsx` 的 `base_core` -> `status` 子界面扩展组织评级明细、建筑等级统计、地块产能、驻防/资源流入汇总等字段，并与 `src/state/OrganizationProvider.tsx` 建立稳定读取接口。
 - [ ] 基地核心“主线任务”接入正式完成条件与奖励结算（当前为“标记完成（测试）”按钮）；建议从 `src/data/organizationData.ts` 的 `organizationMainQuestDefinitions` 补充前置条件/完成条件/奖励字段，在 `src/state/OrganizationProvider.tsx` 接入真实状态推进，再在 `src/pages/OrganizationPage.tsx` 替换测试按钮为系统事件驱动完成。

@@ -4242,6 +4242,10 @@ body {
   color: #bfa47d;
 }
 
+.recipe-row p.insufficient {
+  color: #f07c7c;
+}
+
 .recipe-row {
   margin-top: 10px;
   border: 1px solid #5d4b38;
