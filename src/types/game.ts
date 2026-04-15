@@ -473,4 +473,6 @@ export interface MissionBattleOutcome {
   regionId: string;
   materialGainCounts: Record<string, number>;
   defeatedEnemyCounts: Record<string, number>;
+  nodeArchetype?: RegionNode["archetype"];
+  victory?: boolean;
 }

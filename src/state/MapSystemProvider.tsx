@@ -43,6 +43,30 @@ interface MapSystemContextValue {
 }
 
 const MapSystemContext = createContext<MapSystemContextValue | null>(null);
+const MAX_SUPPRESSION = 100;
+const FULL_LIBERATION_SUPPRESSION_THRESHOLD = 100;
+const MISSION_SUBMIT_SUPPRESSION_GAIN = 4;
+
+const BATTLE_SUPPRESSION_GAIN_BY_ARCHETYPE: Record<RegionNode["archetype"], number> = {
+  BL1: 8,
+  BL2: 5,
+  BL3: 3,
+  ST1: 0,
+  ST2: 0,
+  ST3: 0,
+  NOD: 0
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function sanitizeSuppression(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.round(clamp(value, 0, MAX_SUPPRESSION));
+}
 
 function cloneMissionReward(reward: BulletinMissionReward): BulletinMissionReward {
   return {
@@ -50,6 +74,89 @@ function cloneMissionReward(reward: BulletinMissionReward): BulletinMissionRewar
     reputation: reward.reputation,
     materials: reward.materials.map((item) => ({ ...item })),
     consumables: reward.consumables.map((item) => ({ ...item }))
+  };
+}
+
+function boostMissionRewardBySuppression(reward: BulletinMissionReward, suppression: number): BulletinMissionReward {
+  const ratio = clamp(suppression / 100, 0, 1);
+  const quantityMultiplier = 1 + ratio * 0.55;
+  const valueMultiplier = 1 + ratio * 0.5;
+
+  return {
+    materials: reward.materials.map((item) => ({
+      ...item,
+      quantity: Math.max(1, Math.round(item.quantity * quantityMultiplier))
+    })),
+    consumables: reward.consumables.map((item) => ({
+      ...item,
+      quantity: Math.max(1, Math.round(item.quantity * quantityMultiplier))
+    })),
+    bounty: Math.max(0, Math.round(reward.bounty * valueMultiplier)),
+    reputation: Math.max(0, Math.round(reward.reputation * valueMultiplier))
+  };
+}
+
+function purgeBl1NodesForLiberation(region: RegionTopology): { region: RegionTopology; convertedNodeNames: string[] } {
+  const convertedNodeNames: string[] = [];
+  const nextNodes = region.nodes.map((node) => {
+    if (node.state !== "active" || node.archetype !== "BL1") {
+      return node;
+    }
+
+    convertedNodeNames.push(node.name);
+    return {
+      ...node,
+      archetype: "BL2" as const,
+      entityType: "混沌区",
+      difficulty: "高" as const,
+      sim: {
+        ...node.sim,
+        negativeMonths: 0,
+        highProsperityMonths: 0,
+        prosperity: Math.max(-220, Math.min(-40, node.sim.prosperity))
+      }
+    };
+  });
+
+  if (convertedNodeNames.length <= 0) {
+    return { region, convertedNodeNames };
+  }
+
+  return {
+    region: {
+      ...region,
+      nodes: nextNodes
+    },
+    convertedNodeNames
+  };
+}
+
+function applySuppressionProgressToRegion(
+  region: RegionTopology,
+  suppressionProgress: number
+): { region: RegionTopology; convertedNodeNames: string[] } {
+  const nextSuppression = sanitizeSuppression(region.mapSuppression + suppressionProgress);
+  let nextRegion: RegionTopology =
+    nextSuppression === region.mapSuppression
+      ? region
+      : {
+          ...region,
+          mapSuppression: nextSuppression
+        };
+  let convertedNodeNames: string[] = [];
+
+  if (nextSuppression >= FULL_LIBERATION_SUPPRESSION_THRESHOLD) {
+    const purged = purgeBl1NodesForLiberation(nextRegion);
+    nextRegion = {
+      ...purged.region,
+      mapSuppression: FULL_LIBERATION_SUPPRESSION_THRESHOLD
+    };
+    convertedNodeNames = purged.convertedNodeNames;
+  }
+
+  return {
+    region: nextRegion,
+    convertedNodeNames
   };
 }
 
@@ -63,6 +170,7 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
   const [worldLogs, setWorldLogs] = useState<string[]>(initialLogs);
   const [missionsByRegionId, setMissionsByRegionId] = useState<Record<string, BulletinMissionState[]>>({});
   const [missionWarningByRegionId, setMissionWarningByRegionId] = useState<Record<string, string>>({});
+  const [suppressionProgressByRegionId, setSuppressionProgressByRegionId] = useState<Record<string, number>>({});
   const [acceptedMissionExtraCapacity, setAcceptedMissionExtraCapacityState] = useState(0);
   const acceptedMissionLimit = getBulletinMissionAcceptedLimit(acceptedMissionExtraCapacity);
 
@@ -81,6 +189,41 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
     setAcceptedMissionExtraCapacityState((prev) => (prev === normalized ? prev : normalized));
   }, []);
 
+  const applySuppressionGain = useCallback(
+    (regionId: string, gain: number, reason: string) => {
+      const safeGain = sanitizeSuppression(gain);
+      if (safeGain <= 0) {
+        return;
+      }
+
+      setSuppressionProgressByRegionId((prev) => ({
+          ...prev,
+          [regionId]: sanitizeSuppression((prev[regionId] ?? 0) + safeGain)
+        }));
+
+      setRegionsById((prev) => {
+        const currentRegion = prev[regionId];
+        if (!currentRegion) {
+          return prev;
+        }
+        const applied = applySuppressionProgressToRegion(currentRegion, safeGain);
+        if (applied.region === currentRegion) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [regionId]: applied.region
+        };
+      });
+
+      setWorldLogs((old) => {
+        const regionName = getRegionMeta(regionId)?.name ?? "地区";
+        return [`${regionName}：${reason}，压制值 +${safeGain}。`, ...old].slice(0, 18);
+      });
+    },
+    []
+  );
+
   const ensureRegionLoaded = useCallback(
     (regionId: string): RegionTopology => {
       const existing = regionsById[regionId];
@@ -89,14 +232,17 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
       }
 
       const created = createRegionTopologyById(regionId);
-      const generated = generateRegionBulletinMissions(created, (targetRegionId) =>
-        targetRegionId === regionId ? created : regionsById[targetRegionId]
+      const regionProgress = suppressionProgressByRegionId[regionId] ?? 0;
+      const appliedCreated = applySuppressionProgressToRegion(created, regionProgress).region;
+      const generated = generateRegionBulletinMissions(appliedCreated, (targetRegionId) =>
+        targetRegionId === regionId ? appliedCreated : regionsById[targetRegionId]
       );
+
       setRegionsById((prev) => {
         if (prev[regionId]) {
           return prev;
         }
-        return { ...prev, [regionId]: created };
+        return { ...prev, [regionId]: appliedCreated };
       });
       setMissionsByRegionId((prev) => {
         if (prev[regionId]) {
@@ -123,64 +269,79 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
           [regionId]: generated.warning
         };
       });
-      return created;
+
+      return appliedCreated;
     },
-    [regionsById]
+    [regionsById, suppressionProgressByRegionId]
   );
 
-  const advanceOneMonth = useCallback((regionId: string) => {
-    setWorldMonth((prevWorldMonth) => {
-      const targetMonth = prevWorldMonth + 1;
+  const advanceOneMonth = useCallback(
+    (regionId: string) => {
+      setWorldMonth((prevWorldMonth) => {
+        const targetMonth = prevWorldMonth + 1;
 
       setRegionsById((prev) => {
         const existing = prev[regionId];
-        const baseRegion = existing ?? createRegionTopologyById(regionId);
+        const regionProgress = suppressionProgressByRegionId[regionId] ?? 0;
+        const baseRegion = existing ?? applySuppressionProgressToRegion(createRegionTopologyById(regionId), regionProgress).region;
 
-        if (!existing) {
-          const generated = generateRegionBulletinMissions(baseRegion, (targetRegionId) =>
-            targetRegionId === regionId ? baseRegion : prev[targetRegionId]
-          );
-          setMissionsByRegionId((old) =>
-            old[regionId]
-              ? old
-              : {
-                  ...old,
-                  [regionId]: generated.missions
-                }
-          );
-          setMissionWarningByRegionId((old) => {
-            if (!generated.warning) {
-              return old;
-            }
-            return {
-              ...old,
-              [regionId]: generated.warning
-            };
-          });
-        }
-
-        const settled = settleRegionOneMonth(baseRegion);
-
-        setWorldLogs((old) => {
-          const regionName = settled.region.regionName;
-          const monthLogs = settled.report.events.slice(0, 6).map((event) => `${regionName}：${event}`);
-
-          if (monthLogs.length === 0) {
-            return [`第 ${targetMonth} 月结算完成（${regionName}），无重大事件。`, ...old].slice(0, 18);
+          if (!existing) {
+            const generated = generateRegionBulletinMissions(baseRegion, (targetRegionId) =>
+              targetRegionId === regionId ? baseRegion : prev[targetRegionId]
+            );
+            setMissionsByRegionId((old) =>
+              old[regionId]
+                ? old
+                : {
+                    ...old,
+                    [regionId]: generated.missions
+                  }
+            );
+            setMissionWarningByRegionId((old) => {
+              if (!generated.warning) {
+                return old;
+              }
+              return {
+                ...old,
+                [regionId]: generated.warning
+              };
+            });
           }
 
-          return [...monthLogs.reverse(), ...old].slice(0, 18);
+          const settled = settleRegionOneMonth(baseRegion);
+          const progressedSettled = applySuppressionProgressToRegion(settled.region, regionProgress);
+          const nextRegion = progressedSettled.region;
+
+          setWorldLogs((old) => {
+            const regionName = nextRegion.regionName;
+            const monthLogs = settled.report.events.slice(0, 6).map((event) => `${regionName}：${event}`);
+            const extraLogs: string[] = [];
+
+            if (regionProgress > 0) {
+              extraLogs.push(`${regionName}：玩家治理贡献生效，当前压制 ${nextRegion.mapSuppression}%。`);
+            }
+            if (progressedSettled.convertedNodeNames.length > 0) {
+              extraLogs.push(`${regionName}：完全解放达成，已清除 BL1（${progressedSettled.convertedNodeNames.join("、")}）。`);
+            }
+
+            if (monthLogs.length === 0) {
+              return [...extraLogs, `第 ${targetMonth} 月结算完成（${regionName}），无重大事件。`, ...old].slice(0, 18);
+            }
+
+            return [...extraLogs, ...monthLogs.reverse(), ...old].slice(0, 18);
+          });
+
+          return {
+            ...prev,
+            [regionId]: nextRegion
+          };
         });
 
-        return {
-          ...prev,
-          [regionId]: settled.region
-        };
+        return targetMonth;
       });
-
-      return targetMonth;
-    });
-  }, []);
+    },
+    [suppressionProgressByRegionId]
+  );
 
   const acceptBulletinMission = useCallback(
     (regionId: string, missionId: string): BulletinMissionAcceptResult => {
@@ -248,6 +409,9 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
   const submitBulletinMission = useCallback(
     (regionId: string, missionId: string): BulletinMissionReward | null => {
       let reward: BulletinMissionReward | null = null;
+      let shouldGainSuppression = false;
+      const regionSuppression = sanitizeSuppression(regionsById[regionId]?.mapSuppression ?? 0);
+
       setMissionsByRegionId((prev) => {
         const regionMissions = prev[regionId];
         if (!regionMissions || regionMissions.length <= 0) {
@@ -263,8 +427,9 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
           if (!updated) {
             return mission;
           }
-          reward = cloneMissionReward(mission.reward);
+          reward = boostMissionRewardBySuppression(cloneMissionReward(mission.reward), regionSuppression);
           changed = true;
+          shouldGainSuppression = true;
           return updated;
         });
 
@@ -276,50 +441,68 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
           [regionId]: next
         };
       });
+
+      if (shouldGainSuppression) {
+        applySuppressionGain(regionId, MISSION_SUBMIT_SUPPRESSION_GAIN, "完成地区委派");
+      }
+
       return reward;
     },
-    [worldMonth]
+    [applySuppressionGain, regionsById, worldMonth]
   );
 
-  const reportMissionBattleOutcome = useCallback((outcome: MissionBattleOutcome) => {
-    if (!outcome.regionId) {
-      return;
-    }
-    const outcomeDominionId = getRegionMeta(outcome.regionId)?.dominionId;
-    if (!outcomeDominionId) {
-      return;
-    }
-    setMissionsByRegionId((prev) => {
-      let changed = false;
-      const nextByRegionId: Record<string, BulletinMissionState[]> = { ...prev };
-      Object.entries(prev).forEach(([missionRegionId, regionMissions]) => {
-        if (!regionMissions || regionMissions.length <= 0) {
-          return;
-        }
-        const missionDominionId = getRegionMeta(missionRegionId)?.dominionId;
-        if (missionDominionId !== outcomeDominionId) {
-          return;
-        }
-        let regionChanged = false;
-        const next = regionMissions.map((mission) => {
-          const updated = applyMissionBattleOutcome(mission, outcome);
-          if (updated !== mission) {
-            changed = true;
-            regionChanged = true;
+  const reportMissionBattleOutcome = useCallback(
+    (outcome: MissionBattleOutcome) => {
+      if (!outcome.regionId) {
+        return;
+      }
+      const outcomeDominionId = getRegionMeta(outcome.regionId)?.dominionId;
+      if (!outcomeDominionId) {
+        return;
+      }
+      setMissionsByRegionId((prev) => {
+        let changed = false;
+        const nextByRegionId: Record<string, BulletinMissionState[]> = { ...prev };
+        Object.entries(prev).forEach(([missionRegionId, regionMissions]) => {
+          if (!regionMissions || regionMissions.length <= 0) {
+            return;
           }
-          return updated;
+          const missionDominionId = getRegionMeta(missionRegionId)?.dominionId;
+          if (missionDominionId !== outcomeDominionId) {
+            return;
+          }
+          let regionChanged = false;
+          const next = regionMissions.map((mission) => {
+            const updated = applyMissionBattleOutcome(mission, outcome);
+            if (updated !== mission) {
+              changed = true;
+              regionChanged = true;
+            }
+            return updated;
+          });
+          if (regionChanged) {
+            nextByRegionId[missionRegionId] = next;
+          }
         });
-        if (regionChanged) {
-          nextByRegionId[missionRegionId] = next;
+
+        if (!changed) {
+          return prev;
         }
+        return nextByRegionId;
       });
 
-      if (!changed) {
-        return prev;
+      if (!outcome.victory || !outcome.nodeArchetype) {
+        return;
       }
-      return nextByRegionId;
-    });
-  }, []);
+      const suppressionGain = BATTLE_SUPPRESSION_GAIN_BY_ARCHETYPE[outcome.nodeArchetype] ?? 0;
+      if (suppressionGain <= 0) {
+        return;
+      }
+
+      applySuppressionGain(outcome.regionId, suppressionGain, "讨伐胜利");
+    },
+    [applySuppressionGain]
+  );
 
   const value = useMemo<MapSystemContextValue>(
     () => ({
@@ -353,17 +536,28 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
           return [];
         }
         const list = missionsByRegionId[regionId] ?? [];
-        return list.filter(
-          (mission) =>
-            mission &&
-            typeof mission.id === "string" &&
-            typeof mission.type === "string" &&
-            Array.isArray(mission.collectTargets) &&
-            Array.isArray(mission.huntTargets) &&
-            mission.reward &&
-            Array.isArray(mission.reward.materials) &&
-            Array.isArray(mission.reward.consumables)
-        );
+        const regionSuppression = regionsById[regionId]?.mapSuppression ?? 0;
+        return list
+          .filter(
+            (mission) =>
+              mission &&
+              typeof mission.id === "string" &&
+              typeof mission.type === "string" &&
+              Array.isArray(mission.collectTargets) &&
+              Array.isArray(mission.huntTargets) &&
+              mission.reward &&
+              Array.isArray(mission.reward.materials) &&
+              Array.isArray(mission.reward.consumables)
+          )
+          .map((mission) => {
+            if (mission.status === "completed") {
+              return mission;
+            }
+            return {
+              ...mission,
+              reward: boostMissionRewardBySuppression(mission.reward, regionSuppression)
+            };
+          });
       },
       getAcceptedBulletinMissions() {
         return Object.values(missionsByRegionId)

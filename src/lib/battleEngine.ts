@@ -1381,6 +1381,7 @@ function generateDrops(runtime: BattleRuntimeState): BattleDropSummary {
     battleId: runtime.battleId,
     nodeId: runtime.nodeId,
     elapsedMs: runtime.elapsedMs,
+    suppression: runtime.suppression,
     enemies: defeatedEnemies
   });
 }

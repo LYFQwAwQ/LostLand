@@ -32,6 +32,7 @@ export interface GenerateBattleDropsParams {
   nodeId: string;
   elapsedMs: number;
   enemies: BattleDropEnemyContext[];
+  suppression: number;
 }
 
 export interface BattleDropMaterialCatalogEntry {
@@ -342,18 +343,39 @@ function resolveTierRank(rarityTier: EnemyRarityTier): number {
 function buildEnemyEnvironment(
   base: EquipmentGenerationEnvironment,
   targetQuality: EquipmentQuality,
-  rarityTier: EnemyRarityTier
+  rarityTier: EnemyRarityTier,
+  suppression: number
 ): EquipmentGenerationEnvironment {
   const targetIndex = QUALITY_ORDER.indexOf(targetQuality);
   const tierRank = resolveTierRank(rarityTier);
+  const suppressionRatio = clamp(suppression / 100, 0, 1);
   const qualityWeightMultipliers = QUALITY_ORDER.reduce<Partial<Record<EquipmentQuality, number>>>((acc, quality, index) => {
     const distance = Math.abs(index - targetIndex);
     const focusMultiplier = distance === 0 ? 1.35 : distance === 1 ? 1.12 : distance === 2 ? 0.9 : 0.72;
     const upwardBias = index >= 2 ? 1 + tierRank * 0.06 : Math.max(0.65, 1 - tierRank * 0.05);
     const baseMultiplier = base.qualityWeightMultipliers?.[quality] ?? 1;
-    acc[quality] = baseMultiplier * focusMultiplier * upwardBias;
+    let suppressionMultiplier = 1;
+    if (quality === "common") {
+      suppressionMultiplier = Math.max(0.5, 1 - suppressionRatio * 0.24);
+    } else if (quality === "uncommon") {
+      suppressionMultiplier = 1 - suppressionRatio * 0.08;
+    } else if (quality === "rare") {
+      suppressionMultiplier = 1 + suppressionRatio * 0.1;
+    } else if (quality === "epic") {
+      suppressionMultiplier = 1 + suppressionRatio * 0.22;
+    } else if (quality === "legendary") {
+      suppressionMultiplier = 1 + suppressionRatio * 0.4;
+    } else if (quality === "mythic") {
+      suppressionMultiplier = 1 + suppressionRatio * 0.6;
+    }
+    acc[quality] = baseMultiplier * focusMultiplier * upwardBias * suppressionMultiplier;
     return acc;
   }, {});
+
+  const legendaryGate = suppression >= 80 ? 1 : 0;
+  const mythicGate = suppression >= 95 ? 1 : 0;
+  qualityWeightMultipliers.legendary = (qualityWeightMultipliers.legendary ?? 1) * legendaryGate;
+  qualityWeightMultipliers.mythic = (qualityWeightMultipliers.mythic ?? 1) * mythicGate;
 
   return {
     id: `${base.id}-${rarityTier}-${targetQuality}`,
@@ -450,7 +472,12 @@ export function generateBattleDropsFromTable(params: GenerateBattleDropsParams):
       const templateIds = resolveRaceTemplateIds(profile.race, profile.slotHint, profile.rarityTier);
       const pool = resolveTemplatePool(templateIds);
       const level = clamp(enemy.level + dropConfig.levelOffset, 1, 30);
-      const environment = buildEnemyEnvironment(dropConfig.baseEnvironment, profile.lootQualityTier, profile.rarityTier);
+      const environment = buildEnemyEnvironment(
+        dropConfig.baseEnvironment,
+        profile.lootQualityTier,
+        profile.rarityTier,
+        params.suppression
+      );
       const generated = generateEquipmentBatch(pool, 1, {
         level,
         seed: `${params.battleId}:${enemy.unitId}:eq:${rollIndex + 1}`,

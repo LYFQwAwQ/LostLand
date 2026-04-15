@@ -552,7 +552,9 @@ export function BattlePage() {
         reportMissionBattleOutcome({
           regionId: context?.region.id ?? "",
           materialGainCounts,
-          defeatedEnemyCounts
+          defeatedEnemyCounts,
+          nodeArchetype: context?.node.archetype,
+          victory: runtime.winner === "ally"
         });
       }
     }
