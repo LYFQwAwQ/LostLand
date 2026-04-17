@@ -21,6 +21,7 @@ import type { RegionMeta } from "../data/worldMapData";
 import { defaultFieldHooks } from "../lib/fieldVisual";
 import { mapNodeTypeLabel } from "../lib/mapRules";
 import { useMapSystem } from "../state/MapSystemProvider";
+import { useOrganization } from "../state/OrganizationProvider";
 import type { ContinentId, RegionEdge, RegionNode } from "../types/game";
 
 interface LabelOffset {
@@ -256,6 +257,7 @@ function computeRegionPickerPositions(regions: RegionMeta[]): Record<string, Pic
 
 export function WorldMapPage() {
   const { getRegionById, ensureRegionLoaded, advanceOneMonth, worldMonth } = useMapSystem();
+  const { chapterTargetRegionId, canUseChapterFeature, getChapterFeatureLockMessage } = useOrganization();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -276,11 +278,17 @@ export function WorldMapPage() {
     return resolveSelectionFromLegacyRegion(searchParams.get("region"));
   }, [explicitSelection, searchParams]);
 
+  const chapterMapSwitchUnlocked = canUseChapterFeature("chapter_map_switch");
+  const chapterMapSwitchLockedMessage = getChapterFeatureLockMessage("chapter_map_switch");
+
+  const chapterTargetSelection = useMemo(() => {
+    const resolved = resolveSelectionFromLegacyRegion(chapterTargetRegionId);
+    return resolved ?? DEFAULT_WORLD_SELECTION;
+  }, [chapterTargetRegionId]);
+
   const rawSelection = explicitSelection ?? legacySelection;
-  const selection =
-    rawSelection && rawSelection.continentId === "central"
-      ? rawSelection
-      : DEFAULT_WORLD_SELECTION;
+  const normalizedSelection = rawSelection ?? DEFAULT_WORLD_SELECTION;
+  const selection = chapterMapSwitchUnlocked ? normalizedSelection : chapterTargetSelection;
 
   const [pickerContinentId, setPickerContinentId] = useState<ContinentId | null>(null);
   const [pickerDominionId, setPickerDominionId] = useState<string | null>(null);
@@ -481,6 +489,9 @@ export function WorldMapPage() {
   }, [autoPlay, playback.length, report]);
 
   const openDominionPicker = (continentId: ContinentId) => {
+    if (!chapterMapSwitchUnlocked) {
+      return;
+    }
     setPickerContinentId(continentId);
     setPickerDominionId(null);
     setShowRegionPicker(false);
@@ -493,12 +504,18 @@ export function WorldMapPage() {
   };
 
   const chooseDominion = (dominionId: string) => {
+    if (!chapterMapSwitchUnlocked) {
+      return;
+    }
     setPickerDominionId(dominionId);
     setShowDominionPicker(false);
     setShowRegionPicker(true);
   };
 
   const applySelection = (nextContinentId: ContinentId, nextDominionId: string, nextRegionId: string) => {
+    if (!chapterMapSwitchUnlocked) {
+      return;
+    }
     setSearchParams(
       buildWorldMapSearchParams({
         continentId: nextContinentId,
@@ -510,6 +527,9 @@ export function WorldMapPage() {
   };
 
   const chooseRegion = (nextRegionId: string) => {
+    if (!chapterMapSwitchUnlocked && nextRegionId !== chapterTargetRegionId) {
+      return;
+    }
     const meta = getRegionMeta(nextRegionId);
     if (!meta) {
       return;
@@ -619,22 +639,26 @@ export function WorldMapPage() {
       <header className="page-header">
         <h1>世界地图</h1>
         <p>大陆 → 疆域 → 地区多层地图。当前人族疆域使用固定拓扑（保留随机生成代码备用），并支持月度演化回放。</p>
-        <p>测试阶段：仅开放中央大陆，其他大陆入口暂时置灰不可选。</p>
+        {!chapterMapSwitchUnlocked && chapterMapSwitchLockedMessage ? (
+          <p className="warn">{chapterMapSwitchLockedMessage}（当前仅开放第一章目标地区）</p>
+        ) : (
+          <p>当前章节限制已解除，可自由切换地图。</p>
+        )}
       </header>
 
       <div className="region-tabs continent-tabs">
         {WORLD_CONTINENTS.map((item) => (
           <button
             key={item.id}
-            className={`${selection?.continentId === item.id ? "active" : ""} ${item.id !== "central" ? "disabled" : ""}`.trim()}
+            className={`${selection?.continentId === item.id ? "active" : ""} ${!chapterMapSwitchUnlocked ? "disabled" : ""}`.trim()}
             onClick={() => {
-              if (item.id !== "central") {
+              if (!chapterMapSwitchUnlocked) {
                 return;
               }
               openDominionPicker(item.id);
             }}
             type="button"
-            disabled={item.id !== "central"}
+            disabled={!chapterMapSwitchUnlocked}
           >
             {item.name}
           </button>
@@ -731,7 +755,12 @@ export function WorldMapPage() {
             <div className="neighbor-switch-list">
               {neighborRegions.length === 0 ? <p>当前地区暂无可切换的邻接地区。</p> : null}
               {neighborRegions.map((item) => (
-                <button key={item.id} type="button" onClick={() => chooseRegion(item.id)}>
+                <button
+                  key={item.id}
+                  type="button"
+                  disabled={!chapterMapSwitchUnlocked && item.id !== chapterTargetRegionId}
+                  onClick={() => chooseRegion(item.id)}
+                >
                   {item.name}
                 </button>
               ))}

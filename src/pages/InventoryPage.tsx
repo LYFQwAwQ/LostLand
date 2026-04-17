@@ -1,11 +1,11 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
-import { heroes } from "../data/mockData";
 import { legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
 import { EQUIPMENT_SLOT_LABELS, EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
 import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS, getEquipmentQualityLabel } from "../lib/equipmentSystem";
 import { computeEquipmentInternalScore, resolveEquipmentScoreTier } from "../lib/equipmentScoring";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
+import { useHeroRoster } from "../state/HeroRosterProvider";
 import type {
   EquipmentQuality,
   EquipmentRank,
@@ -155,6 +155,7 @@ function buildRaritySummary(items: Array<{ rarity: InventoryResourceRarity }>): 
 }
 
 export function InventoryPage() {
+  const { heroes } = useHeroRoster();
   const {
     items,
     refreshItems,

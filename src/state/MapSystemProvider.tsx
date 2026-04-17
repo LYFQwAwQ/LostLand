@@ -33,6 +33,7 @@ interface MapSystemContextValue {
   ensureRegionLoaded: (regionId: string) => RegionTopology;
   advanceOneMonth: (regionId: string) => void;
   getRegionById: (regionId?: string | null) => RegionTopology | undefined;
+  getRegionSuppression: (regionId?: string | null) => number;
   findNodeById: (nodeId?: string) => { region: RegionTopology; node: RegionNode } | null;
   getRegionBulletinMissions: (regionId?: string | null) => BulletinMissionState[];
   getAcceptedBulletinMissions: () => BulletinMissionState[];
@@ -516,6 +517,12 @@ export function MapSystemProvider({ children }: { children: ReactNode }) {
           return undefined;
         }
         return regionsById[regionId];
+      },
+      getRegionSuppression(regionId) {
+        if (!regionId) {
+          return 0;
+        }
+        return sanitizeSuppression(regionsById[regionId]?.mapSuppression ?? 0);
       },
       findNodeById(nodeId) {
         if (!nodeId) {

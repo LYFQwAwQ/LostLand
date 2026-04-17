@@ -1,10 +1,10 @@
 import { RotateCcw, Shield, Trash2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { heroes } from "../data/mockData";
 import { useBattleSetup } from "../state/BattleSetupProvider";
 import type { BattleSetupSnapshot } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
 import type { EquipmentInventorySnapshot } from "../state/EquipmentInventoryProvider";
+import { useHeroRoster } from "../state/HeroRosterProvider";
 
 interface TeamPresetSnapshot {
   battle: BattleSetupSnapshot;
@@ -68,6 +68,7 @@ function loadPresetSlots(): TeamPresetSlot[] {
 }
 
 export function TeamPage() {
+  const { heroes } = useHeroRoster();
   const {
     formation,
     setSlotHero,

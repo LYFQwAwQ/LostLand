@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useEquipmentInventory } from "../../state/EquipmentInventoryProvider";
+import { useHeroRoster } from "../../state/HeroRosterProvider";
 import { useMapSystem } from "../../state/MapSystemProvider";
 
 function SideNavLink({
@@ -28,6 +29,8 @@ function SideNavLink({
 export function MainLayout() {
   const { worldLogs, worldMonth } = useMapSystem();
   const { gold, reputation } = useEquipmentInventory();
+  const { heroes } = useHeroRoster();
+  const heroEntryId = heroes[0]?.id ?? "arthur";
 
   return (
     <div className="app-shell">
@@ -70,7 +73,7 @@ export function MainLayout() {
           <SideNavLink to="/team" label="队伍配置" icon={<ShieldCheck size={18} />} />
           <SideNavLink to="/organization" label="组织基地" icon={<Building2 size={18} />} />
           <SideNavLink to="/inventory" label="背包" icon={<Package size={18} />} />
-          <SideNavLink to="/hero/arthur" label="英雄殿堂" icon={<User size={18} />} />
+          <SideNavLink to={`/hero/${heroEntryId}`} label="英雄殿堂" icon={<User size={18} />} />
         </nav>
       </aside>
 

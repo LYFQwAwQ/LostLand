@@ -26,7 +26,7 @@ import {
 import { buildAllyTeamTemplates } from "../lib/battleAdapters";
 import { useBattleSetup } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
-import { heroes } from "../data/mockData";
+import { useHeroRoster } from "../state/HeroRosterProvider";
 import type { BattleElement, BattleLoadout, BattleStatBlock, BattleStatModifier, BattleStatFlatKey, BattleTalentRarity } from "../types/battle";
 import type {
   EquipmentSlot,
@@ -91,10 +91,6 @@ const HERO_SKILL_RARITY_LABELS: Record<HeroSkillRarity, string> = {
   epic: "史诗",
   legendary: "传说"
 };
-const HERO_NAME_MAP = heroes.reduce<Record<string, string>>((map, hero) => {
-  map[hero.id] = hero.name;
-  return map;
-}, {});
 
 
 function formatModifierValue(value: number): string {
@@ -821,6 +817,7 @@ function HeroSkillLoadoutEditor({
 
 interface HeroGearContentProps {
   hero: Hero;
+  heroNameMap: Record<string, string>;
   backpackItems: GeneratedEquipment[];
   backpackMap: Map<string, GeneratedEquipment>;
   selectedSlotByHero: Record<string, string>;
@@ -834,6 +831,7 @@ interface HeroGearContentProps {
 
 function HeroGearContent({
   hero,
+  heroNameMap,
   backpackItems,
   backpackMap,
   selectedSlotByHero,
@@ -909,7 +907,7 @@ function HeroGearContent({
 
       if (isOwnedByOtherHero) {
         const owner = owners.find((entry) => entry.heroId !== hero.id)!;
-        ownerText = `已装备：${HERO_NAME_MAP[owner.heroId] ?? owner.heroId}`;
+        ownerText = `已装备：${heroNameMap[owner.heroId] ?? owner.heroId}`;
       } else if (exceedsLegendaryLimit) {
         ownerText = "已达每英雄传说装备上限（2件）";
       } else if (owners.length > 0 && !isCurrent) {
@@ -930,7 +928,7 @@ function HeroGearContent({
         ownerText
       };
     });
-  }, [getItemOwners, hero.id, heroLegendaryCount, heroLegendaryUidSet, heroSlots, selectedSlot?.id, slotItems]);
+  }, [getItemOwners, hero.id, heroLegendaryCount, heroLegendaryUidSet, heroNameMap, heroSlots, selectedSlot?.id, slotItems]);
 
   const totalSlotCount = slotItems.length;
   const availableSlotCount = slotEntries.filter((entry) => entry.canEquip).length;
@@ -1514,6 +1512,7 @@ function HeroMemoryContent({
 }
 
 export function HeroPage() {
+  const { heroes } = useHeroRoster();
   const { heroId } = useParams<{ heroId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = (searchParams.get("tab") as HeroTab) || "stats";
@@ -1605,6 +1604,14 @@ export function HeroPage() {
   );
 
   const [selectedSlotByHero, setSelectedSlotByHero] = useState<Record<string, string>>({});
+  const heroNameMap = useMemo(
+    () =>
+      heroes.reduce<Record<string, string>>((map, item) => {
+        map[item.id] = item.name;
+        return map;
+      }, {}),
+    [heroes]
+  );
 
   const setTab = (tab: HeroTab) => setSearchParams({ tab });
 
@@ -1673,6 +1680,7 @@ export function HeroPage() {
               {currentTab === "gear" && (
                 <HeroGearContent
                   hero={hero}
+                  heroNameMap={heroNameMap}
                   backpackItems={items}
                   backpackMap={itemMap}
                   selectedSlotByHero={selectedSlotByHero}
@@ -1702,7 +1710,7 @@ export function HeroPage() {
                     if (!ownerHeroId || ownerHeroId === hero.id) {
                       return null;
                     }
-                    return HERO_NAME_MAP[ownerHeroId] ?? ownerHeroId;
+                    return heroNameMap[ownerHeroId] ?? ownerHeroId;
                   }}
                   onChangeMemory={(nextMemoryId) => {
                     return setHeroMemory(hero.id, nextMemoryId);

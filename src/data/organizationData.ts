@@ -118,24 +118,73 @@ export const organizationBuildingDefinitions: OrganizationBuildingDefinition[] =
 
 export const organizationMainQuestDefinitions: OrganizationMainQuestDefinition[] = [
   {
-    id: "mainline_rebuild_signal",
-    title: "重启信标",
-    summary: "基地核心重启后，先恢复主信标通讯链路。",
-    objective: "接取后完成一次“信标重启”主线步骤。"
+    id: "ch1_mq_01_rebuild_core",
+    title: "重建核心",
+    summary: "工程队需要先采购建筑材料，对基地核心完成应急修复。",
+    objective: "完成一次建筑材料采购（用于核心重建）。",
+    conditionType: "build_material_purchase",
+    targetValue: 1,
+    progressLabel: "建材采购次数"
   },
   {
-    id: "mainline_secure_store",
-    title: "稳固储备线",
-    summary: "建立稳定的基础储备，为后续远征提供支持。",
-    objective: "完成资源储备相关主线步骤。"
+    id: "ch1_mq_02_clear_outskirts",
+    title: "清理主城周边",
+    summary: "核心重建后，必须先清理主城外围威胁，恢复补给线秩序。",
+    objective: "累计获得 100 场战斗胜利。",
+    conditionType: "battle_win",
+    targetValue: 100,
+    progressLabel: "战斗胜场"
   },
   {
-    id: "mainline_frontier_plan",
-    title: "边境部署",
-    summary: "完成前线部署规划，打通组织对外行动路径。",
-    objective: "完成边境部署主线步骤。"
+    id: "ch1_mq_03_core_upgrade",
+    title: "核心升级",
+    summary: "提交建筑材料与怪物材料，完成基地核心正式升级。",
+    objective: "完成一次核心升级提交。",
+    conditionType: "core_upgrade_submit",
+    targetValue: 1,
+    progressLabel: "核心升级提交次数"
+  },
+  {
+    id: "ch1_mq_04_expand_base",
+    title: "扩建基地",
+    summary: "核心升级后需恢复组织建造能力，建设更多基础建筑。",
+    objective: "累计建造 3 座建筑（不含基地核心）。",
+    conditionType: "building_constructed",
+    targetValue: 3,
+    progressLabel: "已建造建筑数"
+  },
+  {
+    id: "ch1_mq_05_liberation",
+    title: "完全解放",
+    summary: "完成建设与清剿后，将第一章目标地区压制值推进到 100。",
+    objective: "第一章目标地区压制值达到 100。",
+    conditionType: "suppression_reached",
+    targetValue: 100,
+    progressLabel: "目标地区压制值"
   }
 ];
+
+export interface OrganizationCoreUpgradeSubmitCost {
+  gold: number;
+  materials: Array<{ materialId: string; materialName: string; quantity: number }>;
+}
+
+const CHAPTER_CORE_UPGRADE_SUBMIT_COST: OrganizationCoreUpgradeSubmitCost = {
+  gold: 12000,
+  materials: [
+    { materialId: "building_steel_core_panel", materialName: "钢芯复合板", quantity: 6 },
+    { materialId: "building_slag_cement", materialName: "炉渣水泥", quantity: 8 },
+    { materialId: "human_refined_steel", materialName: "精炼钢锭", quantity: 6 },
+    { materialId: "undead_grave_dust", materialName: "墓尘", quantity: 12 }
+  ]
+};
+
+export function buildCoreUpgradeSubmitCost(): OrganizationCoreUpgradeSubmitCost {
+  return {
+    gold: CHAPTER_CORE_UPGRADE_SUBMIT_COST.gold,
+    materials: CHAPTER_CORE_UPGRADE_SUBMIT_COST.materials.map((item) => ({ ...item }))
+  };
+}
 
 function upgradeStep(
   fromLevel: number,

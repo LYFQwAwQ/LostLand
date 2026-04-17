@@ -10,19 +10,23 @@ import {
   getEquipmentSellPrice,
   type EquipmentQuickSellFilter
 } from "../data/config/economyConfig";
+import { getDefaultHeroLoadout } from "../data/battleUnits";
 import { getBuildingMaterialMarketConfig, resolveBuildingMaterialPriceQuote } from "../data/config/buildingMaterialMarketConfig";
 import { equipmentTemplates } from "../data/equipmentTemplates";
 import { legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
-import { heroes } from "../data/mockData";
 import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
 import { buildingMaterialDefinitions, type BuildingMaterialTier } from "../data/buildingMaterials";
-import { getForgeRecipes, getMarketInventory, getShopInventory, getTavernOffers, marketSellRules } from "../data/nodeModules";
+import { battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
+import { getForgeRecipes, getMarketInventory, getShopInventory, getTavernOffers, marketSellRules, type TavernHeroOffer } from "../data/nodeModules";
 import { EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
 import { computeEquipmentInternalScore } from "../lib/equipmentScoring";
 import { generateEquipmentBatch } from "../lib/equipmentSystem";
+import { normalizeHeroLoadout } from "../lib/battleLoadoutRules";
 import { ACTION_META, canAccessAction, mapNodeTypeLabel } from "../lib/mapRules";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
+import { useHeroRoster } from "../state/HeroRosterProvider";
 import { useMapSystem } from "../state/MapSystemProvider";
+import { useOrganization } from "../state/OrganizationProvider";
 import type { BulletinMissionState, GeneratedEquipment, InventoryResourceRarity, NodeAction } from "../types/game";
 
 const validActions: NodeAction[] = [
@@ -72,6 +76,66 @@ const QUICK_SELL_QUALITY_OPTIONS: GeneratedEquipment["quality"][] = [
 ];
 const QUICK_SELL_RANK_OPTIONS: GeneratedEquipment["rank"][] = ["crude", "fine", "superior", "perfect"];
 
+function toHeroClass(profession: TavernHeroOffer["profession"]): "paladin" | "mage" | "ranger" | "priest" {
+  if (profession === "战士") {
+    return "paladin";
+  }
+  if (profession === "术士") {
+    return "mage";
+  }
+  if (profession === "牧师") {
+    return "priest";
+  }
+  return "ranger";
+}
+
+function toHeroRarity(rarity: TavernHeroOffer["rarity"]): "standard" | "legendary" {
+  return rarity === "史诗" ? "legendary" : "standard";
+}
+
+function computeTavernStats(offer: TavernHeroOffer) {
+  const rarityMultiplier = offer.rarity === "史诗" ? 1.24 : offer.rarity === "稀有" ? 1.1 : 1;
+  const classType = toHeroClass(offer.profession);
+  if (classType === "paladin") {
+    return {
+      stats: { hp: `${Math.round(9800 * rarityMultiplier)}`, mp: `${Math.round(780 * rarityMultiplier)}`, str: `${Math.round(210 * rarityMultiplier)}`, int: `${Math.round(80 * rarityMultiplier)}`, agi: `${Math.round(108 * rarityMultiplier)}`, def: `${Math.round(420 * rarityMultiplier)}` },
+      statGrowth: { hp: Math.round(420 * rarityMultiplier), mp: Math.round(22 * rarityMultiplier), str: Math.round(9 * rarityMultiplier), int: Math.round(2 * rarityMultiplier), agi: Math.round(4 * rarityMultiplier), def: Math.round(10 * rarityMultiplier) }
+    };
+  }
+  if (classType === "mage") {
+    return {
+      stats: { hp: `${Math.round(4300 * rarityMultiplier)}`, mp: `${Math.round(4300 * rarityMultiplier)}`, str: `${Math.round(45 * rarityMultiplier)}`, int: `${Math.round(340 * rarityMultiplier)}`, agi: `${Math.round(150 * rarityMultiplier)}`, def: `${Math.round(130 * rarityMultiplier)}` },
+      statGrowth: { hp: Math.round(180 * rarityMultiplier), mp: Math.round(165 * rarityMultiplier), str: Math.round(2 * rarityMultiplier), int: Math.round(12 * rarityMultiplier), agi: Math.round(5 * rarityMultiplier), def: Math.round(3 * rarityMultiplier) }
+    };
+  }
+  if (classType === "priest") {
+    return {
+      stats: { hp: `${Math.round(6200 * rarityMultiplier)}`, mp: `${Math.round(3600 * rarityMultiplier)}`, str: `${Math.round(92 * rarityMultiplier)}`, int: `${Math.round(280 * rarityMultiplier)}`, agi: `${Math.round(128 * rarityMultiplier)}`, def: `${Math.round(220 * rarityMultiplier)}` },
+      statGrowth: { hp: Math.round(250 * rarityMultiplier), mp: Math.round(138 * rarityMultiplier), str: Math.round(3 * rarityMultiplier), int: Math.round(11 * rarityMultiplier), agi: Math.round(4 * rarityMultiplier), def: Math.round(5 * rarityMultiplier) }
+    };
+  }
+  return {
+    stats: { hp: `${Math.round(5600 * rarityMultiplier)}`, mp: `${Math.round(1500 * rarityMultiplier)}`, str: `${Math.round(170 * rarityMultiplier)}`, int: `${Math.round(120 * rarityMultiplier)}`, agi: `${Math.round(240 * rarityMultiplier)}`, def: `${Math.round(170 * rarityMultiplier)}` },
+    statGrowth: { hp: Math.round(240 * rarityMultiplier), mp: Math.round(60 * rarityMultiplier), str: Math.round(7 * rarityMultiplier), int: Math.round(4 * rarityMultiplier), agi: Math.round(8 * rarityMultiplier), def: Math.round(5 * rarityMultiplier) }
+  };
+}
+
+function resolveTavernSkillRarity(heroClass: "paladin" | "mage" | "ranger" | "priest", skillId: string): "common" | "rare" | "epic" | "legendary" {
+  const talent = battleTalents[skillId];
+  if (talent && talent.allowedHeroClasses?.includes(heroClass)) {
+    return "legendary";
+  }
+  const active = battleActiveSkills[skillId];
+  if (active) {
+    return active.rarity ?? "common";
+  }
+  const passive = battlePassiveSkills[skillId];
+  if (passive) {
+    return passive.rarity ?? "common";
+  }
+  return "common";
+}
+
 function isNodeAction(value: string | undefined): value is NodeAction {
   return !!value && validActions.includes(value as NodeAction);
 }
@@ -110,12 +174,15 @@ export function NodeActionPage() {
     acceptBulletinMission,
     submitBulletinMission
   } = useMapSystem();
+  const { heroes, recruitHero } = useHeroRoster();
+  const { reportChapterBuildMaterialPurchased, canUseChapterFeature, getChapterFeatureLockMessage } = useOrganization();
   const {
     items,
     gold,
     grantMissionRewards,
     buyEquipment,
     buyMaterials,
+    spendGold,
     sellEquipment,
     sellEquipmentBulk,
     consumeMaterials,
@@ -162,6 +229,7 @@ export function NodeActionPage() {
   const [quickSellRankFilters, setQuickSellRankFilters] = useState<GeneratedEquipment["rank"][]>(
     defaultQuickSellFilter.ranks ?? []
   );
+  const [recruitedOfferIds, setRecruitedOfferIds] = useState<string[]>([]);
 
   const context = findNodeById(nodeId);
 
@@ -171,6 +239,7 @@ export function NodeActionPage() {
     setTradeRefreshToken(0);
     setBuildingMaterialRefreshToken(0);
     setBuildingMaterialBuyQuantityById({});
+    setRecruitedOfferIds([]);
   }, [nodeId, action]);
 
   if (!context) {
@@ -189,6 +258,8 @@ export function NodeActionPage() {
 
   const { node, region } = context;
   const mapQuery = buildWorldMapSearchParams(selectionFromRegion(region)).toString();
+  const forgeLockedMessage = getChapterFeatureLockMessage("node_forge");
+  const forgeUnlocked = canUseChapterFeature("node_forge");
   const bulletinMissions = getRegionBulletinMissions(region.id);
   const missionWarning = getRegionMissionWarning(region.id);
   const materialCountMap = (materialItems ?? []).reduce<Record<string, number>>((acc, item) => {
@@ -201,7 +272,7 @@ export function NodeActionPage() {
         acc[hero.id] = hero.name;
         return acc;
       }, {}),
-    []
+    [heroes]
   );
 
   const isShopAction = action === "shop";
@@ -437,7 +508,79 @@ export function NodeActionPage() {
       setTradeFeedback(result.reason ?? "建材购买失败。");
       return;
     }
+    reportChapterBuildMaterialPurchased(quantity);
     setTradeFeedback(`买入成功：${offer.name} x${quantity}，消耗 ${formatCurrency(result.totalCost)} 金币。`);
+  };
+
+  const handleRecruitOffer = (offer: TavernHeroOffer) => {
+    if (recruitedOfferIds.includes(offer.id)) {
+      setTradeFeedback(`${offer.name} 已完成签约。`);
+      return;
+    }
+    const payResult = spendGold(offer.signingCost);
+    if (!payResult.ok) {
+      setTradeFeedback(payResult.reason ?? "金币不足，无法完成签约。");
+      return;
+    }
+
+    const heroClass = toHeroClass(offer.profession);
+    const stats = computeTavernStats(offer);
+    const seedId = `tavern-${node.id}-${offer.id}-${Date.now()}`;
+    const normalizedName = offer.name.replace(/\s+/g, "-").toLowerCase();
+    const fallbackLoadout = getDefaultHeroLoadout({
+      id: seedId,
+      name: offer.name,
+      title: `${offer.profession} · 酒馆新兵`,
+      heroClass,
+      image: "/images/heroes/Miya.png",
+      rarity: "standard",
+      origin: "generated",
+      stats: stats.stats,
+      statGrowth: stats.statGrowth
+    });
+    const normalized = normalizeHeroLoadout(heroClass, fallbackLoadout, fallbackLoadout.talentSlot, {
+      talentIds: fallbackLoadout.talentSlot ? [fallbackLoadout.talentSlot] : [],
+      activeSkillIds: fallbackLoadout.activeSlots.filter((id): id is string => Boolean(id)),
+      passiveSkillIds: fallbackLoadout.passiveSlots.filter((id): id is string => Boolean(id))
+    });
+    const skillIds = [
+      ...(normalized.loadout.talentSlot ? [normalized.loadout.talentSlot] : []),
+      ...normalized.loadout.activeSlots.filter((id): id is string => Boolean(id)),
+      ...normalized.loadout.passiveSlots.filter((id): id is string => Boolean(id))
+    ];
+    const rarityBySkillId = skillIds.reduce<Record<string, "common" | "rare" | "epic" | "legendary">>((acc, skillId) => {
+      acc[skillId] = resolveTavernSkillRarity(heroClass, skillId);
+      return acc;
+    }, {});
+
+    const recruitResult = recruitHero({
+      id: `${normalizedName}-${offer.id}`,
+      name: offer.name,
+      title: `${offer.profession} · 酒馆签约`,
+      heroClass,
+      image: "/images/heroes/Miya.png",
+      rarity: toHeroRarity(offer.rarity),
+      origin: "generated",
+      learnedSkills: {
+        talentIds: normalized.loadout.talentSlot ? [normalized.loadout.talentSlot] : [],
+        activeSkillIds: normalized.loadout.activeSlots.filter((id): id is string => Boolean(id)),
+        passiveSkillIds: normalized.loadout.passiveSlots.filter((id): id is string => Boolean(id)),
+        rarityBySkillId
+      },
+      loadoutPreset: {
+        talentId: normalized.loadout.talentSlot,
+        activeSkillIds: normalized.loadout.activeSlots.filter((id): id is string => Boolean(id)),
+        passiveSkillIds: normalized.loadout.passiveSlots.filter((id): id is string => Boolean(id))
+      },
+      stats: stats.stats,
+      statGrowth: stats.statGrowth
+    });
+    if (!recruitResult.ok) {
+      setTradeFeedback(recruitResult.message);
+      return;
+    }
+    setRecruitedOfferIds((prev) => [...prev, offer.id]);
+    setTradeFeedback(`签约成功：${offer.name} 已加入组织。`);
   };
 
   const handleBuyOffer = (offer: GeneratedEquipment) => {
@@ -885,6 +1028,8 @@ export function NodeActionPage() {
       {action === "tavern" ? (
         <div className="module-grid">
           <HeaderInfo title="酒馆招募池">
+            <p>当前金币：{formatCurrency(gold)}。签约后英雄会进入英雄池并可直接编队。</p>
+            {tradeFeedback ? <p className="module-trade-feedback">{tradeFeedback}</p> : null}
             <div className="offer-grid">
               {getTavernOffers(node).map((offer) => (
                 <article key={offer.id} className="offer-card">
@@ -894,7 +1039,12 @@ export function NodeActionPage() {
                   </p>
                   <p>签约费用：{offer.signingCost}</p>
                   <p>{offer.traits.join(" / ")}</p>
-                  <button type="button" className="ghost-btn small-btn">
+                  <button
+                    type="button"
+                    className="ghost-btn small-btn"
+                    disabled={recruitedOfferIds.includes(offer.id) || gold < offer.signingCost}
+                    onClick={() => handleRecruitOffer(offer)}
+                  >
                     <Users size={13} /> 招募
                   </button>
                 </article>
@@ -906,13 +1056,21 @@ export function NodeActionPage() {
 
       {action === "forge" ? (
         <div className="module-grid">
-          <HeaderInfo title="铁匠铺 - 强化">
-            <ForgeEnhancementPanel context="node" />
-          </HeaderInfo>
+          {forgeUnlocked ? (
+            <>
+              <HeaderInfo title="铁匠铺 - 强化">
+                <ForgeEnhancementPanel context="node" />
+              </HeaderInfo>
 
-          <HeaderInfo title="铁匠铺 - 打造">
-            <ForgeCraftPanel recipes={getForgeRecipes(node)} context="node" />
-          </HeaderInfo>
+              <HeaderInfo title="铁匠铺 - 打造">
+                <ForgeCraftPanel recipes={getForgeRecipes(node)} context="node" />
+              </HeaderInfo>
+            </>
+          ) : (
+            <HeaderInfo title="铁匠铺">
+              <p className="warn">{forgeLockedMessage ?? "系统受损，完成当前章节主线后恢复"}</p>
+            </HeaderInfo>
+          )}
         </div>
       ) : null}
 

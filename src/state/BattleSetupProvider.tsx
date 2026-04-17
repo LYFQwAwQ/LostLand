@@ -1,10 +1,10 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { getDefaultHeroLoadout } from "../data/battleUnits";
-import { heroes } from "../data/mockData";
 import { ensureBattleLoadoutShape, normalizeHeroLoadout } from "../lib/battleLoadoutRules";
 import type { Hero } from "../types/game";
 import type { BattleLine, BattleLoadout } from "../types/battle";
+import { useHeroRoster } from "./HeroRosterProvider";
 
 export interface TeamFormationSlotState {
   id: string;
@@ -36,14 +36,7 @@ interface BattleSetupContextValue {
   importSnapshot: (snapshot: BattleSetupSnapshot) => void;
 }
 
-const DEFAULT_FORMATION: TeamFormationSlotState[] = [
-  { id: "front-0", line: "front", index: 0, heroId: heroes[0]?.id ?? null },
-  { id: "front-1", line: "front", index: 1, heroId: heroes[1]?.id ?? null },
-  { id: "front-2", line: "front", index: 2, heroId: heroes[2]?.id ?? null },
-  { id: "back-0", line: "back", index: 0, heroId: heroes[3]?.id ?? null },
-  { id: "back-1", line: "back", index: 1, heroId: heroes[4]?.id ?? null },
-  { id: "back-2", line: "back", index: 2, heroId: heroes[5]?.id ?? null }
-];
+const EMPTY_LOADOUT: BattleLoadout = ensureBattleLoadoutShape({ talentSlot: null, activeSlots: [], passiveSlots: [] });
 
 function cloneLoadout(loadout: BattleLoadout): BattleLoadout {
   return {
@@ -66,28 +59,29 @@ function cloneFormation(formation: TeamFormationSlotState[]): TeamFormationSlotS
   return formation.map((slot) => ({ ...slot }));
 }
 
-const HERO_MAP = new Map(heroes.map((hero) => [hero.id, hero]));
-
 function normalizeForHero(hero: Hero, loadout: BattleLoadout): BattleLoadout {
   const defaultLoadout = getDefaultHeroLoadout(hero);
   return normalizeHeroLoadout(hero.heroClass, loadout, defaultLoadout.talentSlot, hero.learnedSkills).loadout;
 }
 
-function resolveLoadoutFromStore(store: Record<string, BattleLoadout>, heroId: string): BattleLoadout {
-  const hero = HERO_MAP.get(heroId);
+function resolveLoadoutFromStore(store: Record<string, BattleLoadout>, heroId: string, heroMap: Map<string, Hero>): BattleLoadout {
+  const hero = heroMap.get(heroId);
   if (!hero) {
-    return ensureBattleLoadoutShape({ talentSlot: null, activeSlots: [], passiveSlots: [] });
+    return EMPTY_LOADOUT;
   }
   const existing = store[heroId] ?? getDefaultHeroLoadout(hero);
   return normalizeForHero(hero, existing);
 }
 
-function normalizeFormationSnapshot(formation: TeamFormationSlotState[]): TeamFormationSlotState[] {
+function normalizeFormationSnapshot(
+  formation: TeamFormationSlotState[],
+  heroMap: Map<string, Hero>,
+  defaultFormation: TeamFormationSlotState[]
+): TeamFormationSlotState[] {
   const incomingById = new Map(formation.map((slot) => [slot.id, slot]));
-  return DEFAULT_FORMATION.map((defaultSlot) => {
+  return defaultFormation.map((defaultSlot) => {
     const incoming = incomingById.get(defaultSlot.id);
-    const heroId =
-      incoming?.heroId && typeof incoming.heroId === "string" && HERO_MAP.has(incoming.heroId) ? incoming.heroId : null;
+    const heroId = incoming?.heroId && typeof incoming.heroId === "string" && heroMap.has(incoming.heroId) ? incoming.heroId : null;
     return {
       ...defaultSlot,
       heroId
@@ -95,7 +89,7 @@ function normalizeFormationSnapshot(formation: TeamFormationSlotState[]): TeamFo
   });
 }
 
-function normalizeLoadoutsSnapshot(loadouts: Record<string, BattleLoadout>): Record<string, BattleLoadout> {
+function normalizeLoadoutsSnapshot(loadouts: Record<string, BattleLoadout>, heroes: Hero[]): Record<string, BattleLoadout> {
   return heroes.reduce<Record<string, BattleLoadout>>((acc, hero) => {
     const existing = loadouts[hero.id] ?? getDefaultHeroLoadout(hero);
     acc[hero.id] = cloneLoadout(normalizeForHero(hero, existing));
@@ -106,11 +100,46 @@ function normalizeLoadoutsSnapshot(loadouts: Record<string, BattleLoadout>): Rec
 const BattleSetupContext = createContext<BattleSetupContextValue | null>(null);
 
 export function BattleSetupProvider({ children }: { children: ReactNode }) {
-  const [formation, setFormation] = useState<TeamFormationSlotState[]>(() => cloneFormation(DEFAULT_FORMATION));
+  const { heroes } = useHeroRoster();
+  const heroMap = useMemo(() => new Map(heroes.map((hero) => [hero.id, hero])), [heroes]);
+  const defaultFormation = useMemo<TeamFormationSlotState[]>(
+    () => [
+      { id: "front-0", line: "front", index: 0, heroId: heroes[0]?.id ?? null },
+      { id: "front-1", line: "front", index: 1, heroId: heroes[1]?.id ?? null },
+      { id: "front-2", line: "front", index: 2, heroId: heroes[2]?.id ?? null },
+      { id: "back-0", line: "back", index: 0, heroId: heroes[3]?.id ?? null },
+      { id: "back-1", line: "back", index: 1, heroId: heroes[4]?.id ?? null },
+      { id: "back-2", line: "back", index: 2, heroId: heroes[5]?.id ?? null }
+    ],
+    [heroes]
+  );
+
+  const [formation, setFormation] = useState<TeamFormationSlotState[]>(() => cloneFormation(defaultFormation));
   const [heroLoadouts, setHeroLoadouts] = useState<Record<string, BattleLoadout>>(() => buildDefaultHeroLoadouts(heroes));
 
+  const normalizedFormation = useMemo(
+    () => normalizeFormationSnapshot(formation, heroMap, defaultFormation),
+    [defaultFormation, formation, heroMap]
+  );
+
+  const normalizedHeroLoadouts = useMemo(
+    () => normalizeLoadoutsSnapshot(heroLoadouts, heroes),
+    [heroLoadouts, heroes]
+  );
+
+  const activeFormation = useMemo(() => {
+    if (normalizedFormation.length <= 0) {
+      return cloneFormation(defaultFormation);
+    }
+    const hasAnyHero = normalizedFormation.some((slot) => Boolean(slot.heroId));
+    if (hasAnyHero) {
+      return normalizedFormation;
+    }
+    return cloneFormation(defaultFormation);
+  }, [defaultFormation, normalizedFormation]);
+
   const setFormationSlots = (nextFormation: TeamFormationSlotState[]) => {
-    setFormation(normalizeFormationSnapshot(nextFormation));
+    setFormation(normalizeFormationSnapshot(nextFormation, heroMap, defaultFormation));
   };
 
   const setSlotHero = (slotId: string, heroId: string | null) => {
@@ -124,6 +153,10 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
       if (!heroId) {
         target.heroId = null;
         return next;
+      }
+
+      if (!heroMap.has(heroId)) {
+        return prev;
       }
 
       const existing = next.find((slot) => slot.heroId === heroId);
@@ -144,15 +177,15 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
   };
 
   const resetFormationDefault = () => {
-    setFormation(cloneFormation(DEFAULT_FORMATION));
+    setFormation(cloneFormation(defaultFormation));
   };
 
   const getHeroLoadout = (heroId: string): BattleLoadout => {
-    return resolveLoadoutFromStore(heroLoadouts, heroId);
+    return resolveLoadoutFromStore(normalizedHeroLoadouts, heroId, heroMap);
   };
 
   const setHeroLoadout = (heroId: string, loadout: BattleLoadout) => {
-    const hero = HERO_MAP.get(heroId);
+    const hero = heroMap.get(heroId);
     if (!hero) {
       return;
     }
@@ -165,11 +198,11 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
 
   const setHeroTalent = (heroId: string, talentId: string | null) => {
     setHeroLoadouts((prev) => {
-      const hero = HERO_MAP.get(heroId);
+      const hero = heroMap.get(heroId);
       if (!hero) {
         return prev;
       }
-      const current = resolveLoadoutFromStore(prev, heroId);
+      const current = resolveLoadoutFromStore(prev, heroId, heroMap);
       const nextTalent = typeof talentId === "string" && talentId.length > 0 ? talentId : null;
       const normalized = normalizeForHero(hero, { ...current, talentSlot: nextTalent });
       return {
@@ -184,11 +217,11 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
       return;
     }
     setHeroLoadouts((prev) => {
-      const hero = HERO_MAP.get(heroId);
+      const hero = heroMap.get(heroId);
       if (!hero) {
         return prev;
       }
-      const current = resolveLoadoutFromStore(prev, heroId);
+      const current = resolveLoadoutFromStore(prev, heroId, heroMap);
       const activeSlots = [...current.activeSlots];
       activeSlots[slotIndex] = typeof skillId === "string" && skillId.length > 0 ? skillId : null;
       const normalized = normalizeForHero(hero, { ...current, activeSlots });
@@ -204,11 +237,11 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
       return;
     }
     setHeroLoadouts((prev) => {
-      const hero = HERO_MAP.get(heroId);
+      const hero = heroMap.get(heroId);
       if (!hero) {
         return prev;
       }
-      const current = resolveLoadoutFromStore(prev, heroId);
+      const current = resolveLoadoutFromStore(prev, heroId, heroMap);
       const passiveSlots = [...current.passiveSlots];
       passiveSlots[slotIndex] = typeof skillId === "string" && skillId.length > 0 ? skillId : null;
       const normalized = normalizeForHero(hero, { ...current, passiveSlots });
@@ -220,7 +253,7 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
   };
 
   const resetHeroLoadout = (heroId: string) => {
-    const hero = HERO_MAP.get(heroId);
+    const hero = heroMap.get(heroId);
     if (!hero) {
       return;
     }
@@ -233,23 +266,23 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
 
   const exportSnapshot = (): BattleSetupSnapshot => {
     return {
-      formation: cloneFormation(formation),
+      formation: cloneFormation(activeFormation),
       heroLoadouts: heroes.reduce<Record<string, BattleLoadout>>((acc, hero) => {
-        acc[hero.id] = cloneLoadout(resolveLoadoutFromStore(heroLoadouts, hero.id));
+        acc[hero.id] = cloneLoadout(resolveLoadoutFromStore(normalizedHeroLoadouts, hero.id, heroMap));
         return acc;
       }, {})
     };
   };
 
   const importSnapshot = (snapshot: BattleSetupSnapshot) => {
-    setFormation(normalizeFormationSnapshot(snapshot.formation ?? []));
-    setHeroLoadouts(normalizeLoadoutsSnapshot(snapshot.heroLoadouts ?? {}));
+    setFormation(normalizeFormationSnapshot(snapshot.formation ?? [], heroMap, defaultFormation));
+    setHeroLoadouts(normalizeLoadoutsSnapshot(snapshot.heroLoadouts ?? {}, heroes));
   };
 
   const value = useMemo<BattleSetupContextValue>(
     () => ({
-      formation,
-      heroLoadouts,
+      formation: activeFormation,
+      heroLoadouts: normalizedHeroLoadouts,
       setFormationSlots,
       setSlotHero,
       clearSlot,
@@ -264,7 +297,7 @@ export function BattleSetupProvider({ children }: { children: ReactNode }) {
       exportSnapshot,
       importSnapshot
     }),
-    [formation, heroLoadouts]
+    [activeFormation, normalizedHeroLoadouts]
   );
 
   return <BattleSetupContext.Provider value={value}>{children}</BattleSetupContext.Provider>;

@@ -5,6 +5,7 @@ import { ForgeCraftPanel } from "../components/forge/ForgeCraftPanel";
 import { ForgeEnhancementPanel } from "../components/forge/ForgeEnhancementPanel";
 import { getFoundryForgeRecipes } from "../data/nodeModules";
 import {
+  buildCoreUpgradeSubmitCost,
   ORGANIZATION_CONFIG,
   getOrganizationBuildingMaxLevel,
   getOrganizationBuildingUpgradeStep,
@@ -115,6 +116,13 @@ export function OrganizationPage() {
     acceptMainQuest,
     completeMainQuest,
     addMockOrganizationExp
+    ,
+    chapterTargetRegionId,
+    chapterMainlineCounters,
+    chapterCompletionSummary,
+    submitChapterCoreUpgrade,
+    canUseChapterFeature,
+    getChapterFeatureLockMessage
   } = useOrganization();
   const initialTerritorySize = Math.min(ORGANIZATION_CONFIG.initialTerritorySize, gridSize);
   const initialTerritoryStart = Math.floor((gridSize - initialTerritorySize) / 2);
@@ -218,6 +226,12 @@ export function OrganizationPage() {
   const expansionPatchLabel = `${ORGANIZATION_CONFIG.expansionPatchSize}x${ORGANIZATION_CONFIG.expansionPatchSize}`;
   const cellSize = ORGANIZATION_CONFIG.boardCellSize;
   const acceptedMissions = getAcceptedBulletinMissions();
+  const chapterBuildUnlocked = canUseChapterFeature("organization_build");
+  const chapterBuildLockMessage = getChapterFeatureLockMessage("organization_build");
+  const chapterAdvancedLockedMessage = getChapterFeatureLockMessage("organization_advanced");
+  const chapterMapSwitchLockedMessage = getChapterFeatureLockMessage("chapter_map_switch");
+  const chapterTargetRegionMeta = getRegionMeta(chapterTargetRegionId);
+  const chapterCoreUpgradeCost = useMemo(() => buildCoreUpgradeSubmitCost(), []);
   const materialCountMap = useMemo(() => {
     const countMap: Record<string, number> = {};
     materialItems.forEach((item) => {
@@ -542,6 +556,23 @@ export function OrganizationPage() {
     setFunctionalFeedback(result.message);
   };
 
+  const handleSubmitCoreUpgrade = () => {
+    if (chapterMainlineCounters.coreUpgradeSubmitted > 0) {
+      setFunctionalFeedback("核心升级材料已提交完成，无需重复提交。");
+      return;
+    }
+    const payResult = payCost({
+      gold: chapterCoreUpgradeCost.gold,
+      materials: chapterCoreUpgradeCost.materials
+    });
+    if (!payResult.ok) {
+      setFunctionalFeedback(`核心升级提交失败：${payResult.reason ?? "资源不足。"}。`);
+      return;
+    }
+    const submitResult = submitChapterCoreUpgrade(chapterCoreUpgradeCost);
+    setFunctionalFeedback(submitResult.message);
+  };
+
   const handleUpgradeSelectedPlacement = () => {
     if (!selectedPlacement || !selectedPlacementDefinition) {
       setFeedback("请先选中一个建筑。");
@@ -597,6 +628,7 @@ export function OrganizationPage() {
           <button type="button" className="ghost-btn" onClick={() => addMockOrganizationExp(120)}>
             <Plus size={13} /> 模拟获取组织经验
           </button>
+          {chapterMapSwitchLockedMessage ? <p className="organization-mission-note warn">{chapterMapSwitchLockedMessage}</p> : null}
         </article>
       </header>
 
@@ -865,6 +897,9 @@ export function OrganizationPage() {
                 </p>
                 <p>当前资金：{gold.toLocaleString("zh-CN")} 金币</p>
                 <p>{selectedDefinition.description}</p>
+                {!chapterBuildUnlocked && selectedDefinition.id !== "base_core" ? (
+                  <p className="warn">{chapterBuildLockMessage}</p>
+                ) : null}
                 {pendingExpansionCount > 0 ? (
                   <p className="warn">当前有 {pendingExpansionCount} 次可用扩展（每次 {expansionPatchLabel}）。</p>
                 ) : null}
@@ -923,6 +958,10 @@ export function OrganizationPage() {
                       当前评级上限：Rank {organizationRankCap}（基地核心 Lv.{getBuildingLevel("base_core") || 1}）
                     </p>
                     <p>当前组织已建造建筑总数：{placements.length}</p>
+                    <p>第一章目标地区：{chapterTargetRegionMeta?.name ?? chapterTargetRegionId}</p>
+                    <p>主线累计：建材采购 {chapterMainlineCounters.buildMaterialPurchased} / 战斗胜场 {chapterMainlineCounters.battleWins}</p>
+                    <p>主线累计：核心升级提交 {chapterMainlineCounters.coreUpgradeSubmitted} / 建造 {chapterMainlineCounters.buildingsConstructed}</p>
+                    <p>主线累计：目标地区压制 {chapterMainlineCounters.targetRegionSuppression}%</p>
                     <div className="organization-core-status-list">
                       {Object.entries(buildingCountByDefinition).length > 0 ? (
                         Object.entries(buildingCountByDefinition)
@@ -936,7 +975,22 @@ export function OrganizationPage() {
                         <p>当前尚未建造任何建筑。</p>
                       )}
                     </div>
-                    <p className="organization-mission-note">更多基地状态信息将在后续版本补充。</p>
+                    {chapterCompletionSummary ? (
+                      <div className="organization-chapter-summary">
+                        <h4>第一章完成结算</h4>
+                        <p>完成月份：第 {chapterCompletionSummary.completedAtWorldMonth} 月（总耗时 {chapterCompletionSummary.elapsedMonths} 月）</p>
+                        <p>建材采购：{chapterCompletionSummary.buildMaterialPurchased}</p>
+                        <p>战斗胜场：{chapterCompletionSummary.battleWins}</p>
+                        <p>核心升级提交：{chapterCompletionSummary.coreUpgradeSubmitted}</p>
+                        <p>建造数量：{chapterCompletionSummary.buildingsConstructed}</p>
+                        <p>目标地区压制：{chapterCompletionSummary.targetRegionSuppression}%</p>
+                      </div>
+                    ) : null}
+                    <p className="organization-mission-note">
+                      {chapterCompletionSummary
+                        ? "章节主线已完成，地图切换与高级功能限制已解除。"
+                        : "完成主线后将显示章节结算面板并解除系统封锁。"}
+                    </p>
                   </>
                 ) : (
                   <>
@@ -954,6 +1008,7 @@ export function OrganizationPage() {
                           <p>状态：{mainQuestStatusLabel[quest.status]}</p>
                           <p>{quest.summary}</p>
                           <p>目标：{quest.objective}</p>
+                          <p>{quest.progress.progressText}</p>
                           <div className="organization-row-actions">
                             {quest.status === "available" ? (
                               <button type="button" className="ghost-btn small-btn" onClick={() => handleAcceptMainQuest(quest.id)}>
@@ -961,11 +1016,36 @@ export function OrganizationPage() {
                               </button>
                             ) : null}
                             {quest.status === "in_progress" ? (
-                              <button type="button" className="ghost-btn small-btn" onClick={() => handleCompleteMainQuest(quest.id)}>
-                                标记完成（测试）
-                              </button>
+                              <>
+                                {quest.conditionType === "core_upgrade_submit" ? (
+                                  <button
+                                    type="button"
+                                    className="ghost-btn small-btn"
+                                    onClick={handleSubmitCoreUpgrade}
+                                    disabled={quest.progress.isReached}
+                                  >
+                                    提交核心升级材料
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className="ghost-btn small-btn"
+                                  onClick={() => handleCompleteMainQuest(quest.id)}
+                                  disabled={!quest.progress.isReached}
+                                >
+                                  完成任务
+                                </button>
+                              </>
                             ) : null}
                           </div>
+                          {quest.status === "in_progress" && quest.conditionType === "core_upgrade_submit" ? (
+                            <p className="organization-mission-note">
+                              提交消耗：金币 {chapterCoreUpgradeCost.gold.toLocaleString("zh-CN")} /{" "}
+                              {chapterCoreUpgradeCost.materials
+                                .map((item: { materialId: string; materialName: string; quantity: number }) => `${item.materialName} x${item.quantity}（持有 ${materialCountMap[item.materialId] ?? 0}）`)
+                                .join("，")}
+                            </p>
+                          ) : null}
                         </article>
                       ))}
                     </div>
@@ -1005,9 +1085,15 @@ export function OrganizationPage() {
             ) : activeFunctionalDefinition?.id === "foundry" ? (
               <>
                 <p>铁匠铺等级：Lv.{activeFunctionalLevel}</p>
-                <ForgeEnhancementPanel context="organization" />
-                <ForgeCraftPanel recipes={foundryRecipes} context="organization" />
-                <p className="organization-mission-note">组织入口当前使用固定打造配方；节点入口会叠加地区化金币浮动。</p>
+                {chapterAdvancedLockedMessage ? (
+                  <p className="warn">{chapterAdvancedLockedMessage}</p>
+                ) : (
+                  <>
+                    <ForgeEnhancementPanel context="organization" />
+                    <ForgeCraftPanel recipes={foundryRecipes} context="organization" />
+                    <p className="organization-mission-note">组织入口当前使用固定打造配方；节点入口会叠加地区化金币浮动。</p>
+                  </>
+                )}
               </>
             ) : activeFunctionalDefinition?.id === "training_camp" ? (
               <>

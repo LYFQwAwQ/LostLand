@@ -64,13 +64,55 @@ export interface OrganizationTerritoryExpandCheckResult {
 
 export type OrganizationMainQuestStatus = "locked" | "available" | "in_progress" | "completed";
 
+export type OrganizationMainQuestConditionType =
+  | "build_material_purchase"
+  | "battle_win"
+  | "core_upgrade_submit"
+  | "building_constructed"
+  | "suppression_reached";
+
 export interface OrganizationMainQuestDefinition {
   id: string;
   title: string;
   summary: string;
   objective: string;
+  conditionType: OrganizationMainQuestConditionType;
+  targetValue: number;
+  progressLabel: string;
+}
+
+export interface OrganizationMainQuestProgress {
+  currentValue: number;
+  targetValue: number;
+  progressText: string;
+  isReached: boolean;
 }
 
 export interface OrganizationMainQuestState extends OrganizationMainQuestDefinition {
   status: OrganizationMainQuestStatus;
+  progress: OrganizationMainQuestProgress;
 }
+
+export interface OrganizationChapterMainlineCounters {
+  buildMaterialPurchased: number;
+  battleWins: number;
+  coreUpgradeSubmitted: number;
+  buildingsConstructed: number;
+  targetRegionSuppression: number;
+}
+
+export interface OrganizationChapterCompletionSummary {
+  completedAtWorldMonth: number;
+  elapsedMonths: number;
+  buildMaterialPurchased: number;
+  coreUpgradeSubmitted: number;
+  battleWins: number;
+  buildingsConstructed: number;
+  targetRegionSuppression: number;
+}
+
+export type OrganizationChapterFeatureKey =
+  | "chapter_map_switch"
+  | "node_forge"
+  | "organization_build"
+  | "organization_advanced";

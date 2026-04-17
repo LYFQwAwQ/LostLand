@@ -39,7 +39,6 @@ import {
   legendaryEquipments,
   legendaryEquipmentSkillsById
 } from "../data/legendaryEquipments";
-import { heroes } from "../data/mockData";
 import { getPairedPaladinHandSlot, isPaladinHandSlot } from "../lib/equipmentCatalog";
 import { computeEquipmentInternalScore } from "../lib/equipmentScoring";
 import { generateEquipmentBatch, generateEquipmentFromTemplate } from "../lib/equipmentSystem";
@@ -57,9 +56,11 @@ import type {
   InventoryMemoryStack,
   InventoryMaterialSourceType,
   InventoryResourceRarity,
+  Hero,
   LegendaryEquipmentDefinition,
   LegendaryEquipmentSkillDefinition
 } from "../types/game";
+import { useHeroRoster } from "./HeroRosterProvider";
 import { useOrganization } from "./OrganizationProvider";
 
 export interface EquippedOwner {
@@ -235,6 +236,7 @@ interface EquipmentInventoryContextValue {
   getEquipmentEnhancementPreview: (itemUid: string, options?: EquipmentEnhancementAttemptOptions) => EquipmentEnhancementPreview | null;
   enhanceEquipment: (itemUid: string, options?: EquipmentEnhancementAttemptOptions) => EquipmentEnhancementResult;
   buyMaterials: (entries: MaterialPurchaseEntry[]) => MaterialPurchaseResult;
+  spendGold: (amount: number) => InventoryCostPayResult;
   payCost: (cost: { gold: number; materials: Array<{ materialId: string; quantity: number }> }) => InventoryCostPayResult;
   consumeMaterials: (materials: Array<{ materialId: string; quantity: number }>) => boolean;
   equipItem: (
@@ -260,9 +262,6 @@ const MATERIAL_CATALOG = [
   ...getBuildingMaterialCatalog()
 ];
 const MATERIAL_CATALOG_MAP = new Map(MATERIAL_CATALOG.map((item) => [item.id, item]));
-const HERO_IDS = heroes.map((hero) => hero.id);
-const HERO_ID_SET = new Set(HERO_IDS);
-const HERO_CLASS_BY_ID = new Map(heroes.map((hero) => [hero.id, hero.heroClass]));
 const EQUIPMENT_TEMPLATE_BY_ID = new Map<string, EquipmentTemplate>(equipmentTemplates.map((template) => [template.id, template]));
 const LEGENDARY_EQUIPMENT_ID_SET = new Set(legendaryEquipments.map((item) => item.id));
 const LEGENDARY_EQUIPMENT_LIMIT_PER_HERO = 2;
@@ -463,15 +462,17 @@ function normalizeOwnedMemoryIds(memoryIds: string[] | null | undefined): string
 
 function normalizeEquippedMemoryByHero(
   mapping: Record<string, string> | null | undefined,
-  ownedMemoryIds: Set<string>
+  ownedMemoryIds: Set<string>,
+  heroClassById: Map<string, Hero["heroClass"]>,
+  heroIds: string[]
 ): Record<string, string> {
   const next: Record<string, string> = {};
   const used = new Set<string>();
   const source = mapping ?? {};
-  const orderedHeroIds = [...heroes.map((hero) => hero.id), ...Object.keys(source).filter((heroId) => !HERO_CLASS_BY_ID.has(heroId))];
+  const orderedHeroIds = [...heroIds, ...Object.keys(source).filter((heroId) => !heroClassById.has(heroId))];
 
   orderedHeroIds.forEach((heroId) => {
-    const heroClass = HERO_CLASS_BY_ID.get(heroId);
+    const heroClass = heroClassById.get(heroId);
     if (!heroClass) {
       return;
     }
@@ -495,18 +496,19 @@ function normalizeEquippedMemoryByHero(
   return next;
 }
 
-function buildDefaultHeroProgressById(): Record<string, HeroProgressState> {
-  return HERO_IDS.reduce<Record<string, HeroProgressState>>((acc, heroId) => {
+function buildDefaultHeroProgressById(heroIds: string[]): Record<string, HeroProgressState> {
+  return heroIds.reduce<Record<string, HeroProgressState>>((acc, heroId) => {
     acc[heroId] = createInitialHeroProgressState();
     return acc;
   }, {});
 }
 
 function normalizeHeroProgressById(
-  input: Record<string, HeroProgressState> | null | undefined
+  input: Record<string, HeroProgressState> | null | undefined,
+  heroIds: string[]
 ): Record<string, HeroProgressState> {
   const initialProgress = createInitialHeroProgressState();
-  return HERO_IDS.reduce<Record<string, HeroProgressState>>((acc, heroId) => {
+  return heroIds.reduce<Record<string, HeroProgressState>>((acc, heroId) => {
     const source = input?.[heroId];
     const level = clampHeroLevel(source?.level ?? initialProgress.level);
     const nextLevelExp = getHeroNextLevelExp(level);
@@ -592,7 +594,11 @@ function resolveClampedEnhancementLevel(item: GeneratedEquipment | undefined, le
 }
 
 export function EquipmentInventoryProvider({ children }: { children: ReactNode }) {
+  const { heroes } = useHeroRoster();
   const { forgeEnhancementBonusRate } = useOrganization();
+  const heroIds = useMemo(() => heroes.map((hero) => hero.id), [heroes]);
+  const heroIdSet = useMemo(() => new Set(heroIds), [heroIds]);
+  const heroClassById = useMemo(() => new Map(heroes.map((hero) => [hero.id, hero.heroClass])), [heroes]);
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [gold, setGold] = useState<number>(() => ECONOMY_CONFIG.initialGold);
   const [reputation, setReputation] = useState<number>(() => ECONOMY_CONFIG.initialReputation);
@@ -609,7 +615,9 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
   const [consumableStock, setConsumableStock] = useState<Record<string, number>>(() => buildDefaultConsumableStock());
   const [ownedMemoryIds, setOwnedMemoryIds] = useState<string[]>(() => buildDefaultOwnedMemoryIds());
   const [equippedMemoryByHero, setEquippedMemoryByHero] = useState<Record<string, string>>({});
-  const [heroProgressById, setHeroProgressById] = useState<Record<string, HeroProgressState>>(() => buildDefaultHeroProgressById());
+  const [heroProgressById, setHeroProgressById] = useState<Record<string, HeroProgressState>>(() =>
+    buildDefaultHeroProgressById(heroIds)
+  );
 
   const ownedMemoryIdSet = useMemo(() => new Set(ownedMemoryIds), [ownedMemoryIds]);
   const soldEquipmentUidSet = useMemo(() => new Set(soldEquipmentItemUids), [soldEquipmentItemUids]);
@@ -658,6 +666,21 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     });
     return map;
   }, [equippedMemoryByHero]);
+
+  useEffect(() => {
+    setHeroProgressById((prev) => normalizeHeroProgressById(prev, heroIds));
+    setEquippedMemoryByHero((prev) => normalizeEquippedMemoryByHero(prev, ownedMemoryIdSet, heroClassById, heroIds));
+    setEquippedByHero((prev) => {
+      const next: Record<string, Record<string, string>> = {};
+      heroIds.forEach((heroId) => {
+        const current = prev[heroId];
+        if (current) {
+          next[heroId] = { ...current };
+        }
+      });
+      return next;
+    });
+  }, [heroClassById, heroIds, ownedMemoryIdSet]);
 
 
   const materialItems = useMemo(() => {
@@ -785,10 +808,10 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
 
   useEffect(() => {
     setEquippedMemoryByHero((prev) => {
-      const normalized = normalizeEquippedMemoryByHero(prev, ownedMemoryIdSet);
+      const normalized = normalizeEquippedMemoryByHero(prev, ownedMemoryIdSet, heroClassById, heroIds);
       return areStringMapEqual(prev, normalized) ? prev : normalized;
     });
-  }, [ownedMemoryIdSet]);
+  }, [heroClassById, heroIds, ownedMemoryIdSet]);
 
 
   const refreshItems = () => {
@@ -854,7 +877,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
   };
 
   const grantBattleHeroExp = (allyHeroIds: string[], enemyLevels: number[]): HeroBattleExpGainResult[] => {
-    const targetHeroIds = [...new Set(allyHeroIds.filter((heroId) => HERO_ID_SET.has(heroId)))];
+    const targetHeroIds = [...new Set(allyHeroIds.filter((heroId) => heroIdSet.has(heroId)))];
     const normalizedEnemyLevels = enemyLevels
       .map((level) => Math.max(1, Math.floor(level)))
       .filter((level) => Number.isFinite(level) && level > 0);
@@ -1564,6 +1587,18 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     return { ok: true, reason: null };
   };
 
+  const spendGold = (amount: number): InventoryCostPayResult => {
+    const cost = Math.max(0, Math.floor(amount));
+    if (cost <= 0) {
+      return { ok: true, reason: null };
+    }
+    if (gold < cost) {
+      return { ok: false, reason: "金币不足。" };
+    }
+    setGold((prev) => Math.max(0, prev - cost));
+    return { ok: true, reason: null };
+  };
+
   const consumeMaterials = (materials: Array<{ materialId: string; quantity: number }>): boolean => {
     if (!materials || materials.length <= 0) {
       return true;
@@ -1747,7 +1782,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
   };
 
   const setHeroMemory = (heroId: string, memoryId: string | null): boolean => {
-    const heroClass = HERO_CLASS_BY_ID.get(heroId);
+    const heroClass = heroClassById.get(heroId);
     if (!heroClass) {
       return false;
     }
@@ -1854,8 +1889,10 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     const importedOwned = snapshot.memoryOwnedIds ? normalizeOwnedMemoryIds(snapshot.memoryOwnedIds) : fallbackOwnedIds;
     const normalizedOwned = importedOwned.length > 0 ? importedOwned : fallbackOwnedIds;
     setOwnedMemoryIds(normalizedOwned);
-    setEquippedMemoryByHero(normalizeEquippedMemoryByHero(snapshot.equippedMemoryByHero, new Set(normalizedOwned)));
-    setHeroProgressById(normalizeHeroProgressById(snapshot.heroProgressById));
+    setEquippedMemoryByHero(
+      normalizeEquippedMemoryByHero(snapshot.equippedMemoryByHero, new Set(normalizedOwned), heroClassById, heroIds)
+    );
+    setHeroProgressById(normalizeHeroProgressById(snapshot.heroProgressById, heroIds));
   };
 
   const value = useMemo<EquipmentInventoryContextValue>(
@@ -1893,6 +1930,7 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       getEquipmentEnhancementPreview,
       enhanceEquipment,
       buyMaterials,
+      spendGold,
       payCost,
       consumeMaterials,
       equipItem,

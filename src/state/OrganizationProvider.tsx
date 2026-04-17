@@ -4,18 +4,23 @@ import {
   ORGANIZATION_CONFIG,
   getFoundryEnhancementBonusRate,
   getMissionHallAcceptedLimitBonus,
-  getOrganizationBuildingMaxLevel,
   getOrganizationBuildingDefinition,
+  getOrganizationBuildingMaxLevel,
   getOrganizationRankCapByBaseCoreLevel,
   getRankExpRequirement,
   organizationBuildingDefinitions,
   organizationMainQuestDefinitions
 } from "../data/organizationData";
+import { DEFAULT_REGION_ID } from "../data/worldMapData";
 import { useMapSystem } from "./MapSystemProvider";
 import type {
   OrganizationBuildingDefinition,
   OrganizationBuildingPlacement,
+  OrganizationChapterCompletionSummary,
+  OrganizationChapterFeatureKey,
+  OrganizationChapterMainlineCounters,
   OrganizationGridCell,
+  OrganizationMainQuestConditionType,
   OrganizationMainQuestState,
   OrganizationMainQuestStatus,
   OrganizationPlacementCheckResult,
@@ -48,12 +53,30 @@ interface OrganizationContextValue {
   acceptMainQuest: (questId: string) => { ok: boolean; message: string };
   completeMainQuest: (questId: string) => { ok: boolean; message: string };
   addMockOrganizationExp: (amount: number) => void;
+  chapterTargetRegionId: string;
+  chapterMainlineCounters: OrganizationChapterMainlineCounters;
+  chapterCompletionSummary: OrganizationChapterCompletionSummary | null;
+  reportChapterBuildMaterialPurchased: (amount: number) => void;
+  reportChapterBattleWin: (count?: number) => void;
+  reportChapterCoreUpgradeSubmitted: () => void;
+  submitChapterCoreUpgrade: (cost: { gold: number; materials: Array<{ materialId: string; quantity: number }> }) => {
+    ok: boolean;
+    message: string;
+  };
+  reportChapterBuildingConstructed: (count?: number) => void;
+  syncChapterTargetSuppression: (suppression: number) => void;
+  canUseChapterFeature: (feature: OrganizationChapterFeatureKey) => boolean;
+  getChapterFeatureLockMessage: (feature: OrganizationChapterFeatureKey) => string | null;
 }
 
 interface OrganizationProgressState {
   rankState: OrganizationRankState;
   pendingExpansionCount: number;
 }
+
+const CHAPTER_LOCKED_MESSAGE = "系统受损，完成当前章节主线后恢复";
+const CHAPTER_TARGET_REGION_ID = DEFAULT_REGION_ID;
+const BASE_CORE_INSTANCE_ID = "org-base-core-1";
 
 function keyOfCell(x: number, y: number): string {
   return `${x},${y}`;
@@ -108,6 +131,33 @@ function createInitialMainQuestStatusById(): Record<string, OrganizationMainQues
   }, {});
 }
 
+function createInitialPlacements(): OrganizationBuildingPlacement[] {
+  const baseCoreDefinition = organizationBuildingDefinitions.find((definition) => definition.id === "base_core");
+  if (!baseCoreDefinition) {
+    return [];
+  }
+
+  const xs = baseCoreDefinition.shape.map((cell) => cell.x);
+  const ys = baseCoreDefinition.shape.map((cell) => cell.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const width = maxX - minX + 1;
+  const height = maxY - minY + 1;
+  const originX = Math.max(0, Math.floor((ORGANIZATION_CONFIG.gridSize - width) / 2) - minX);
+  const originY = Math.max(0, Math.floor((ORGANIZATION_CONFIG.gridSize - height) / 2) - minY);
+
+  return [
+    {
+      instanceId: BASE_CORE_INSTANCE_ID,
+      definitionId: "base_core",
+      origin: { x: originX, y: originY },
+      level: 1
+    }
+  ];
+}
+
 function placementCells(placement: OrganizationBuildingPlacement, definitions: Record<string, OrganizationBuildingDefinition>): OrganizationGridCell[] {
   const definition = definitions[placement.definitionId];
   if (!definition) {
@@ -119,11 +169,45 @@ function placementCells(placement: OrganizationBuildingPlacement, definitions: R
   }));
 }
 
+function clampCounterValue(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(value));
+}
+
+function getQuestConditionValue(
+  conditionType: OrganizationMainQuestConditionType,
+  counters: OrganizationChapterMainlineCounters
+): number {
+  switch (conditionType) {
+    case "build_material_purchase":
+      return counters.buildMaterialPurchased;
+    case "battle_win":
+      return counters.battleWins;
+    case "core_upgrade_submit":
+      return counters.coreUpgradeSubmitted;
+    case "building_constructed":
+      return counters.buildingsConstructed;
+    case "suppression_reached":
+      return counters.targetRegionSuppression;
+    default:
+      return 0;
+  }
+}
+
+function buildQuestProgressText(current: number, target: number, label: string, conditionType: OrganizationMainQuestConditionType): string {
+  if (conditionType === "suppression_reached") {
+    return `${label}：${Math.min(current, target)}% / ${target}%`;
+  }
+  return `${label}：${Math.min(current, target)} / ${target}`;
+}
+
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
-  const { setAcceptedMissionExtraCapacity } = useMapSystem();
-  const [placements, setPlacements] = useState<OrganizationBuildingPlacement[]>([]);
+  const { setAcceptedMissionExtraCapacity, ensureRegionLoaded, getRegionById, worldMonth } = useMapSystem();
+  const [placements, setPlacements] = useState<OrganizationBuildingPlacement[]>(() => createInitialPlacements());
   const [revealedCells, setRevealedCells] = useState<Record<string, true>>(() => createInitialRevealedCells());
   const [mainQuestStatusById, setMainQuestStatusById] = useState<Record<string, OrganizationMainQuestStatus>>(
     () => createInitialMainQuestStatusById()
@@ -136,7 +220,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     },
     pendingExpansionCount: 0
   });
-  const placementSeqRef = useRef(1);
+  const [chapterMainlineCounters, setChapterMainlineCounters] = useState<OrganizationChapterMainlineCounters>({
+    buildMaterialPurchased: 0,
+    battleWins: 0,
+    coreUpgradeSubmitted: 0,
+    buildingsConstructed: 0,
+    targetRegionSuppression: 0
+  });
+  const [chapterCompletionSummary, setChapterCompletionSummary] = useState<OrganizationChapterCompletionSummary | null>(null);
+  const chapterStartWorldMonthRef = useRef<number>(worldMonth);
+  const placementSeqRef = useRef(2);
 
   const buildingById = useMemo<Record<string, OrganizationBuildingDefinition>>(
     () =>
@@ -174,22 +267,147 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const organizationRankCap = getOrganizationRankCapByBaseCoreLevel(baseCoreLevel);
   const missionAcceptedLimitBonus = getMissionHallAcceptedLimitBonus(getBuildingLevel("mission_hall"));
   const forgeEnhancementBonusRate = getFoundryEnhancementBonusRate(getBuildingLevel("foundry"));
-
   const revealedCellCount = useMemo(() => Object.keys(revealedCells).length, [revealedCells]);
   const rankState = progressState.rankState;
   const pendingExpansionCount = progressState.pendingExpansionCount;
+
   const mainQuests = useMemo<OrganizationMainQuestState[]>(
     () =>
-      organizationMainQuestDefinitions.map((quest) => ({
-        ...quest,
-        status: mainQuestStatusById[quest.id] ?? "locked"
-      })),
-    [mainQuestStatusById]
+      organizationMainQuestDefinitions.map((quest) => {
+        const targetValue = Math.max(1, Math.floor(quest.targetValue));
+        const currentValue = clampCounterValue(getQuestConditionValue(quest.conditionType, chapterMainlineCounters));
+        const isReached = currentValue >= targetValue;
+        return {
+          ...quest,
+          status: mainQuestStatusById[quest.id] ?? "locked",
+          progress: {
+            currentValue,
+            targetValue,
+            progressText: buildQuestProgressText(currentValue, targetValue, quest.progressLabel, quest.conditionType),
+            isReached
+          }
+        };
+      }),
+    [chapterMainlineCounters, mainQuestStatusById]
   );
+
+  const chapterCompleted = Boolean(chapterCompletionSummary);
+  const coreUpgradeQuestCompleted =
+    (mainQuestStatusById["ch1_mq_03_core_upgrade"] ?? "locked") === "completed";
+
+  const getChapterFeatureLockMessage = (feature: OrganizationChapterFeatureKey): string | null => {
+    if (chapterCompleted) {
+      return null;
+    }
+    if (feature === "organization_build") {
+      if (coreUpgradeQuestCompleted) {
+        return null;
+      }
+      return "建筑权限尚未解锁，请先完成主线「核心升级」。";
+    }
+    if (feature === "chapter_map_switch" || feature === "node_forge" || feature === "organization_advanced") {
+      return CHAPTER_LOCKED_MESSAGE;
+    }
+    return null;
+  };
+
+  const canUseChapterFeature = (feature: OrganizationChapterFeatureKey): boolean => {
+    return !getChapterFeatureLockMessage(feature);
+  };
+
+  const syncChapterTargetSuppression = (suppression: number) => {
+    const normalized = clampCounterValue(suppression);
+    setChapterMainlineCounters((prev) => {
+      if (prev.targetRegionSuppression === normalized) {
+        return prev;
+      }
+      return {
+        ...prev,
+        targetRegionSuppression: normalized
+      };
+    });
+  };
+
+  const reportChapterBuildMaterialPurchased = (amount: number) => {
+    const gain = clampCounterValue(amount);
+    if (gain <= 0) {
+      return;
+    }
+    setChapterMainlineCounters((prev) => ({
+      ...prev,
+      buildMaterialPurchased: prev.buildMaterialPurchased + gain
+    }));
+  };
+
+  const reportChapterBattleWin = (count = 1) => {
+    const gain = clampCounterValue(count);
+    if (gain <= 0) {
+      return;
+    }
+    setChapterMainlineCounters((prev) => ({
+      ...prev,
+      battleWins: prev.battleWins + gain
+    }));
+  };
+
+  const reportChapterCoreUpgradeSubmitted = () => {
+    setChapterMainlineCounters((prev) => ({
+      ...prev,
+      coreUpgradeSubmitted: prev.coreUpgradeSubmitted + 1
+    }));
+  };
+
+  const submitChapterCoreUpgrade = (cost: {
+    gold: number;
+    materials: Array<{ materialId: string; quantity: number }>;
+  }): { ok: boolean; message: string } => {
+    const currentQuestStatus = mainQuestStatusById["ch1_mq_03_core_upgrade"] ?? "locked";
+    if (currentQuestStatus !== "in_progress") {
+      return { ok: false, message: "当前未处于主线「核心升级」阶段，无法提交。" };
+    }
+    if (chapterMainlineCounters.coreUpgradeSubmitted > 0) {
+      return { ok: false, message: "核心升级已提交完成，无需重复提交。" };
+    }
+    const safeGold = Math.max(0, Math.floor(cost.gold));
+    const safeMaterialCount = (cost.materials ?? [])
+      .map((entry) => ({
+        materialId: String(entry.materialId ?? "").trim(),
+        quantity: Math.max(0, Math.floor(entry.quantity))
+      }))
+      .filter((entry) => entry.materialId.length > 0 && entry.quantity > 0).length;
+    if (safeGold <= 0 && safeMaterialCount <= 0) {
+      return { ok: false, message: "核心升级提交配置无效。请检查金币或材料消耗配置。" };
+    }
+    reportChapterCoreUpgradeSubmitted();
+    return { ok: true, message: "核心升级提交成功，主线进度已更新。" };
+  };
+
+  const reportChapterBuildingConstructed = (count = 1) => {
+    const gain = clampCounterValue(count);
+    if (gain <= 0) {
+      return;
+    }
+    setChapterMainlineCounters((prev) => ({
+      ...prev,
+      buildingsConstructed: prev.buildingsConstructed + gain
+    }));
+  };
 
   useEffect(() => {
     setAcceptedMissionExtraCapacity(missionAcceptedLimitBonus);
   }, [missionAcceptedLimitBonus, setAcceptedMissionExtraCapacity]);
+
+  useEffect(() => {
+    ensureRegionLoaded(CHAPTER_TARGET_REGION_ID);
+  }, [ensureRegionLoaded]);
+
+  useEffect(() => {
+    const region = getRegionById(CHAPTER_TARGET_REGION_ID);
+    if (!region) {
+      return;
+    }
+    syncChapterTargetSuppression(region.mapSuppression);
+  }, [getRegionById]);
 
   useEffect(() => {
     setProgressState((prev) => {
@@ -222,6 +440,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     const definition = buildingById[definitionId];
     if (!definition) {
       return { ok: false, reason: "建筑定义不存在。", cells: [] };
+    }
+
+    if (definition.id !== "base_core") {
+      const buildGateMessage = getChapterFeatureLockMessage("organization_build");
+      if (buildGateMessage) {
+        return { ok: false, reason: buildGateMessage, cells: [] };
+      }
     }
 
     if (definition.unique && placements.some((placement) => placement.definitionId === definitionId)) {
@@ -320,10 +545,20 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       }
     ]);
 
+    if (definitionId !== "base_core") {
+      reportChapterBuildingConstructed(1);
+    }
     return { ok: true, message: `${definition.name} 建造完成。`, instanceId };
   };
 
   const removeBuilding = (instanceId: string) => {
+    const target = placements.find((placement) => placement.instanceId === instanceId);
+    if (!target) {
+      return;
+    }
+    if (target.definitionId === "base_core") {
+      return;
+    }
     setPlacements((prev) => prev.filter((placement) => placement.instanceId !== instanceId));
   };
 
@@ -400,7 +635,17 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       return { ok: false, message: "仅进行中的主线任务可以完成。" };
     }
 
+    const targetValue = Math.max(1, Math.floor(quest.targetValue));
+    const currentValue = getQuestConditionValue(quest.conditionType, chapterMainlineCounters);
+    if (currentValue < targetValue) {
+      return {
+        ok: false,
+        message: `条件未达成：${buildQuestProgressText(currentValue, targetValue, quest.progressLabel, quest.conditionType)}`
+      };
+    }
+
     const nextQuest = organizationMainQuestDefinitions[questIndex + 1];
+    let isLastQuest = false;
     setMainQuestStatusById((prev) => {
       const next: Record<string, OrganizationMainQuestStatus> = {
         ...prev,
@@ -408,9 +653,29 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       };
       if (nextQuest && (next[nextQuest.id] ?? "locked") === "locked") {
         next[nextQuest.id] = "available";
+      } else if (!nextQuest) {
+        isLastQuest = true;
       }
       return next;
     });
+
+    if (quest.id === "ch1_mq_05_liberation" || isLastQuest) {
+      setChapterCompletionSummary((prev) => {
+        if (prev) {
+          return prev;
+        }
+        const elapsedMonths = Math.max(1, worldMonth - chapterStartWorldMonthRef.current + 1);
+        return {
+          completedAtWorldMonth: worldMonth,
+          elapsedMonths,
+          buildMaterialPurchased: chapterMainlineCounters.buildMaterialPurchased,
+          coreUpgradeSubmitted: chapterMainlineCounters.coreUpgradeSubmitted,
+          battleWins: chapterMainlineCounters.battleWins,
+          buildingsConstructed: chapterMainlineCounters.buildingsConstructed,
+          targetRegionSuppression: chapterMainlineCounters.targetRegionSuppression
+        };
+      });
+    }
 
     if (nextQuest) {
       return { ok: true, message: `主线任务已完成：${quest.title}。已解锁下一条主线。` };
@@ -487,10 +752,23 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       mainQuests,
       acceptMainQuest,
       completeMainQuest,
-      addMockOrganizationExp
+      addMockOrganizationExp,
+      chapterTargetRegionId: CHAPTER_TARGET_REGION_ID,
+      chapterMainlineCounters,
+      chapterCompletionSummary,
+      reportChapterBuildMaterialPurchased,
+      reportChapterBattleWin,
+      reportChapterCoreUpgradeSubmitted,
+      submitChapterCoreUpgrade,
+      reportChapterBuildingConstructed,
+      syncChapterTargetSuppression,
+      canUseChapterFeature,
+      getChapterFeatureLockMessage
     }),
     [
       buildingById,
+      chapterCompletionSummary,
+      chapterMainlineCounters,
       forgeEnhancementBonusRate,
       mainQuests,
       missionAcceptedLimitBonus,

@@ -1,7 +1,6 @@
 import { FastForward, Gauge, Pause, Play, RotateCcw, Shield, Swords, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { heroes } from "../data/mockData";
 import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
 import { buildAllyTeamTemplates, buildEnemyTeamTemplates } from "../lib/battleAdapters";
 import { endBattle, createBattleRuntime, setBattleRunning, setBattleSpeed, stepBattle } from "../lib/battleEngine";
@@ -10,7 +9,9 @@ import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS } from "../lib/equipmen
 import { mapNodeTypeLabel } from "../lib/mapRules";
 import { useBattleSetup } from "../state/BattleSetupProvider";
 import { useEquipmentInventory } from "../state/EquipmentInventoryProvider";
+import { useHeroRoster } from "../state/HeroRosterProvider";
 import { useMapSystem } from "../state/MapSystemProvider";
+import { useOrganization } from "../state/OrganizationProvider";
 import type {
   BattleDropCategory,
   BattleLogEntry,
@@ -319,8 +320,10 @@ function BattleTimeline({ runtime }: { runtime: BattleRuntimeState }) {
 }
 
 export function BattlePage() {
+  const { heroes } = useHeroRoster();
   const { nodeId } = useParams<{ nodeId: string }>();
   const { findNodeById, reportMissionBattleOutcome } = useMapSystem();
+  const { reportChapterBattleWin } = useOrganization();
   const { formation, heroLoadouts } = useBattleSetup();
   const { equippedByHero, itemMap, collectBattleDrops, grantBattleHeroExp, heroProgressById, getEquipmentEnhanceBonus } =
     useEquipmentInventory();
@@ -524,6 +527,7 @@ export function BattlePage() {
         setCampaignReplay((prev) => mergeCampaignReplayState(prev, runtime));
 
         if (runtime.winner === "ally") {
+          reportChapterBattleWin(1);
           const allyHeroIds = runtime.units.filter((unit) => unit.side === "ally").map((unit) => unit.id);
           const enemyLevels = runtime.units.filter((unit) => unit.side === "enemy").map((unit) => unit.level);
           grantBattleHeroExp(allyHeroIds, enemyLevels);
@@ -559,7 +563,7 @@ export function BattlePage() {
       }
     }
     battleStateRef.current = runtime ? { battleId: runtime.battleId, status: runtime.status } : null;
-  }, [collectBattleDrops, context?.region.id, grantBattleHeroExp, reportMissionBattleOutcome, runtime]);
+  }, [collectBattleDrops, context?.region.id, grantBattleHeroExp, reportChapterBattleWin, reportMissionBattleOutcome, runtime]);
 
   useEffect(() => {
     if (!runtime) {
