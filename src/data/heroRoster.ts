@@ -91,8 +91,7 @@ const BASE_FIXED_HEROES: Hero[] = [
     name: "阿瑟·列维坦",
     title: "圣壁守望者",
     heroClass: "paladin",
-    image:
-      "https://images.unsplash.com/photo-1614726310457-53ba02aa64c5?auto=format&fit=crop&q=80&w=900",
+    image: "/images/heroes/hero-placeholder.svg",
     rarity: "standard",
     origin: "fixed",
     learnedSkills: {
@@ -129,8 +128,7 @@ const BASE_FIXED_HEROES: Hero[] = [
     name: "塞琳娜·逐星",
     title: "星环织法者",
     heroClass: "mage",
-    image:
-      "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&q=80&w=900",
+    image: "/images/heroes/hero-placeholder.svg",
     rarity: "standard",
     origin: "fixed",
     learnedSkills: {

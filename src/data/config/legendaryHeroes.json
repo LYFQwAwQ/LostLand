@@ -5,7 +5,7 @@
       "name": "奥里克·圣钉",
       "title": "辉印裁决者",
       "heroClass": "paladin",
-      "image": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=900",
+      "image": "/images/heroes/hero-placeholder.svg",
       "stats": { "hp": 14600, "mp": 980, "str": 286, "int": 118, "agi": 124, "def": 528 },
       "growth": { "hp": 520, "mp": 28, "str": 11, "int": 3, "agi": 4, "def": 12 },
       "loadout": {
@@ -27,7 +27,7 @@
       "name": "莉拉·星熵",
       "title": "禁环观测者",
       "heroClass": "mage",
-      "image": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&q=80&w=900",
+      "image": "/images/heroes/hero-placeholder.svg",
       "stats": { "hp": 5200, "mp": 5600, "str": 66, "int": 462, "agi": 180, "def": 142 },
       "growth": { "hp": 210, "mp": 180, "str": 2, "int": 14, "agi": 5, "def": 3 },
       "loadout": {
@@ -50,7 +50,7 @@
       "name": "赛拉·风脉",
       "title": "终夜狩星者",
       "heroClass": "ranger",
-      "image": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=900",
+      "image": "/images/heroes/hero-placeholder.svg",
       "stats": { "hp": 8900, "mp": 2100, "str": 218, "int": 126, "agi": 338, "def": 286 },
       "growth": { "hp": 320, "mp": 68, "str": 8, "int": 3, "agi": 12, "def": 6 },
       "loadout": {

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 960" role="img" aria-labelledby="title desc">
+  <title id="title">Hero Placeholder</title>
+  <desc id="desc">Default placeholder portrait for heroes.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1f2937" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e2e8f0" />
+      <stop offset="100%" stop-color="#94a3b8" />
+    </linearGradient>
+  </defs>
+  <rect width="720" height="960" fill="url(#bg)" />
+  <circle cx="360" cy="340" r="170" fill="#334155" />
+  <path d="M170 830c30-170 140-260 190-260h0c50 0 160 90 190 260z" fill="#334155" />
+  <circle cx="360" cy="500" r="290" fill="none" stroke="url(#ring)" stroke-width="20" opacity="0.7" />
+  <text x="360" y="910" text-anchor="middle" fill="#cbd5e1" font-size="34" font-family="Segoe UI, sans-serif" letter-spacing="3">
+    PLACEHOLDER
+  </text>
+</svg>
