@@ -1354,18 +1354,31 @@ export function buildEnemyTeam(
         str: Math.round(prototype.stats.str * statScale),
         int: Math.round(prototype.stats.int * statScale),
         agi: Math.round(prototype.stats.agi * statScale),
-        def: Math.round(prototype.stats.def * statScale),
+        physicalDefense: Math.round(prototype.stats.def * statScale),
+        magicDefense: Math.round(
+          prototype.stats.def *
+            statScale *
+            (prototype.race === "undead" ? 1.05 : prototype.race === "aberrant" ? 1.15 : prototype.race === "human" ? 0.9 : 0.72)
+        ),
+        physicalPenetration: prototype.race === "beast" ? Math.round(level * 1.4) : Math.round(level * 0.8),
+        magicPenetration:
+          prototype.race === "undead" || prototype.race === "aberrant" ? Math.round(level * 1.3) : Math.round(level * 0.6),
+        physicalPenPct: prototype.race === "beast" ? 0.03 : 0.01,
+        magicPenPct: prototype.race === "undead" || prototype.race === "aberrant" ? 0.04 : 0.01,
         critRate: prototype.stats.critRate,
         critDamage: prototype.stats.critDamage,
         evasion: prototype.stats.evasion,
         aggro: prototype.stats.aggro,
         lifeSteal: prototype.stats.lifeSteal,
         thorns: prototype.stats.thorns,
-        damageBoost: prototype.stats.damageBoost,
+        physicalDamageBoost: prototype.race === "beast" || prototype.race === "human" ? prototype.stats.damageBoost : 0.02,
+        magicDamageBoost: prototype.race === "undead" || prototype.race === "aberrant" ? prototype.stats.damageBoost : 0.02,
+        elementalDamageBoost: prototype.stats.allBoost,
+        damageBoost: 0,
         damageReduction: prototype.stats.damageReduction,
         elementalPierce: prototype.stats.elementalPierce,
         allRes: prototype.stats.allRes,
-        allBoost: prototype.stats.allBoost,
+        allBoost: 0,
         elementBoost: prototype.elementBoost,
         elementRes: prototype.elementRes
       },

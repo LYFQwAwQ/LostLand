@@ -36,7 +36,15 @@ const EVA_CAP = 0.5;
 const MIYA_TALENT_ID = "talent_legend_miya_pulse_of_yggdrasil";
 const MIYA_ACTIVE_SKILL_ID = "skill_legend_miya_emerald_baptism";
 const MIYA_PASSIVE_SKILL_ID = "passive_legend_miya_universal_resonance";
-const MULTIPLICATIVE_MODIFIER_KEYS = new Set<BattleStatFlatKey>(["maxHp", "maxMp", "str", "int", "agi", "def"]);
+const MULTIPLICATIVE_MODIFIER_KEYS = new Set<BattleStatFlatKey>([
+  "maxHp",
+  "maxMp",
+  "str",
+  "int",
+  "agi",
+  "physicalDefense",
+  "magicDefense"
+]);
 const NEGATIVE_STATUS_KEYS = new Set<BattleStatusKey>(["frozen", "stunned", "poisoned", "burning", "weakened", "taunted"]);
 const POSITIVE_STATUS_KEYS = new Set<BattleStatusKey>(["guarded", "shielded", "immune"]);
 const REPLAY_VIEWS: BattleReplayData["views"] = [
@@ -315,15 +323,21 @@ function buildBaseStats(template: BattleUnitTemplate): BattleStatBlock {
     str: Math.max(0, template.baseStats.str),
     int: Math.max(0, template.baseStats.int),
     agi: Math.max(1, template.baseStats.agi),
-    def: Math.max(0, template.baseStats.def),
-    penetration: Math.max(0, template.baseStats.penetration ?? 0),
-    armorPenPct: clamp(template.baseStats.armorPenPct ?? 0, 0, 0.95),
+    physicalDefense: Math.max(0, template.baseStats.physicalDefense),
+    magicDefense: Math.max(0, template.baseStats.magicDefense ?? Math.round(template.baseStats.physicalDefense * 0.65)),
+    physicalPenetration: Math.max(0, template.baseStats.physicalPenetration ?? 0),
+    magicPenetration: Math.max(0, template.baseStats.magicPenetration ?? 0),
+    physicalPenPct: clamp(template.baseStats.physicalPenPct ?? 0, 0, 0.95),
+    magicPenPct: clamp(template.baseStats.magicPenPct ?? 0, 0, 0.95),
     critRate: clamp(template.baseStats.critRate ?? 0.05, 0, 0.95),
     critDamage: Math.max(1.2, template.baseStats.critDamage ?? 1.5),
     evasion: clamp(template.baseStats.evasion ?? 0.02, 0, EVA_CAP),
     aggro: Math.max(1, template.baseStats.aggro ?? 50),
     lifeSteal: clamp(template.baseStats.lifeSteal ?? 0, 0, 0.95),
     thorns: clamp(template.baseStats.thorns ?? 0, 0, 0.95),
+    physicalDamageBoost: template.baseStats.physicalDamageBoost ?? 0,
+    magicDamageBoost: template.baseStats.magicDamageBoost ?? 0,
+    elementalDamageBoost: template.baseStats.elementalDamageBoost ?? template.baseStats.allBoost ?? 0,
     damageBoost: template.baseStats.damageBoost ?? 0,
     damageReduction: template.baseStats.damageReduction ?? 0,
     elementalPierce: template.baseStats.elementalPierce ?? 0,
@@ -391,15 +405,21 @@ function applyStatModifier(stats: BattleStatBlock, modifier: BattleStatModifier)
   next.str = Math.max(0, Math.round(next.str));
   next.int = Math.max(0, Math.round(next.int));
   next.agi = Math.max(1, Math.round(next.agi));
-  next.def = Math.max(0, Math.round(next.def));
-  next.penetration = Math.max(0, Math.round(next.penetration));
-  next.armorPenPct = clamp(next.armorPenPct, 0, 0.95);
+  next.physicalDefense = Math.max(0, Math.round(next.physicalDefense));
+  next.magicDefense = Math.max(0, Math.round(next.magicDefense));
+  next.physicalPenetration = Math.max(0, Math.round(next.physicalPenetration));
+  next.magicPenetration = Math.max(0, Math.round(next.magicPenetration));
+  next.physicalPenPct = clamp(next.physicalPenPct, 0, 0.95);
+  next.magicPenPct = clamp(next.magicPenPct, 0, 0.95);
   next.critRate = clamp(next.critRate, 0, 0.95);
   next.critDamage = Math.max(1, next.critDamage);
   next.evasion = clamp(next.evasion, 0, EVA_CAP);
   next.aggro = Math.max(1, next.aggro);
   next.lifeSteal = clamp(next.lifeSteal, 0, 0.95);
   next.thorns = clamp(next.thorns, 0, 0.95);
+  next.physicalDamageBoost = clamp(next.physicalDamageBoost, -0.8, 2);
+  next.magicDamageBoost = clamp(next.magicDamageBoost, -0.8, 2);
+  next.elementalDamageBoost = clamp(next.elementalDamageBoost, -0.8, 2);
   next.damageReduction = clamp(next.damageReduction, -0.5, 0.9);
   next.damageBoost = clamp(next.damageBoost, -0.8, 2);
   next.elementalPierce = clamp(next.elementalPierce, 0, 0.95);
@@ -592,7 +612,7 @@ function computeScalingValue(basePower: number, scaling: BattleActiveSkillDefini
     actor.stats.str * (scaling.str ?? 0) +
     actor.stats.int * (scaling.int ?? 0) +
     actor.stats.agi * (scaling.agi ?? 0) +
-    actor.stats.def * (scaling.def ?? 0) +
+    actor.stats.physicalDefense * (scaling.physicalDefense ?? scaling.def ?? 0) +
     actor.stats.maxHp * (scaling.maxHp ?? 0) +
     missingHp * (scaling.missingHp ?? 0)
   );
@@ -854,7 +874,7 @@ function selectSkill(actor: BattleRuntimeUnit, units: BattleRuntimeUnit[], arche
   const weighted = usable.map((skill) => {
     let weight = skill.baseWeight;
     weight += actor.stats.damageBoost * 60;
-    weight += actor.stats.allBoost * 40;
+    weight += actor.stats.elementalDamageBoost * 40;
     weight += battlefieldSkillWeightBonus(archetype, skill.category);
 
     const tuning = skill.weightTuning;
@@ -1117,20 +1137,40 @@ function performDamageSkill(
 
     const crit = (skill.canCrit ?? true) && Math.random() < clamp(attacker.stats.critRate, 0, 0.95);
     const critZone = crit ? Math.max(1, attacker.stats.critDamage) : 1;
-    const effectiveDef = Math.max(0, target.stats.def * (1 - clamp(attacker.stats.armorPenPct, 0, 0.95)) - attacker.stats.penetration);
-    const defZone = DEFENSE_K / (DEFENSE_K + effectiveDef);
     const element = skill.element;
+    let defenseZone = 1;
+    let typeZone = 1;
+    if (skill.damageType === "magic") {
+      const effectiveMagicDefense = Math.max(
+        0,
+        target.stats.magicDefense * (1 - clamp(attacker.stats.magicPenPct, 0, 0.95)) - attacker.stats.magicPenetration
+      );
+      defenseZone = DEFENSE_K / (DEFENSE_K + effectiveMagicDefense);
+      typeZone = 1 + attacker.stats.magicDamageBoost;
+    } else if (skill.damageType === "elemental") {
+      typeZone = 1 + attacker.stats.elementalDamageBoost;
+    } else {
+      const effectivePhysicalDefense = Math.max(
+        0,
+        target.stats.physicalDefense * (1 - clamp(attacker.stats.physicalPenPct, 0, 0.95)) - attacker.stats.physicalPenetration
+      );
+      defenseZone = DEFENSE_K / (DEFENSE_K + effectivePhysicalDefense);
+      typeZone = 1 + attacker.stats.physicalDamageBoost;
+    }
     const boost = element ? attacker.stats.elementBoost[element] : 0;
     const res = element ? target.stats.elementRes[element] : 0;
     const extraAllResPierce = attacker.talentId === MIYA_TALENT_ID && element === "life" ? 0.3 : 0;
     const effRes = clamp((res + (target.stats.allRes - extraAllResPierce)) - attacker.stats.elementalPierce, -0.85, 0.95);
-    const elemZone = element ? (1 + boost + attacker.stats.allBoost) * (1 - effRes) : 1;
+    const elemZone = skill.damageType === "elemental" && element ? (1 + boost) * (1 - effRes) : 1;
     const undeadZone = skill.id === MIYA_ACTIVE_SKILL_ID && hasUnitRace(target, "undead") ? 2 : 1;
     const weakenedPenalty = getStatusPotency(attacker, "weakened");
     const guardedBonus = getStatusPotency(target, "guarded");
     const extraZone = Math.max(0.1, 1 + attacker.stats.damageBoost - weakenedPenalty);
     const reductionZone = Math.max(0.1, 1 - clamp(target.stats.damageReduction + guardedBonus, -0.8, 0.9));
-    const finalDamage = Math.max(1, Math.round(basePower * critZone * defZone * elemZone * undeadZone * extraZone * reductionZone));
+    const finalDamage = Math.max(
+      1,
+      Math.round(basePower * critZone * defenseZone * typeZone * elemZone * undeadZone * extraZone * reductionZone)
+    );
     const dealt = applyDamage(attacker, target, finalDamage, replay, {
       timeMs,
       cause: "skill",
@@ -1217,7 +1257,7 @@ function performHealSkill(
     if (!target.alive) {
       return;
     }
-    const healPower = Math.max(1, Math.round(basePower * (1 + actor.stats.allBoost) * (shouldDoubleLifeHeal ? 2 : 1)));
+    const healPower = Math.max(1, Math.round(basePower * (shouldDoubleLifeHeal ? 2 : 1)));
     const healed = applyHeal(actor, target, healPower, replay, timeMs, skill.id, skill.name);
     accumulator.healDone += healed;
     accumulator.targetUnitIds.add(target.id);

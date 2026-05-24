@@ -2,7 +2,7 @@ import type { GeneratedEquipment, HeroClass, InventoryResourceRarity } from "./g
 
 export type BattleSide = "ally" | "enemy";
 export type BattleLine = "front" | "back";
-export type BattleDamageType = "physical" | "magic";
+export type BattleDamageType = "physical" | "magic" | "elemental";
 export type BattleSkillCategory = "assault" | "defend" | "inspire" | "afflict" | "succor";
 export type BattleSkillKind = "active" | "passive" | "talent";
 export type BattleSkillPool = "common" | "class" | "enemy";
@@ -53,15 +53,21 @@ export interface BattleStatBlock {
   str: number;
   int: number;
   agi: number;
-  def: number;
-  penetration: number;
-  armorPenPct: number;
+  physicalDefense: number;
+  magicDefense: number;
+  physicalPenetration: number;
+  magicPenetration: number;
+  physicalPenPct: number;
+  magicPenPct: number;
   critRate: number;
   critDamage: number;
   evasion: number;
   aggro: number;
   lifeSteal: number;
   thorns: number;
+  physicalDamageBoost: number;
+  magicDamageBoost: number;
+  elementalDamageBoost: number;
   damageBoost: number;
   damageReduction: number;
   elementalPierce: number;
@@ -77,15 +83,21 @@ export type BattleStatFlatKey =
   | "str"
   | "int"
   | "agi"
-  | "def"
-  | "penetration"
-  | "armorPenPct"
+  | "physicalDefense"
+  | "magicDefense"
+  | "physicalPenetration"
+  | "magicPenetration"
+  | "physicalPenPct"
+  | "magicPenPct"
   | "critRate"
   | "critDamage"
   | "evasion"
   | "aggro"
   | "lifeSteal"
   | "thorns"
+  | "physicalDamageBoost"
+  | "magicDamageBoost"
+  | "elementalDamageBoost"
   | "damageBoost"
   | "damageReduction"
   | "elementalPierce"
@@ -122,6 +134,7 @@ export interface BattleSkillScaling {
   int?: number;
   agi?: number;
   def?: number;
+  physicalDefense?: number;
   maxHp?: number;
   missingHp?: number;
 }
@@ -239,15 +252,21 @@ export interface BattleUnitBaseStats {
   str: number;
   int: number;
   agi: number;
-  def: number;
-  penetration?: number;
-  armorPenPct?: number;
+  physicalDefense: number;
+  magicDefense?: number;
+  physicalPenetration?: number;
+  magicPenetration?: number;
+  physicalPenPct?: number;
+  magicPenPct?: number;
   critRate?: number;
   critDamage?: number;
   evasion?: number;
   aggro?: number;
   lifeSteal?: number;
   thorns?: number;
+  physicalDamageBoost?: number;
+  magicDamageBoost?: number;
+  elementalDamageBoost?: number;
   damageBoost?: number;
   damageReduction?: number;
   elementalPierce?: number;
