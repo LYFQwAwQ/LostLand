@@ -51,9 +51,12 @@ function mapEquipmentStats(items: GeneratedEquipment[], getEnhanceBonusByUid: (i
     str: 0,
     int: 0,
     agi: 0,
-    def: 0,
-    penetration: 0,
-    armorPenPct: 0,
+    physicalDefense: 0,
+    magicDefense: 0,
+    physicalPenetration: 0,
+    magicPenetration: 0,
+    physicalPenPct: 0,
+    magicPenPct: 0,
     critRate: 0,
     critDamage: 0,
     evasion: 0,
@@ -62,7 +65,10 @@ function mapEquipmentStats(items: GeneratedEquipment[], getEnhanceBonusByUid: (i
     thorns: 0,
     elementalPierce: 0,
     allRes: 0,
+    elementalDamageBoost: 0,
     allBoost: 0,
+    physicalDamageBoost: 0,
+    magicDamageBoost: 0,
     damageBoost: 0,
     damageReduction: 0,
     elementBoost: createElementRecord(0),
@@ -89,40 +95,62 @@ function mapEquipmentStats(items: GeneratedEquipment[], getEnhanceBonusByUid: (i
           bonus.agi += value;
           break;
         case "def":
-          bonus.def += value;
+          bonus.physicalDefense += value;
+          break;
+        case "magicDefense":
+          bonus.magicDefense += value;
           break;
         case "penetration":
-          bonus.penetration += value;
+          bonus.physicalPenetration += value;
+          break;
+        case "magicPenetration":
+          bonus.magicPenetration += value;
           break;
         case "critRate":
-          bonus.critRate += value / 100;
+          bonus.critRate += value;
           break;
         case "critDamage":
-          bonus.critDamage += value / 100;
+          bonus.critDamage += value;
           break;
         case "evasion":
-          bonus.evasion += value / 100;
+          bonus.evasion += value;
           break;
         case "aggro":
           bonus.aggro += value;
           break;
         case "lifeSteal":
-          bonus.lifeSteal += value / 100;
+          bonus.lifeSteal += value;
           break;
         case "thorns":
-          bonus.thorns += value / 100;
+          bonus.thorns += value;
           break;
         case "elementalPierce":
-          bonus.elementalPierce += value / 100;
+          bonus.elementalPierce += value;
           break;
         case "allRes":
-          bonus.allRes += value / 100;
+          bonus.allRes += value;
           break;
         case "allBoost":
-          bonus.allBoost += value / 100;
+        case "elementalDamageBoost":
+          bonus.elementalDamageBoost += value;
+          break;
+        case "physicalDamageBoost":
+          bonus.physicalDamageBoost += value;
+          break;
+        case "magicDamageBoost":
+          bonus.magicDamageBoost += value;
+          break;
+        case "damageBoost":
+          bonus.damageBoost += value;
+          break;
+        case "damageReduction":
+          bonus.damageReduction += value;
           break;
         case "armorPiercePct":
-          bonus.armorPenPct += value / 100;
+          bonus.physicalPenPct += value;
+          break;
+        case "magicPiercePct":
+          bonus.magicPenPct += value;
           break;
         default:
           break;
@@ -257,20 +285,28 @@ export function buildAllyTeamTemplates(
         str: Math.round(baseStr + equipBonus.str),
         int: Math.round(baseInt + equipBonus.int),
         agi: Math.round(baseAgi + equipBonus.agi),
-        def: Math.round(baseDef + equipBonus.def),
-        penetration: equipBonus.penetration + (isPaladin ? 18 : isRanger ? 20 : isPriest ? 10 : 12),
-        armorPenPct: equipBonus.armorPenPct + (isPaladin ? 0.05 : isRanger ? 0.04 : 0.02),
+        physicalDefense: Math.round(baseDef + equipBonus.physicalDefense),
+        magicDefense: Math.round(
+          baseDef * (isMage ? 0.85 : isPriest ? 0.95 : isPaladin ? 0.62 : 0.7) + equipBonus.magicDefense
+        ),
+        physicalPenetration: equipBonus.physicalPenetration + (isPaladin ? 18 : isRanger ? 20 : isPriest ? 8 : 10),
+        magicPenetration: equipBonus.magicPenetration + (isMage ? 18 : isPriest ? 14 : 6),
+        physicalPenPct: equipBonus.physicalPenPct + (isPaladin ? 0.05 : isRanger ? 0.04 : 0.02),
+        magicPenPct: equipBonus.magicPenPct + (isMage ? 0.05 : isPriest ? 0.04 : 0.02),
         critRate: equipBonus.critRate + (isPaladin ? 0.1 : isRanger ? 0.18 : isPriest ? 0.12 : 0.15),
         critDamage: 1.55 + equipBonus.critDamage + (isMage ? 0.2 : isRanger ? 0.1 : isPriest ? 0.06 : 0),
         evasion: equipBonus.evasion + (isMage ? 0.08 : isRanger ? 0.12 : isPriest ? 0.06 : 0.04),
         aggro: equipBonus.aggro + (isPaladin ? 120 : isRanger ? 78 : isPriest ? 70 : 65),
         lifeSteal: equipBonus.lifeSteal + (isPaladin ? 0.02 : isRanger ? 0.01 : 0),
         thorns: equipBonus.thorns + (isPaladin ? 0.03 : 0),
-        damageBoost: equipBonus.damageBoost + (isMage ? 0.05 : isRanger ? 0.06 : isPriest ? 0.04 : 0.02),
+        physicalDamageBoost: equipBonus.physicalDamageBoost + (isPaladin ? 0.03 : isRanger ? 0.06 : 0.01),
+        magicDamageBoost: equipBonus.magicDamageBoost + (isMage ? 0.06 : isPriest ? 0.04 : 0.01),
+        elementalDamageBoost: equipBonus.elementalDamageBoost + (isMage ? 0.05 : isPriest ? 0.04 : isRanger ? 0.03 : 0.02),
+        damageBoost: equipBonus.damageBoost,
         damageReduction: equipBonus.damageReduction + (isPaladin ? 0.08 : isRanger ? 0.04 : isPriest ? 0.05 : 0.03),
         elementalPierce: equipBonus.elementalPierce + (isMage ? 0.08 : isRanger ? 0.04 : isPriest ? 0.06 : 0.03),
         allRes: equipBonus.allRes,
-        allBoost: equipBonus.allBoost,
+        allBoost: 0,
         elementBoost: ELEMENT_KEYS.reduce<Record<BattleElement, number>>((acc, key) => {
           acc[key] = elementPreset.boost[key] + equipBonus.elementBoost[key];
           return acc;

@@ -22,7 +22,7 @@ const HERO_CLASSES: HeroClass[] = ["paladin", "mage", "ranger", "priest"];
 const SKILL_POOLS: BattleSkillPool[] = ["common", "class", "enemy"];
 const SKILL_CATEGORIES: BattleSkillCategory[] = ["assault", "defend", "inspire", "afflict", "succor"];
 const TARGET_TYPES: BattleTargetType[] = ["self", "singleEnemy", "allEnemies", "randomEnemies", "singleAlly", "allAllies", "lowestHpAlly"];
-const DAMAGE_TYPES: BattleDamageType[] = ["physical", "magic"];
+const DAMAGE_TYPES: BattleDamageType[] = ["physical", "magic", "elemental"];
 const ELEMENTS: BattleElement[] = ["fire", "water", "ice", "wind", "life", "light", "undead", "dark"];
 const STATUS_KEYS: BattleStatusKey[] = [
   "frozen",
@@ -45,20 +45,25 @@ const FLAT_KEYS = [
   "str",
   "int",
   "agi",
-  "def",
-  "penetration",
-  "armorPenPct",
+  "physicalDefense",
+  "magicDefense",
+  "physicalPenetration",
+  "magicPenetration",
+  "physicalPenPct",
+  "magicPenPct",
   "critRate",
   "critDamage",
   "evasion",
   "aggro",
   "lifeSteal",
   "thorns",
+  "physicalDamageBoost",
+  "magicDamageBoost",
+  "elementalDamageBoost",
   "damageBoost",
   "damageReduction",
   "elementalPierce",
-  "allRes",
-  "allBoost"
+  "allRes"
 ] as const;
 
 const FALLBACK_BASIC_ATTACK: BattleActiveSkillDefinition = {
@@ -124,6 +129,7 @@ function parseScaling(value: unknown): BattleSkillScaling {
     int: typeof value.int === "number" ? value.int : undefined,
     agi: typeof value.agi === "number" ? value.agi : undefined,
     def: typeof value.def === "number" ? value.def : undefined,
+    physicalDefense: typeof value.physicalDefense === "number" ? value.physicalDefense : undefined,
     maxHp: typeof value.maxHp === "number" ? value.maxHp : undefined,
     missingHp: typeof value.missingHp === "number" ? value.missingHp : undefined
   };
@@ -157,6 +163,18 @@ function parseFlatRecord(value: unknown): Record<string, number> | undefined {
     const parsed = value[key];
     if (typeof parsed === "number" && Number.isFinite(parsed)) {
       result[key] = parsed;
+    }
+  });
+  const legacyAliases: Array<[string, string]> = [
+    ["def", "physicalDefense"],
+    ["penetration", "physicalPenetration"],
+    ["armorPenPct", "physicalPenPct"],
+    ["allBoost", "elementalDamageBoost"]
+  ];
+  legacyAliases.forEach(([legacyKey, targetKey]) => {
+    const parsed = value[legacyKey];
+    if (typeof parsed === "number" && Number.isFinite(parsed)) {
+      result[targetKey] = (result[targetKey] ?? 0) + parsed;
     }
   });
   return Object.keys(result).length > 0 ? result : undefined;
@@ -299,6 +317,9 @@ function parseActiveSkill(value: unknown): BattleActiveSkillDefinition | null {
   }
   const effect = parseEnum(value.effect, ["damage", "heal"], "damage");
   const targetType = parseEnum(value.targetType, TARGET_TYPES, "singleEnemy");
+  const element = value.element ? parseEnum(value.element, ELEMENTS, "fire") : undefined;
+  const parsedDamageType = effect === "damage" ? parseEnum(value.damageType, DAMAGE_TYPES, "physical") : undefined;
+  const damageType = parsedDamageType === "magic" && element ? "elemental" : parsedDamageType;
   return {
     id,
     name,
@@ -315,8 +336,8 @@ function parseActiveSkill(value: unknown): BattleActiveSkillDefinition | null {
         ? Math.max(1, Math.round(value.targetCount))
         : undefined,
     effect,
-    damageType: effect === "damage" ? parseEnum(value.damageType, DAMAGE_TYPES, "physical") : undefined,
-    element: value.element ? parseEnum(value.element, ELEMENTS, "fire") : undefined,
+    damageType,
+    element,
     mpCost: Math.max(0, Math.round(parseNumber(value.mpCost, 0))),
     cooldown: Math.max(0, Math.round(parseNumber(value.cooldown, 0))),
     baseWeight: parseNumber(value.baseWeight, 100),

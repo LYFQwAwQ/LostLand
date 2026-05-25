@@ -59,7 +59,15 @@ type StatsViewMode = "origin" | "battle";
 
 const BATTLE_ELEMENTS: BattleElement[] = ["fire", "water", "ice", "wind", "life", "light", "undead", "dark"];
 const EVA_CAP = 0.5;
-const MULTIPLICATIVE_MODIFIER_KEYS = new Set<BattleStatFlatKey>(["maxHp", "maxMp", "str", "int", "agi", "def"]);
+const MULTIPLICATIVE_MODIFIER_KEYS = new Set<BattleStatFlatKey>([
+  "maxHp",
+  "maxMp",
+  "str",
+  "int",
+  "agi",
+  "physicalDefense",
+  "magicDefense"
+]);
 
 const qualityOrder = {
   common: 0,
@@ -162,15 +170,21 @@ function buildBattleStatBlock(baseStats: BattleStatPreviewInput | null | undefin
     str: Math.max(0, Math.round(baseStats?.str ?? 0)),
     int: Math.max(0, Math.round(baseStats?.int ?? 0)),
     agi: Math.max(1, Math.round(baseStats?.agi ?? 1)),
-    def: Math.max(0, Math.round(baseStats?.def ?? 0)),
-    penetration: Math.max(0, Math.round(baseStats?.penetration ?? 0)),
-    armorPenPct: clamp(baseStats?.armorPenPct ?? 0, 0, 0.95),
+    physicalDefense: Math.max(0, Math.round(baseStats?.physicalDefense ?? 0)),
+    magicDefense: Math.max(0, Math.round(baseStats?.magicDefense ?? 0)),
+    physicalPenetration: Math.max(0, Math.round(baseStats?.physicalPenetration ?? 0)),
+    magicPenetration: Math.max(0, Math.round(baseStats?.magicPenetration ?? 0)),
+    physicalPenPct: clamp(baseStats?.physicalPenPct ?? 0, 0, 0.95),
+    magicPenPct: clamp(baseStats?.magicPenPct ?? 0, 0, 0.95),
     critRate: clamp(baseStats?.critRate ?? 0.05, 0, 0.95),
     critDamage: Math.max(1.2, baseStats?.critDamage ?? 1.5),
     evasion: clamp(baseStats?.evasion ?? 0.02, 0, EVA_CAP),
     aggro: Math.max(1, Math.round(baseStats?.aggro ?? 50)),
     lifeSteal: clamp(baseStats?.lifeSteal ?? 0, 0, 0.95),
     thorns: clamp(baseStats?.thorns ?? 0, 0, 0.95),
+    physicalDamageBoost: baseStats?.physicalDamageBoost ?? 0,
+    magicDamageBoost: baseStats?.magicDamageBoost ?? 0,
+    elementalDamageBoost: baseStats?.elementalDamageBoost ?? baseStats?.allBoost ?? 0,
     damageBoost: baseStats?.damageBoost ?? 0,
     damageReduction: baseStats?.damageReduction ?? 0,
     elementalPierce: baseStats?.elementalPierce ?? 0,
@@ -237,15 +251,21 @@ function applyStatModifier(stats: BattleStatBlock, modifier: BattleStatModifier)
   next.str = Math.max(0, Math.round(next.str));
   next.int = Math.max(0, Math.round(next.int));
   next.agi = Math.max(1, Math.round(next.agi));
-  next.def = Math.max(0, Math.round(next.def));
-  next.penetration = Math.max(0, Math.round(next.penetration));
-  next.armorPenPct = clamp(next.armorPenPct, 0, 0.95);
+  next.physicalDefense = Math.max(0, Math.round(next.physicalDefense));
+  next.magicDefense = Math.max(0, Math.round(next.magicDefense));
+  next.physicalPenetration = Math.max(0, Math.round(next.physicalPenetration));
+  next.magicPenetration = Math.max(0, Math.round(next.magicPenetration));
+  next.physicalPenPct = clamp(next.physicalPenPct, 0, 0.95);
+  next.magicPenPct = clamp(next.magicPenPct, 0, 0.95);
   next.critRate = clamp(next.critRate, 0, 0.95);
   next.critDamage = Math.max(1, next.critDamage);
   next.evasion = clamp(next.evasion, 0, EVA_CAP);
   next.aggro = Math.max(1, next.aggro);
   next.lifeSteal = clamp(next.lifeSteal, 0, 0.95);
   next.thorns = clamp(next.thorns, 0, 0.95);
+  next.physicalDamageBoost = clamp(next.physicalDamageBoost, -0.8, 2);
+  next.magicDamageBoost = clamp(next.magicDamageBoost, -0.8, 2);
+  next.elementalDamageBoost = clamp(next.elementalDamageBoost, -0.8, 2);
   next.damageReduction = clamp(next.damageReduction, -0.5, 0.9);
   next.damageBoost = clamp(next.damageBoost, -0.8, 2);
   next.elementalPierce = clamp(next.elementalPierce, 0, 0.95);
@@ -423,25 +443,31 @@ function HeroStatsContent({
     { label: "STR成长", value: formatGrowthValue(hero.statGrowth.str) },
     { label: "INT成长", value: formatGrowthValue(hero.statGrowth.int) },
     { label: "AGI成长", value: formatGrowthValue(hero.statGrowth.agi) },
-    { label: "DEF成长", value: formatGrowthValue(hero.statGrowth.def) }
+    { label: "物防成长", value: formatGrowthValue(hero.statGrowth.def) }
   ];
 
   const combatRows = [
-    { label: "物理防御", value: formatInteger(visibleStats.def) },
-    { label: "物理穿透", value: formatInteger(visibleStats.penetration) },
+    { label: "物理防御", value: formatInteger(visibleStats.physicalDefense) },
+    { label: "魔法防御", value: formatInteger(visibleStats.magicDefense) },
+    { label: "物理穿透", value: formatInteger(visibleStats.physicalPenetration) },
+    { label: "魔法穿透", value: formatInteger(visibleStats.magicPenetration) },
     { label: "暴击率", value: formatPercent(visibleStats.critRate) },
     { label: "暴击伤害", value: formatPercent(visibleStats.critDamage) },
     { label: "闪避率", value: formatPercent(visibleStats.evasion) },
-    { label: "韧性", value: "--" },
     { label: "吸血", value: formatPercent(visibleStats.lifeSteal) },
     { label: "反伤", value: formatPercent(visibleStats.thorns) }
   ];
 
   const advancedRows = [
+    { label: "物理伤害增加", value: formatPercent(visibleStats.physicalDamageBoost) },
+    { label: "魔法伤害增加", value: formatPercent(visibleStats.magicDamageBoost) },
+    { label: "元素伤害增加", value: formatPercent(visibleStats.elementalDamageBoost) },
+    { label: "最终伤害增加", value: formatPercent(visibleStats.damageBoost) },
+    { label: "最终伤害减免", value: formatPercent(visibleStats.damageReduction) },
     { label: "元素穿透", value: formatPercent(visibleStats.elementalPierce) },
     { label: "全元素抗性", value: formatPercent(visibleStats.allRes) },
-    { label: "全元素增伤", value: formatPercent(visibleStats.allBoost) },
-    { label: "护甲百分比穿透", value: formatPercent(visibleStats.armorPenPct) }
+    { label: "物理百分比穿透", value: formatPercent(visibleStats.physicalPenPct) },
+    { label: "魔法百分比穿透", value: formatPercent(visibleStats.magicPenPct) }
   ];
 
   return (

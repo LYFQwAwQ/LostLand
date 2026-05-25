@@ -264,17 +264,25 @@ export type EquipmentStatKey =
   | "int"
   | "agi"
   | "def"
+  | "magicDefense"
   | "penetration"
+  | "magicPenetration"
   | "critRate"
   | "critDamage"
   | "evasion"
   | "aggro"
   | "lifeSteal"
   | "thorns"
+  | "physicalDamageBoost"
+  | "magicDamageBoost"
+  | "elementalDamageBoost"
+  | "damageBoost"
+  | "damageReduction"
   | "elementalPierce"
   | "allRes"
   | "allBoost"
-  | "armorPiercePct";
+  | "armorPiercePct"
+  | "magicPiercePct";
 
 export interface EquipmentStatTemplate {
   key: EquipmentStatKey;

@@ -90,7 +90,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     affixPool: [
       { key: "int", label: "智力", min: 3, max: 12, weight: 28 },
       { key: "elementalPierce", label: "元素穿透", min: 0.02, max: 0.08, weight: 24 },
-      { key: "allBoost", label: "全元素加成", min: 0.01, max: 0.04, weight: 18 },
+      { key: "allBoost", label: "元素伤害增加", min: 0.01, max: 0.04, weight: 18 },
+      { key: "magicDefense", label: "魔法防御", min: 6, max: 22, weight: 18 },
       { key: "evasion", label: "闪避率", min: 0.01, max: 0.04, weight: 30 }
     ]
   },
@@ -109,7 +110,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     affixPool: [
       { key: "str", label: "力量", min: 2, max: 8, weight: 36 },
       { key: "critRate", label: "暴击率", min: 0.01, max: 0.05, weight: 20 },
-      { key: "penetration", label: "物理穿透", min: 6, max: 24, weight: 24 },
+      { key: "penetration", label: "物理穿透", min: 6, max: 24, weight: 20 },
+      { key: "physicalDamageBoost", label: "物理伤害增加", min: 0.01, max: 0.04, weight: 18 },
       { key: "lifeSteal", label: "吸血", min: 0.01, max: 0.03, weight: 20 }
     ]
   },
@@ -128,7 +130,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     affixPool: [
       { key: "def", label: "物理防御", min: 8, max: 24, weight: 40 },
       { key: "thorns", label: "反伤", min: 0.02, max: 0.08, weight: 20 },
-      { key: "allRes", label: "全元素抗性", min: 0.01, max: 0.04, weight: 22 },
+      { key: "allRes", label: "全元素抗性", min: 0.01, max: 0.04, weight: 18 },
+      { key: "magicDefense", label: "魔法防御", min: 7, max: 24, weight: 18 },
       { key: "hp", label: "生命值", min: 30, max: 120, weight: 18 }
     ]
   },
@@ -147,7 +150,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     affixPool: [
       { key: "str", label: "力量", min: 4, max: 14, weight: 30 },
       { key: "critDamage", label: "暴击伤害", min: 0.08, max: 0.24, weight: 24 },
-      { key: "penetration", label: "物理穿透", min: 8, max: 30, weight: 28 },
+      { key: "penetration", label: "物理穿透", min: 8, max: 30, weight: 24 },
+      { key: "physicalDamageBoost", label: "物理伤害增加", min: 0.015, max: 0.05, weight: 18 },
       { key: "lifeSteal", label: "吸血", min: 0.01, max: 0.05, weight: 18 }
     ]
   },
@@ -166,7 +170,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     affixPool: [
       { key: "agi", label: "敏捷", min: 3, max: 12, weight: 28 },
       { key: "critRate", label: "暴击率", min: 0.01, max: 0.06, weight: 26 },
-      { key: "penetration", label: "物理穿透", min: 8, max: 28, weight: 30 },
+      { key: "penetration", label: "物理穿透", min: 8, max: 28, weight: 24 },
+      { key: "physicalDamageBoost", label: "物理伤害增加", min: 0.01, max: 0.045, weight: 18 },
       { key: "evasion", label: "闪避率", min: 0.01, max: 0.04, weight: 16 }
     ]
   },
@@ -204,7 +209,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     affixPool: [
       { key: "int", label: "智力", min: 2, max: 8, weight: 32 },
       { key: "elementalPierce", label: "元素穿透", min: 0.02, max: 0.07, weight: 26 },
-      { key: "allBoost", label: "全元素加成", min: 0.01, max: 0.04, weight: 20 },
+      { key: "allBoost", label: "元素伤害增加", min: 0.01, max: 0.04, weight: 18 },
+      { key: "magicDamageBoost", label: "魔法伤害增加", min: 0.01, max: 0.04, weight: 18 },
       { key: "allRes", label: "全元素抗性", min: 0.01, max: 0.04, weight: 22 }
     ]
   },
@@ -280,7 +286,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     affixPool: [
       { key: "elementalPierce", label: "元素穿透", min: 0.03, max: 0.1, weight: 30 },
       { key: "critDamage", label: "暴击伤害", min: 0.05, max: 0.2, weight: 20 },
-      { key: "allBoost", label: "全元素加成", min: 0.01, max: 0.04, weight: 18 },
+      { key: "allBoost", label: "元素伤害增加", min: 0.01, max: 0.04, weight: 18 },
+      { key: "magicPenetration", label: "魔法穿透", min: 8, max: 30, weight: 18 },
       { key: "allRes", label: "全元素抗性", min: 0.01, max: 0.05, weight: 32 }
     ]
   },
@@ -298,7 +305,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     qualityWeights: { ...standardQualityWeights },
     affixPool: [
       { key: "allRes", label: "全元素抗性", min: 0.01, max: 0.06, weight: 30 },
-      { key: "allBoost", label: "全元素加成", min: 0.01, max: 0.04, weight: 24 },
+      { key: "allBoost", label: "元素伤害增加", min: 0.01, max: 0.04, weight: 22 },
+      { key: "magicDefense", label: "魔法防御", min: 6, max: 24, weight: 16 },
       { key: "critRate", label: "暴击率", min: 0.01, max: 0.05, weight: 20 },
       { key: "elementalPierce", label: "元素穿透", min: 0.02, max: 0.08, weight: 26 }
     ]
@@ -338,7 +346,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
       { key: "critRate", label: "暴击率", min: 0.015, max: 0.06, weight: 24 },
       { key: "critDamage", label: "暴击伤害", min: 0.08, max: 0.24, weight: 20 },
       { key: "elementalPierce", label: "元素穿透", min: 0.02, max: 0.09, weight: 30 },
-      { key: "allBoost", label: "全元素加成", min: 0.015, max: 0.05, weight: 26 }
+      { key: "allBoost", label: "元素伤害增加", min: 0.015, max: 0.05, weight: 22 },
+      { key: "magicDamageBoost", label: "魔法伤害增加", min: 0.015, max: 0.05, weight: 18 }
     ]
   },
   {
@@ -375,7 +384,8 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     affixPool: [
       { key: "hp", label: "生命值", min: 20, max: 100, weight: 28 },
       { key: "allRes", label: "全元素抗性", min: 0.01, max: 0.05, weight: 30 },
-      { key: "allBoost", label: "全元素加成", min: 0.01, max: 0.04, weight: 20 },
+      { key: "allBoost", label: "元素伤害增加", min: 0.01, max: 0.04, weight: 18 },
+      { key: "magicDefense", label: "魔法防御", min: 5, max: 18, weight: 16 },
       { key: "def", label: "物理防御", min: 5, max: 18, weight: 22 }
     ]
   },
@@ -387,14 +397,15 @@ export const equipmentTemplates: EquipmentTemplate[] = [
     baseWeight: 11,
     t1Stats: [
       { key: "int", label: "智力", lvl1Base: 10, growthRate: 2 },
-      { key: "allBoost", label: "全元素加成", lvl1Base: 0.01, growthRate: 0.002 }
+      { key: "allBoost", label: "元素伤害增加", lvl1Base: 0.01, growthRate: 0.002 }
     ],
     rankWeights: { ...standardRankWeights },
     qualityWeights: { ...standardQualityWeights },
     affixPool: [
       { key: "int", label: "智力", min: 2, max: 9, weight: 30 },
       { key: "elementalPierce", label: "元素穿透", min: 0.02, max: 0.08, weight: 28 },
-      { key: "allBoost", label: "全元素加成", min: 0.01, max: 0.05, weight: 24 },
+      { key: "allBoost", label: "元素伤害增加", min: 0.01, max: 0.05, weight: 22 },
+      { key: "magicDamageBoost", label: "魔法伤害增加", min: 0.01, max: 0.04, weight: 16 },
       { key: "mp", label: "法力值", min: 20, max: 90, weight: 18 }
     ]
   }

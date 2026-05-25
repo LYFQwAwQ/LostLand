@@ -91,17 +91,25 @@ const VALID_EQUIPMENT_STAT_KEYS: EquipmentStatKey[] = [
   "int",
   "agi",
   "def",
+  "magicDefense",
   "penetration",
+  "magicPenetration",
   "critRate",
   "critDamage",
   "evasion",
   "aggro",
   "lifeSteal",
   "thorns",
+  "physicalDamageBoost",
+  "magicDamageBoost",
+  "elementalDamageBoost",
+  "damageBoost",
+  "damageReduction",
   "elementalPierce",
   "allRes",
   "allBoost",
-  "armorPiercePct"
+  "armorPiercePct",
+  "magicPiercePct"
 ];
 
 const EQUIPMENT_SLOT_SET = new Set<EquipmentSlot>(VALID_EQUIPMENT_SLOTS);
@@ -117,17 +125,25 @@ const EQUIPMENT_STAT_LABELS: Record<EquipmentStatKey, string> = {
   int: "智力",
   agi: "敏捷",
   def: "物理防御",
+  magicDefense: "魔法防御",
   penetration: "物理穿透",
+  magicPenetration: "魔法穿透",
   critRate: "暴击率",
   critDamage: "暴击伤害",
   evasion: "闪避率",
   aggro: "仇恨",
   lifeSteal: "吸血",
   thorns: "反伤",
+  physicalDamageBoost: "物理伤害增加",
+  magicDamageBoost: "魔法伤害增加",
+  elementalDamageBoost: "元素伤害增加",
+  damageBoost: "最终伤害增加",
+  damageReduction: "最终伤害减免",
   elementalPierce: "元素穿透",
   allRes: "全元素抗性",
-  allBoost: "全元素加成",
-  armorPiercePct: "护甲百分比穿透"
+  allBoost: "元素伤害增加",
+  armorPiercePct: "物理百分比穿透",
+  magicPiercePct: "魔法百分比穿透"
 };
 
 export const LEGENDARY_EQUIPMENT_RUNE_SLOT_COUNT = 5;

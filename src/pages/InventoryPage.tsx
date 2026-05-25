@@ -70,17 +70,25 @@ const equipmentStatLabels: Record<EquipmentStatKey, string> = {
   int: "智力",
   agi: "敏捷",
   def: "物理防御",
+  magicDefense: "魔法防御",
   penetration: "物理穿透",
+  magicPenetration: "魔法穿透",
   critRate: "暴击率",
   critDamage: "暴击伤害",
   evasion: "闪避率",
   aggro: "仇恨",
   lifeSteal: "吸血",
   thorns: "反伤",
+  physicalDamageBoost: "物理伤害增加",
+  magicDamageBoost: "魔法伤害增加",
+  elementalDamageBoost: "元素伤害增加",
+  damageBoost: "最终伤害增加",
+  damageReduction: "最终伤害减免",
   elementalPierce: "元素穿透",
   allRes: "全元素抗性",
-  allBoost: "全元素增伤",
-  armorPiercePct: "护甲百分比穿透"
+  allBoost: "元素伤害增加",
+  armorPiercePct: "物理百分比穿透",
+  magicPiercePct: "魔法百分比穿透"
 };
 function formatStatValue(value: number): string {
   if (Math.abs(value) > 0 && Math.abs(value) < 1) {
