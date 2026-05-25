@@ -20,7 +20,7 @@ export const ACTION_META: Record<NodeAction, NodeActionMeta> = {
   market: {
     key: "market",
     label: "商铺",
-    description: "ST2 节点原材料与大宗贸易入口（当前为静态预览）。"
+    description: "ST2 节点原材料与补给交易入口（含采购、回收与行情）。"
   },
   tavern: {
     key: "tavern",

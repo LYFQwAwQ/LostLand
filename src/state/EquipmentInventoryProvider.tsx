@@ -182,7 +182,31 @@ export interface MaterialPurchaseEntry {
   unitPrice: number;
 }
 
+export interface InventorySellMaterialEntry {
+  materialId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
 export interface MaterialPurchaseResult {
+  ok: boolean;
+  reason: string | null;
+  totalCost: number;
+}
+
+export interface MaterialSellResult {
+  ok: boolean;
+  reason: string | null;
+  totalGain: number;
+}
+
+export interface ConsumablePurchaseEntry {
+  consumableId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface ConsumablePurchaseResult {
   ok: boolean;
   reason: string | null;
   totalCost: number;
@@ -236,9 +260,12 @@ interface EquipmentInventoryContextValue {
   getEquipmentEnhancementPreview: (itemUid: string, options?: EquipmentEnhancementAttemptOptions) => EquipmentEnhancementPreview | null;
   enhanceEquipment: (itemUid: string, options?: EquipmentEnhancementAttemptOptions) => EquipmentEnhancementResult;
   buyMaterials: (entries: MaterialPurchaseEntry[]) => MaterialPurchaseResult;
+  sellMaterials: (entries: InventorySellMaterialEntry[]) => MaterialSellResult;
+  buyConsumables: (entries: ConsumablePurchaseEntry[]) => ConsumablePurchaseResult;
   spendGold: (amount: number) => InventoryCostPayResult;
   payCost: (cost: { gold: number; materials: Array<{ materialId: string; quantity: number }> }) => InventoryCostPayResult;
   consumeMaterials: (materials: Array<{ materialId: string; quantity: number }>) => boolean;
+  unlockLegendaryEquipment: (equipmentId: string) => boolean;
   equipItem: (
     heroId: string,
     slotId: string,
@@ -573,7 +600,7 @@ function normalizeOwnedLegendaryEquipmentIds(equipmentIds: string[] | null | und
 }
 
 function buildDefaultOwnedLegendaryEquipmentIds(): string[] {
-  return legendaryEquipments.map((item) => item.id);
+  return [];
 }
 
 function areStringMapEqual(left: Record<string, string>, right: Record<string, string>): boolean {
@@ -1544,6 +1571,128 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     };
   };
 
+  const sellMaterials = (entries: InventorySellMaterialEntry[]): MaterialSellResult => {
+    if (!entries || entries.length <= 0) {
+      return {
+        ok: false,
+        reason: "没有可出售的材料。",
+        totalGain: 0
+      };
+    }
+
+    const sellEntries = entries
+      .map((entry) => ({
+        materialId: String(entry.materialId ?? "").trim(),
+        quantity: Math.max(0, Math.floor(entry.quantity)),
+        unitPrice: Math.max(0, Math.floor(entry.unitPrice))
+      }))
+      .filter((entry) => entry.materialId.length > 0 && entry.quantity > 0 && entry.unitPrice > 0);
+
+    if (sellEntries.length <= 0) {
+      return {
+        ok: false,
+        reason: "材料出售参数无效。",
+        totalGain: 0
+      };
+    }
+
+    const enoughMaterials = sellEntries.every((entry) => (materialStock[entry.materialId] ?? 0) >= entry.quantity);
+    if (!enoughMaterials) {
+      return {
+        ok: false,
+        reason: "材料不足。",
+        totalGain: 0
+      };
+    }
+
+    const totalGain = sellEntries.reduce((sum, entry) => sum + entry.quantity * entry.unitPrice, 0);
+    if (totalGain <= 0) {
+      return {
+        ok: false,
+        reason: "出售金额无效。",
+        totalGain: 0
+      };
+    }
+
+    setMaterialStock((prev) => {
+      const next = { ...prev };
+      sellEntries.forEach((entry) => {
+        const remain = (next[entry.materialId] ?? 0) - entry.quantity;
+        if (remain > 0) {
+          next[entry.materialId] = remain;
+        } else {
+          delete next[entry.materialId];
+        }
+      });
+      return next;
+    });
+    setGold((prev) => prev + totalGain);
+
+    return {
+      ok: true,
+      reason: null,
+      totalGain
+    };
+  };
+
+  const buyConsumables = (entries: ConsumablePurchaseEntry[]): ConsumablePurchaseResult => {
+    if (!entries || entries.length <= 0) {
+      return {
+        ok: false,
+        reason: "没有可购买的消耗品。",
+        totalCost: 0
+      };
+    }
+
+    const purchaseEntries = entries
+      .map((entry) => ({
+        consumableId: String(entry.consumableId ?? "").trim(),
+        quantity: Math.max(0, Math.floor(entry.quantity)),
+        unitPrice: Math.max(0, Math.floor(entry.unitPrice))
+      }))
+      .filter((entry) => entry.consumableId.length > 0 && entry.quantity > 0 && entry.unitPrice > 0);
+
+    if (purchaseEntries.length <= 0) {
+      return {
+        ok: false,
+        reason: "消耗品购买参数无效。",
+        totalCost: 0
+      };
+    }
+
+    const totalCost = purchaseEntries.reduce((sum, entry) => sum + entry.quantity * entry.unitPrice, 0);
+    if (totalCost <= 0) {
+      return {
+        ok: false,
+        reason: "购买金额无效。",
+        totalCost: 0
+      };
+    }
+
+    if (gold < totalCost) {
+      return {
+        ok: false,
+        reason: "金币不足。",
+        totalCost
+      };
+    }
+
+    setGold((prev) => Math.max(0, prev - totalCost));
+    setConsumableStock((prev) => {
+      const next = { ...prev };
+      purchaseEntries.forEach((entry) => {
+        next[entry.consumableId] = (next[entry.consumableId] ?? 0) + entry.quantity;
+      });
+      return next;
+    });
+
+    return {
+      ok: true,
+      reason: null,
+      totalCost
+    };
+  };
+
   const payCost = (cost: { gold: number; materials: Array<{ materialId: string; quantity: number }> }): InventoryCostPayResult => {
     const goldCost = Math.max(0, Math.floor(cost.gold));
     const requirements = (cost.materials ?? [])
@@ -1597,6 +1746,21 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
     }
     setGold((prev) => Math.max(0, prev - cost));
     return { ok: true, reason: null };
+  };
+
+  const unlockLegendaryEquipment = (equipmentId: string): boolean => {
+    if (!LEGENDARY_EQUIPMENT_ID_SET.has(equipmentId)) {
+      return false;
+    }
+    let changed = false;
+    setOwnedLegendaryEquipmentIds((prev) => {
+      if (prev.includes(equipmentId)) {
+        return prev;
+      }
+      changed = true;
+      return [...prev, equipmentId];
+    });
+    return changed;
   };
 
   const consumeMaterials = (materials: Array<{ materialId: string; quantity: number }>): boolean => {
@@ -1930,9 +2094,12 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       getEquipmentEnhancementPreview,
       enhanceEquipment,
       buyMaterials,
+      sellMaterials,
+      buyConsumables,
       spendGold,
       payCost,
       consumeMaterials,
+      unlockLegendaryEquipment,
       equipItem,
       unequipItem,
       setHeroMemory,
@@ -1980,6 +2147,8 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       droppedEquipmentItems,
       enhancementAidStock,
       equipmentEnhancementByUid,
+      buyConsumables,
+      sellMaterials,
       lockedEquipmentItemUids,
       lockedEquipmentUidSet,
       isBackpackEquipmentFull,
@@ -1987,7 +2156,8 @@ export function EquipmentInventoryProvider({ children }: { children: ReactNode }
       materialStock,
       ownedMemoryIdSet,
       reputation,
-      soldEquipmentItemUids
+      soldEquipmentItemUids,
+      unlockLegendaryEquipment
     ]
   );
 

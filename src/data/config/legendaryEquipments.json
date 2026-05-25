@@ -79,6 +79,46 @@
         { "key": "allBoost", "value": 0.06 }
       ],
       "passiveSkillId": "legendary_equip_skill_yggdra_resonance"
+    },
+    {
+      "id": "legendary_equip_drainseal_charm",
+      "name": "暗渠封印坠饰",
+      "title": "裂阵余辉",
+      "lore": "封印阵列的金属符片被重新铆合成坠饰。靠近时能听到水脉与咒纹同步回响。",
+      "slot": "accessory",
+      "subtype": "necklace",
+      "level": 1,
+      "rank": "perfect",
+      "quality": "legendary",
+      "t1Stats": [
+        { "key": "mp", "value": 240 },
+        { "key": "int", "value": 30 }
+      ],
+      "affixes": [
+        { "key": "allRes", "value": 0.05 },
+        { "key": "elementalPierce", "value": 0.07 }
+      ],
+      "passiveSkillId": "legendary_equip_skill_drainseal_vigil"
+    },
+    {
+      "id": "legendary_equip_cistern_oathring",
+      "name": "渠底誓戒",
+      "title": "不沉之誓",
+      "lore": "誓戒的内壁刻着一次次失败后仍被重写的封印誓词。它不承诺胜利，只承诺不退。",
+      "slot": "accessory",
+      "subtype": "ring",
+      "level": 1,
+      "rank": "perfect",
+      "quality": "legendary",
+      "t1Stats": [
+        { "key": "hp", "value": 260 },
+        { "key": "def", "value": 36 }
+      ],
+      "affixes": [
+        { "key": "damageReduction", "value": 0.06 },
+        { "key": "critRate", "value": 0.05 }
+      ],
+      "passiveSkillId": "legendary_equip_skill_cistern_oath"
     }
   ]
 }

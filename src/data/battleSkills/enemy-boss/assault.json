@@ -1,2 +1,50 @@
-﻿[]
-
+[
+  {
+    "id": "enemy_boss_foulmoon_pulse",
+    "name": "污月脉冲",
+    "skillPool": "enemy",
+    "allowedHeroClasses": [],
+    "category": "assault",
+    "description": "渗月尸骸主教释放扩散性的污染脉冲，逼迫整支队伍承受暗蚀冲击。\n----------------\n对全体敌人造成基础威力82的暗属性魔法伤害，伤害系数为95%智力，并有65%概率附加2回合虚弱。",
+    "targetType": "allEnemies",
+    "effect": "damage",
+    "damageType": "magic",
+    "element": "dark",
+    "mpCost": 34,
+    "cooldown": 2,
+    "baseWeight": 88,
+    "basePower": 82,
+    "scaling": {
+      "int": 0.95
+    },
+    "canCrit": true,
+    "targetStatus": {
+      "key": "weakened",
+      "chance": 0.65,
+      "duration": 2,
+      "potency": 18
+    }
+  },
+  {
+    "id": "enemy_boss_drain_echo",
+    "name": "暗渠回响",
+    "skillPool": "enemy",
+    "allowedHeroClasses": [],
+    "category": "assault",
+    "description": "主教命令暗渠残响从侧翼齐射，专门撕开动摇的战线。\n----------------\n随机攻击2名敌人，造成2段基础威力46的暗属性魔法伤害，伤害系数为55%智力，每段均可暴击。",
+    "targetType": "randomEnemies",
+    "targetCount": 2,
+    "effect": "damage",
+    "damageType": "magic",
+    "element": "dark",
+    "mpCost": 22,
+    "cooldown": 1,
+    "baseWeight": 94,
+    "basePower": 46,
+    "scaling": {
+      "int": 0.55
+    },
+    "canCrit": true,
+    "hitCount": 2
+  }
+]

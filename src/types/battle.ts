@@ -111,6 +111,7 @@ export interface BattleStatusApplication {
   chance: number;
   duration: number;
   potency?: number;
+  dispellable?: boolean;
 }
 
 export type BattleSkillEffectTarget = "self" | "targets";
@@ -275,6 +276,7 @@ export interface BattleStatusInstance {
   remainingTurns: number;
   potency: number;
   sourceUnitId: string;
+  dispellable?: boolean;
 }
 
 export interface BattleRuntimeUnit {
@@ -296,6 +298,8 @@ export interface BattleRuntimeUnit {
   talentId: string | null;
   cooldowns: Record<string, number>;
   statuses: BattleStatusInstance[];
+  runtimeFlags: Record<string, number>;
+  runtimeStacks: Record<string, number[]>;
 }
 
 export interface BattleLogEntry {

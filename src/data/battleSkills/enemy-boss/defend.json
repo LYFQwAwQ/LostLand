@@ -1,2 +1,42 @@
-﻿[]
-
+[
+  {
+    "id": "enemy_boss_seal_shell",
+    "name": "裂阵复祷",
+    "skillPool": "enemy",
+    "allowedHeroClasses": [],
+    "category": "defend",
+    "description": "主教强行续接破碎封印，将仪式余烬压缩成短暂护壳并驱散敌方祝福。\n----------------\n为自身施加持续2回合的护盾，护盾基础值为220，系数为115%智力，并驱散全体敌人各1个正面状态。自身生命低于45%时更倾向使用。",
+    "targetType": "self",
+    "effect": "heal",
+    "mpCost": 28,
+    "cooldown": 3,
+    "baseWeight": 52,
+    "basePower": 0,
+    "scaling": {
+      "int": 0
+    },
+    "extraEffects": [
+      {
+        "type": "shield",
+        "target": "self",
+        "duration": 2,
+        "basePower": 220,
+        "scaling": {
+          "int": 1.15
+        }
+      },
+      {
+        "type": "dispel",
+        "target": "targets",
+        "removeCount": 1,
+        "polarity": "positive"
+      }
+    ],
+    "weightTuning": {
+      "selfHpBelow": {
+        "threshold": 0.45,
+        "delta": 78
+      }
+    }
+  }
+]

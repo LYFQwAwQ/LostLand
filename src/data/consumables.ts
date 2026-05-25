@@ -1,6 +1,5 @@
 import type { InventoryConsumableStack } from "../types/game";
 
-// TODO: 接入正式消耗品产出/消耗链路（商店、任务、战斗结算）后，替换示例库存初始化。
 export const initialConsumableStacks: InventoryConsumableStack[] = [
   {
     id: "healing_potion_small",
@@ -8,8 +7,8 @@ export const initialConsumableStacks: InventoryConsumableStack[] = [
     rarity: "common",
     effectSummary: "战斗中使用：恢复单体生命值 120。",
     maxStack: 99,
-    quantity: 18,
-    source: "示例库存"
+    quantity: 0,
+    source: "圣堂补给 / 布告栏 / 仪式"
   },
   {
     id: "mana_potion_small",
@@ -17,8 +16,8 @@ export const initialConsumableStacks: InventoryConsumableStack[] = [
     rarity: "common",
     effectSummary: "战斗中使用：恢复单体法力值 80。",
     maxStack: 99,
-    quantity: 11,
-    source: "示例库存"
+    quantity: 0,
+    source: "军需调拨 / 学术采购 / 布告栏"
   },
   {
     id: "revive_scroll",
@@ -26,7 +25,7 @@ export const initialConsumableStacks: InventoryConsumableStack[] = [
     rarity: "rare",
     effectSummary: "战斗中使用：复活 1 名倒地友军并恢复 15% 生命。",
     maxStack: 20,
-    quantity: 2,
-    source: "示例库存"
+    quantity: 0,
+    source: "净化补给 / 仪式"
   }
 ];

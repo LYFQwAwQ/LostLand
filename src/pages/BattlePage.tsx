@@ -1,8 +1,9 @@
 import { FastForward, Gauge, Pause, Play, RotateCcw, Shield, Swords, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { ritualDefinitionById } from "../data/rituals";
 import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
-import { buildAllyTeamTemplates, buildEnemyTeamTemplates } from "../lib/battleAdapters";
+import { buildAllyTeamTemplates, buildEnemyTeamTemplates, buildFixedEnemyTeamTemplates } from "../lib/battleAdapters";
 import { endBattle, createBattleRuntime, setBattleRunning, setBattleSpeed, stepBattle } from "../lib/battleEngine";
 import { EQUIPMENT_SLOT_LABELS, EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
 import { EQUIPMENT_QUALITY_LABELS, EQUIPMENT_RANK_LABELS } from "../lib/equipmentSystem";
@@ -321,12 +322,22 @@ function BattleTimeline({ runtime }: { runtime: BattleRuntimeState }) {
 
 export function BattlePage() {
   const { heroes } = useHeroRoster();
+  const [searchParams] = useSearchParams();
   const { nodeId } = useParams<{ nodeId: string }>();
-  const { findNodeById, reportMissionBattleOutcome } = useMapSystem();
+  const { findNodeById, reportMissionBattleOutcome, completeRitual } = useMapSystem();
   const { reportChapterBattleWin } = useOrganization();
   const { formation, heroLoadouts } = useBattleSetup();
-  const { equippedByHero, itemMap, collectBattleDrops, grantBattleHeroExp, heroProgressById, getEquipmentEnhanceBonus } =
-    useEquipmentInventory();
+  const {
+    equippedByHero,
+    itemMap,
+    collectBattleDrops,
+    grantBattleHeroExp,
+    heroProgressById,
+    getEquipmentEnhanceBonus,
+    grantMissionRewards,
+    payCost,
+    unlockLegendaryEquipment
+  } = useEquipmentInventory();
   const [battleSeed, setBattleSeed] = useState(() => Date.now());
   const [chainRound, setChainRound] = useState(1);
   const [campaignLogs, setCampaignLogs] = useState<BattleLogEntry[]>([]);
@@ -344,6 +355,11 @@ export function BattlePage() {
   const [dropEquipmentSortBy, setDropEquipmentSortBy] = useState<DropEquipmentSortBy>("qualityDesc");
 
   const context = useMemo(() => findNodeById(nodeId), [findNodeById, nodeId]);
+  const ritualId = (searchParams.get("ritualId") ?? "").trim();
+  const ritualDefinition = ritualId ? ritualDefinitionById[ritualId] : undefined;
+  const isRitualBattle = Boolean(
+    ritualDefinition && context && ritualDefinition.nodeId === context.node.id && ritualDefinition.regionId === context.region.id
+  );
 
   const baseAllies = useMemo(() => {
     if (!context) {
@@ -365,14 +381,17 @@ export function BattlePage() {
       return null;
     }
 
-    const enemies = buildEnemyTeamTemplates(
-      `${context.node.id}-round-${battleSeed}-${round}`,
-      context.node.archetype,
-      context.region.mapSuppression,
-      context.node.id
-    );
+    const enemies =
+      isRitualBattle && ritualDefinition
+        ? buildFixedEnemyTeamTemplates(ritualDefinition.boss.enemyIds, context.node.archetype, context.region.mapSuppression)
+        : buildEnemyTeamTemplates(
+            `${context.node.id}-round-${battleSeed}-${round}`,
+            context.node.archetype,
+            context.region.mapSuppression,
+            context.node.id
+          );
     const created = createBattleRuntime({
-      battleId: `${context.node.id}-${battleSeed}-round-${round}`,
+      battleId: `${context.node.id}-${battleSeed}-${isRitualBattle ? "ritual" : "round"}-${round}`,
       nodeId: context.node.id,
       suppression: context.region.mapSuppression,
       archetype: context.node.archetype,
@@ -412,7 +431,7 @@ export function BattlePage() {
   };
 
   const [runtime, setRuntime] = useState<BattleRuntimeState | null>(() => buildRuntimeForRound(1));
-  const runtimeResetKey = `${battleSeed}-${context?.region.id ?? ""}-${context?.node.id ?? ""}`;
+  const runtimeResetKey = `${battleSeed}-${context?.region.id ?? ""}-${context?.node.id ?? ""}-${ritualId}`;
 
   useEffect(() => {
     // 仅在“重新侦察”或切换节点时重置会话，避免掉落/任务回写导致 Provider 更新后打断自动连战。
@@ -470,6 +489,9 @@ export function BattlePage() {
     if (!runtime || runtime.status !== "finished") {
       return;
     }
+    if (isRitualBattle) {
+      return;
+    }
     if (runtime.winner !== "ally") {
       return;
     }
@@ -491,7 +513,7 @@ export function BattlePage() {
       setRuntime(nextRuntime);
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [chainRound, isReplayModalOpen, runtime]);
+  }, [chainRound, isReplayModalOpen, isRitualBattle, runtime]);
 
   useEffect(() => {
     if (!runtime) {
@@ -500,14 +522,15 @@ export function BattlePage() {
     const canChainToNextRound =
       runtime.status === "finished" &&
       runtime.winner === "ally" &&
-      runtime.units.some((unit) => unit.side === "ally" && unit.alive);
+      runtime.units.some((unit) => unit.side === "ally" && unit.alive) &&
+      !isRitualBattle;
 
     if (runtime.status === "finished" && !canChainToNextRound) {
       setIsReplayModalOpen(true);
       return;
     }
     setIsReplayModalOpen(false);
-  }, [runtime]);
+  }, [isRitualBattle, runtime]);
 
   useEffect(() => {
     if (!runtime || runtime.status !== "running") {
@@ -536,6 +559,32 @@ export function BattlePage() {
           }
         }
 
+        if (isRitualBattle && ritualDefinition) {
+          if (runtime.winner === "ally") {
+            const payResult = payCost(ritualDefinition.cost);
+            if (payResult.ok) {
+              grantMissionRewards({
+                materials: ritualDefinition.reward.materials,
+                consumables: ritualDefinition.reward.consumables,
+                bounty: ritualDefinition.reward.gold,
+                reputation: ritualDefinition.reward.reputation
+              });
+              (ritualDefinition.reward.legendaryEquipmentIds ?? []).forEach((equipmentId) => {
+                unlockLegendaryEquipment(equipmentId);
+              });
+              completeRitual(ritualDefinition.id);
+            }
+          } else {
+            payCost({
+              gold: Math.max(0, Math.floor(ritualDefinition.cost.gold * 0.5)),
+              materials: ritualDefinition.cost.materials.map((entry) => ({
+                materialId: entry.materialId,
+                quantity: Math.max(1, Math.floor(entry.quantity * 0.5))
+              }))
+            });
+          }
+        }
+
         const materialGainCounts = runtime.drops?.entries.reduce<Record<string, number>>((acc, entry) => {
           if (entry.category !== "material" || !entry.material) {
             return acc;
@@ -553,17 +602,32 @@ export function BattlePage() {
           return acc;
         }, {});
 
-        reportMissionBattleOutcome({
-          regionId: context?.region.id ?? "",
-          materialGainCounts,
-          defeatedEnemyCounts,
-          nodeArchetype: context?.node.archetype,
-          victory: runtime.winner === "ally"
-        });
+        if (!isRitualBattle) {
+          reportMissionBattleOutcome({
+            regionId: context?.region.id ?? "",
+            materialGainCounts,
+            defeatedEnemyCounts,
+            nodeArchetype: context?.node.archetype,
+            victory: runtime.winner === "ally"
+          });
+        }
       }
     }
     battleStateRef.current = runtime ? { battleId: runtime.battleId, status: runtime.status } : null;
-  }, [collectBattleDrops, context?.region.id, grantBattleHeroExp, reportChapterBattleWin, reportMissionBattleOutcome, runtime]);
+  }, [
+    collectBattleDrops,
+    completeRitual,
+    context?.region.id,
+    grantBattleHeroExp,
+    grantMissionRewards,
+    isRitualBattle,
+    payCost,
+    reportChapterBattleWin,
+    reportMissionBattleOutcome,
+    ritualDefinition,
+    runtime,
+    unlockLegendaryEquipment
+  ]);
 
   useEffect(() => {
     if (!runtime) {
@@ -606,7 +670,7 @@ export function BattlePage() {
   }
 
   const mapQuery = buildWorldMapSearchParams(selectionFromRegion(context.region)).toString();
-  const backLink = `/node/${context.node.id}?${mapQuery}`;
+  const backLink = isRitualBattle ? `/node/${context.node.id}/ritual?${mapQuery}` : `/node/${context.node.id}?${mapQuery}`;
   const isRunning = runtime.status === "running";
   const isFinished = runtime.status === "finished";
   const canChainToNextRound = isFinished && runtime.winner === "ally" && runtime.units.some((unit) => unit.side === "ally" && unit.alive);
@@ -707,7 +771,7 @@ export function BattlePage() {
       <header className="page-header battle-page-header">
         <h1>实时讨伐：{context.node.name}</h1>
         <p>
-          类型 {nodeTypeLabel} · 第 {chainRound} 场 · 地图压制 {context.region.mapSuppression}% · 我方 {allyAlive} / 敌方{" "}
+          类型 {nodeTypeLabel} · {isRitualBattle ? "仪式战" : `第 ${chainRound} 场`} · 地图压制 {context.region.mapSuppression}% · 我方 {allyAlive} / 敌方{" "}
           {enemyAlive}
         </p>
       </header>
@@ -796,7 +860,7 @@ export function BattlePage() {
             <p>战斗耗时：{(runtime.elapsedMs / 1000).toFixed(1)} 秒</p>
             <p>逻辑 Tick：{runtime.tickCount}</p>
             <p>速度倍率：x{runtime.speedMultiplier.toFixed(1)}</p>
-            <p>连战规则：胜利后自动继续下一场，HP/MP 继承且不回复</p>
+            <p>{isRitualBattle ? "仪式规则：单场决战，胜负后直接结算。" : "连战规则：胜利后自动继续下一场，HP/MP 继承且不回复"}</p>
           </article>
 
           <article className="battle-side-card battle-log-card">

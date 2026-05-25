@@ -19,6 +19,16 @@
       "id": "legendary_equip_skill_yggdra_resonance",
       "name": "世界树余响",
       "description": "被动：友方受到治疗时，持有者获得 1 层持续 2 回合的全伤害提升（可叠加 3 层）。"
+    },
+    {
+      "id": "legendary_equip_skill_drainseal_vigil",
+      "name": "封印巡守",
+      "description": "被动：持有者对暗属性伤害的承受降低 10%，并在战斗开始时获得持续 2 回合的护盾（护盾值等于最大生命的 8%）。"
+    },
+    {
+      "id": "legendary_equip_skill_cistern_oath",
+      "name": "渠誓余音",
+      "description": "被动：持有者每回合首次受到伤害后，获得 1 层持续 2 回合的伤害减免（最多叠加 3 层）。"
     }
   ]
 }

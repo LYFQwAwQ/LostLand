@@ -1,2 +1,20 @@
-﻿[]
-
+[
+  {
+    "id": "talent_enemy_boss_corrupt_moon",
+    "name": "渗月腐潮",
+    "rarity": "unique",
+    "skillPool": "enemy",
+    "allowedHeroClasses": [],
+    "description": "仪式的本质不是召唤，而是让整座暗渠进入持续涌流的腐潮期。\n----------------\n智力 +42，暴击率 +8%，暗属性加成 +16%，暗属性穿透 +8%。",
+    "modifiers": {
+      "flat": {
+        "int": 42,
+        "critRate": 0.08,
+        "elementalPierce": 0.08
+      },
+      "elementBoost": {
+        "dark": 0.16
+      }
+    }
+  }
+]

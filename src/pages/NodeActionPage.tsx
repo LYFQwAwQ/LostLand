@@ -17,7 +17,7 @@ import { legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
 import { buildWorldMapSearchParams, selectionFromRegion } from "../data/worldMapData";
 import { buildingMaterialDefinitions, type BuildingMaterialTier } from "../data/buildingMaterials";
 import { battleActiveSkills, battlePassiveSkills, battleTalents } from "../data/battleSkills";
-import { getForgeRecipes, getMarketInventory, getShopInventory, getTavernOffers, marketSellRules, type TavernHeroOffer } from "../data/nodeModules";
+import { getForgeRecipes, getShopInventory, getTavernOffers, type TavernHeroOffer } from "../data/nodeModules";
 import { EQUIPMENT_SUBTYPE_LABELS } from "../lib/equipmentCatalog";
 import { computeEquipmentInternalScore } from "../lib/equipmentScoring";
 import { generateEquipmentBatch } from "../lib/equipmentSystem";
@@ -28,6 +28,8 @@ import { useHeroRoster } from "../state/HeroRosterProvider";
 import { useMapSystem } from "../state/MapSystemProvider";
 import { useOrganization } from "../state/OrganizationProvider";
 import type { BulletinMissionState, GeneratedEquipment, InventoryResourceRarity, NodeAction } from "../types/game";
+
+type MarketTabKey = "procure" | "recycle" | "trend";
 
 const validActions: NodeAction[] = [
   "detail",
@@ -167,6 +169,8 @@ function parseOptionalInt(value: string): number | "" {
 export function NodeActionPage() {
   const {
     findNodeById,
+    getNodeMarket,
+    consumeNodeMarketStock,
     getRegionBulletinMissions,
     getRegionMissionWarning,
     acceptedMissionCount,
@@ -182,11 +186,14 @@ export function NodeActionPage() {
     grantMissionRewards,
     buyEquipment,
     buyMaterials,
+    buyConsumables,
+    sellMaterials,
     spendGold,
     sellEquipment,
     sellEquipmentBulk,
     consumeMaterials,
     materialItems,
+    consumableItems,
     getItemOwners,
     isEquipmentLocked,
     setEquipmentLocked,
@@ -203,6 +210,9 @@ export function NodeActionPage() {
   const [tradeRefreshToken, setTradeRefreshToken] = useState(0);
   const [buildingMaterialRefreshToken, setBuildingMaterialRefreshToken] = useState(0);
   const [buildingMaterialBuyQuantityById, setBuildingMaterialBuyQuantityById] = useState<Record<string, number>>({});
+  const [marketTab, setMarketTab] = useState<MarketTabKey>("procure");
+  const [marketBuyQuantityByItemId, setMarketBuyQuantityByItemId] = useState<Record<string, number>>({});
+  const [marketSellQuantityByItemId, setMarketSellQuantityByItemId] = useState<Record<string, number>>({});
   const defaultQuickSellFilter: Partial<EquipmentQuickSellFilter> = ECONOMY_CONFIG.equipmentTrade.quickSell.defaultFilter;
 
   const [quickSellMinLevel, setQuickSellMinLevel] = useState<number | "">(
@@ -239,6 +249,9 @@ export function NodeActionPage() {
     setTradeRefreshToken(0);
     setBuildingMaterialRefreshToken(0);
     setBuildingMaterialBuyQuantityById({});
+    setMarketBuyQuantityByItemId({});
+    setMarketSellQuantityByItemId({});
+    setMarketTab("procure");
     setRecruitedOfferIds([]);
   }, [nodeId, action]);
 
@@ -266,6 +279,27 @@ export function NodeActionPage() {
     acc[item.id] = item.quantity;
     return acc;
   }, {});
+  const consumableCountMap = (consumableItems ?? []).reduce<Record<string, number>>((acc, item) => {
+    acc[item.id] = item.quantity;
+    return acc;
+  }, {});
+  const nodeMarket = getNodeMarket(node.id);
+  const marketBuyItems = nodeMarket?.buyItems ?? [];
+  const marketMaterialBuyItems = marketBuyItems.filter((item) => item.category === "material");
+  const marketConsumableBuyItems = marketBuyItems.filter((item) => item.category === "consumable");
+  const marketSellableMaterialItems = marketMaterialBuyItems
+    .map((item) => {
+      const owned = materialCountMap[item.itemId] ?? 0;
+      if (owned <= 0) {
+        return null;
+      }
+      return {
+        item,
+        owned,
+        unitSellPrice: Math.max(1, Math.floor(item.unitPrice * (nodeMarket?.sellRate ?? 0.5)))
+      };
+    })
+    .filter((entry): entry is { item: (typeof marketMaterialBuyItems)[number]; owned: number; unitSellPrice: number } => Boolean(entry));
   const heroNameMap = useMemo(
     () =>
       heroes.reduce<Record<string, string>>((acc, hero) => {
@@ -510,6 +544,82 @@ export function NodeActionPage() {
     }
     reportChapterBuildMaterialPurchased(quantity);
     setTradeFeedback(`买入成功：${offer.name} x${quantity}，消耗 ${formatCurrency(result.totalCost)} 金币。`);
+  };
+
+  const handleChangeMarketBuyQuantity = (itemId: string, rawValue: string) => {
+    const parsed = Number(rawValue);
+    const quantity = Number.isFinite(parsed) ? Math.max(1, Math.floor(parsed)) : 1;
+    setMarketBuyQuantityByItemId((prev) => ({
+      ...prev,
+      [itemId]: quantity
+    }));
+  };
+
+  const handleChangeMarketSellQuantity = (itemId: string, rawValue: string) => {
+    const parsed = Number(rawValue);
+    const quantity = Number.isFinite(parsed) ? Math.max(1, Math.floor(parsed)) : 1;
+    setMarketSellQuantityByItemId((prev) => ({
+      ...prev,
+      [itemId]: quantity
+    }));
+  };
+
+  const handleBuyFromMarket = (itemId: string) => {
+    if (!nodeMarket || nodeMarket.worldMonth <= 0) {
+      setTradeFeedback("当前商铺尚未生成本月报价。");
+      return;
+    }
+
+    const offer = marketBuyItems.find((entry) => entry.itemId === itemId);
+    if (!offer) {
+      setTradeFeedback("该商品本月不在采购列表。");
+      return;
+    }
+    const quantity = Math.max(1, Math.floor(marketBuyQuantityByItemId[itemId] ?? 1));
+    if (offer.stock < quantity) {
+      setTradeFeedback("库存不足，无法完成采购。");
+      return;
+    }
+
+    const purchaseResult =
+      offer.category === "material"
+        ? buyMaterials([{ materialId: offer.itemId, quantity, unitPrice: offer.unitPrice }])
+        : buyConsumables([{ consumableId: offer.itemId, quantity, unitPrice: offer.unitPrice }]);
+    if (!purchaseResult.ok) {
+      setTradeFeedback(purchaseResult.reason ?? "采购失败。");
+      return;
+    }
+    const consumed = consumeNodeMarketStock(node.id, offer.itemId, quantity);
+    if (!consumed) {
+      setTradeFeedback("采购成功，但库存同步失败。请切换节点后重试。");
+      return;
+    }
+    const totalCost = offer.unitPrice * quantity;
+    setTradeFeedback(`采购成功：${offer.name} x${quantity}，消耗 ${formatCurrency(totalCost)} 金币。`);
+  };
+
+  const handleSellToMarket = (itemId: string) => {
+    if (!nodeMarket || nodeMarket.worldMonth <= 0) {
+      setTradeFeedback("当前商铺尚未生成本月回收价。");
+      return;
+    }
+
+    const sellable = marketSellableMaterialItems.find((entry) => entry.item.itemId === itemId);
+    if (!sellable) {
+      setTradeFeedback("该材料当前不可回收。");
+      return;
+    }
+    const quantity = Math.max(1, Math.floor(marketSellQuantityByItemId[itemId] ?? 1));
+    if (quantity > sellable.owned) {
+      setTradeFeedback("材料数量不足。");
+      return;
+    }
+    const result = sellMaterials([{ materialId: itemId, quantity, unitPrice: sellable.unitSellPrice }]);
+    if (!result.ok) {
+      setTradeFeedback(result.reason ?? "回收失败。");
+      return;
+    }
+    setTradeFeedback(`回收成功：${sellable.item.name} x${quantity}，获得 ${formatCurrency(result.totalGain)} 金币。`);
   };
 
   const handleRecruitOffer = (offer: TavernHeroOffer) => {
@@ -991,36 +1101,140 @@ export function NodeActionPage() {
 
       {action === "market" ? (
         <div className="module-grid">
-          <HeaderInfo title="商铺（原材料与大宗贸易）">
-            <p>当前版本只在 ST1 商店开放装备买卖；ST2 商铺暂为静态配置预览。</p>
-            <div className="module-table-wrap">
-              <table className="module-table">
-                <thead>
-                  <tr>
-                    <th>材料</th>
-                    <th>单价</th>
-                    <th>库存</th>
-                    <th>出现权重</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {getMarketInventory(node).map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.name}</td>
-                      <td>{item.price}</td>
-                      <td>{item.stock}</td>
-                      <td>{item.weight}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <HeaderInfo title="商铺（材料与补给）">
+            <p>
+              当前金币：{formatCurrency(gold)} · 本月价格浮动 {nodeMarket ? `${(nodeMarket.monthlyFloat * 100).toFixed(1)}%` : "--"}
+            </p>
+            {tradeFeedback ? <p className="module-trade-feedback">{tradeFeedback}</p> : null}
+            <div className="module-actions-row">
+              <button
+                type="button"
+                className={marketTab === "procure" ? "primary-btn small-btn" : "ghost-btn small-btn"}
+                onClick={() => setMarketTab("procure")}
+              >
+                采购
+              </button>
+              <button
+                type="button"
+                className={marketTab === "recycle" ? "primary-btn small-btn" : "ghost-btn small-btn"}
+                onClick={() => setMarketTab("recycle")}
+              >
+                回收
+              </button>
+              <button
+                type="button"
+                className={marketTab === "trend" ? "primary-btn small-btn" : "ghost-btn small-btn"}
+                onClick={() => setMarketTab("trend")}
+              >
+                行情
+              </button>
             </div>
-          </HeaderInfo>
 
-          <HeaderInfo title="回收规则（配置占位）">
-            {marketSellRules.map((rule) => (
-              <p key={rule}>{rule}</p>
-            ))}
+            {marketTab === "procure" ? (
+              <div className="module-table-wrap">
+                <table className="module-table">
+                  <thead>
+                    <tr>
+                      <th>商品</th>
+                      <th>类型</th>
+                      <th>单价</th>
+                      <th>库存</th>
+                      <th>持有</th>
+                      <th>采购</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...marketMaterialBuyItems, ...marketConsumableBuyItems].map((item) => {
+                      const quantity = Math.max(1, Math.floor(marketBuyQuantityByItemId[item.itemId] ?? 1));
+                      const totalCost = item.unitPrice * quantity;
+                      const owned = item.category === "material" ? materialCountMap[item.itemId] ?? 0 : consumableCountMap[item.itemId] ?? 0;
+                      const canBuy = item.stock >= quantity && gold >= totalCost;
+                      return (
+                        <tr key={`buy-${item.itemId}`}>
+                          <td>{item.name}</td>
+                          <td>{item.category === "material" ? "材料" : "消耗品"}</td>
+                          <td>{formatCurrency(item.unitPrice)}</td>
+                          <td>{item.stock}</td>
+                          <td>{owned}</td>
+                          <td>
+                            <div className="module-actions-row">
+                              <input
+                                type="number"
+                                min={1}
+                                value={quantity}
+                                onChange={(event) => handleChangeMarketBuyQuantity(item.itemId, event.target.value)}
+                              />
+                              <button
+                                type="button"
+                                className="ghost-btn small-btn"
+                                disabled={!canBuy}
+                                onClick={() => handleBuyFromMarket(item.itemId)}
+                              >
+                                买入 x{quantity}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            {marketTab === "recycle" ? (
+              <div className="module-table-wrap">
+                <table className="module-table">
+                  <thead>
+                    <tr>
+                      <th>材料</th>
+                      <th>持有</th>
+                      <th>回收价</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {marketSellableMaterialItems.map((entry) => {
+                      const quantity = Math.max(1, Math.floor(marketSellQuantityByItemId[entry.item.itemId] ?? 1));
+                      const canSell = entry.owned >= quantity;
+                      return (
+                        <tr key={`sell-${entry.item.itemId}`}>
+                          <td>{entry.item.name}</td>
+                          <td>{entry.owned}</td>
+                          <td>{formatCurrency(entry.unitSellPrice)}</td>
+                          <td>
+                            <div className="module-actions-row">
+                              <input
+                                type="number"
+                                min={1}
+                                value={quantity}
+                                onChange={(event) => handleChangeMarketSellQuantity(entry.item.itemId, event.target.value)}
+                              />
+                              <button
+                                type="button"
+                                className="ghost-btn small-btn"
+                                disabled={!canSell}
+                                onClick={() => handleSellToMarket(entry.item.itemId)}
+                              >
+                                卖出 x{quantity}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            {marketTab === "trend" ? (
+              <>
+                <p>本月浮动：{nodeMarket ? `${(nodeMarket.monthlyFloat * 100).toFixed(1)}%` : "--"}（基础范围 85% ~ 115%）</p>
+                <p>回收折算：{nodeMarket ? `${Math.round(nodeMarket.sellRate * 100)}%` : "--"}（按本月采购价折算）</p>
+                <p>本地库存会随世界月份重置，商铺不经营装备交易。</p>
+              </>
+            ) : null}
           </HeaderInfo>
         </div>
       ) : null}

@@ -1,10 +1,12 @@
-import { buildEnemyTeam, getDefaultHeroLoadout } from "../data/battleUnits";
+import { buildEnemyTeam, buildFixedEnemyTeam, getDefaultHeroLoadout } from "../data/battleUnits";
+import { legendaryEquipmentById, legendaryEquipmentIdByUid } from "../data/legendaryEquipments";
 import type { Hero, HeroProgressState, NodeArchetype } from "../types/game";
 import type { GeneratedEquipment } from "../types/game";
 import type { BattleElement, BattleLoadout, BattleUnitTemplate } from "../types/battle";
 import type { TeamFormationSlotState } from "../state/BattleSetupProvider";
 
 const ELEMENT_KEYS: BattleElement[] = ["fire", "water", "ice", "wind", "life", "light", "undead", "dark"];
+const LEGENDARY_PASSIVE_TAG_PREFIX = "legendary-passive:";
 
 function parseStatNumber(input: string): number {
   const normalized = input.replace(/,/g, "").trim();
@@ -218,6 +220,20 @@ export function buildAllyTeamTemplates(
     const baseAgi = parseStatNumber(hero.stats.agi) + growth.agi * levelProgress;
     const baseDef = parseStatNumber(hero.stats.def) + growth.def * levelProgress;
     const equippedItems = getUniqueEquippedItems(hero.id, equippedByHero, itemMap);
+    const legendaryPassiveTags = Array.from(
+      new Set(
+        equippedItems
+          .map((item) => {
+            const legendaryId = legendaryEquipmentIdByUid[item.uid];
+            if (!legendaryId) {
+              return null;
+            }
+            const passiveId = legendaryEquipmentById[legendaryId]?.passiveSkillId;
+            return passiveId ? `${LEGENDARY_PASSIVE_TAG_PREFIX}${passiveId}` : null;
+          })
+          .filter((tag): tag is string => Boolean(tag))
+      )
+    );
     const equipBonus = mapEquipmentStats(equippedItems, getEnhanceBonusByUid);
     const elementPreset = heroElementPreset(hero);
     const isPaladin = hero.heroClass === "paladin";
@@ -234,7 +250,7 @@ export function buildAllyTeamTemplates(
       level: heroLevel,
       slot: { line, index: slotIndex },
       avatar: hero.image,
-      tags: [hero.heroClass],
+      tags: [hero.heroClass, ...legendaryPassiveTags],
       baseStats: {
         maxHp: Math.round(baseMaxHp + equipBonus.maxHp),
         maxMp: Math.round(baseMaxMp + equipBonus.maxMp),
@@ -280,4 +296,12 @@ export function buildEnemyTeamTemplates(
   sourceNodeId?: string
 ): BattleUnitTemplate[] {
   return buildEnemyTeam(seedId, archetype, suppression, sourceNodeId ?? seedId);
+}
+
+export function buildFixedEnemyTeamTemplates(
+  prototypeIds: string[],
+  archetype: NodeArchetype = "BL3",
+  suppression = 90
+): BattleUnitTemplate[] {
+  return buildFixedEnemyTeam(prototypeIds, archetype, suppression);
 }

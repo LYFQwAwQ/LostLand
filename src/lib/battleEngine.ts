@@ -36,6 +36,20 @@ const EVA_CAP = 0.5;
 const MIYA_TALENT_ID = "talent_legend_miya_pulse_of_yggdrasil";
 const MIYA_ACTIVE_SKILL_ID = "skill_legend_miya_emerald_baptism";
 const MIYA_PASSIVE_SKILL_ID = "passive_legend_miya_universal_resonance";
+const LEGENDARY_PASSIVE_TAG_PREFIX = "legendary-passive:";
+const LEGENDARY_PASSIVE_EMBERSHARD_ID = "legendary_equip_skill_embershard_oath";
+const LEGENDARY_PASSIVE_TIDECORE_ID = "legendary_equip_skill_tidecore_whisper";
+const LEGENDARY_PASSIVE_STARSEAL_ID = "legendary_equip_skill_starseal_hunt";
+const LEGENDARY_PASSIVE_YGGDRA_ID = "legendary_equip_skill_yggdra_resonance";
+const LEGENDARY_PASSIVE_DRAINSEAL_ID = "legendary_equip_skill_drainseal_vigil";
+const LEGENDARY_PASSIVE_CISTERN_ID = "legendary_equip_skill_cistern_oath";
+const LEGENDARY_YGGDRA_STACK_KEY = "legendary:yggdra:stacks";
+const LEGENDARY_YGGDRA_SYNC_KEY = "legendary:yggdra:applied";
+const LEGENDARY_CISTERN_STACK_KEY = "legendary:cistern:stacks";
+const LEGENDARY_CISTERN_SYNC_KEY = "legendary:cistern:applied";
+const LEGENDARY_CISTERN_READY_KEY = "legendary:cistern:ready";
+const LEGENDARY_YGGDRA_DAMAGE_BOOST_PER_STACK = 0.04;
+const LEGENDARY_CISTERN_REDUCTION_PER_STACK = 0.04;
 const MULTIPLICATIVE_MODIFIER_KEYS = new Set<BattleStatFlatKey>(["maxHp", "maxMp", "str", "int", "agi", "def"]);
 const NEGATIVE_STATUS_KEYS = new Set<BattleStatusKey>(["frozen", "stunned", "poisoned", "burning", "weakened", "taunted"]);
 const POSITIVE_STATUS_KEYS = new Set<BattleStatusKey>(["guarded", "shielded", "immune"]);
@@ -67,6 +81,7 @@ interface DamageRecordMeta {
   cause: BattleReplayDamageCause;
   skillId: string | null;
   skillName: string | null;
+  element?: BattleElement | null;
 }
 
 function createElementRecord(initial = 0): Record<BattleElement, number> {
@@ -93,6 +108,93 @@ function randomOf<T>(items: T[]): T | null {
   return items[Math.floor(Math.random() * items.length)] ?? null;
 }
 
+function hasLegendaryPassiveTag(tags: string[], passiveId: string): boolean {
+  return tags.includes(`${LEGENDARY_PASSIVE_TAG_PREFIX}${passiveId}`);
+}
+
+function hasLegendaryPassive(unit: BattleRuntimeUnit, passiveId: string): boolean {
+  return hasLegendaryPassiveTag(unit.tags, passiveId);
+}
+
+function applyLegendaryPassiveBaseStats(stats: BattleStatBlock, tags: string[]): BattleStatBlock {
+  let next = stats;
+  if (hasLegendaryPassiveTag(tags, LEGENDARY_PASSIVE_DRAINSEAL_ID)) {
+    next = applyStatModifier(next, { elementRes: { dark: 0.1 } });
+  }
+  return next;
+}
+
+function updateLegendaryStatByStackDelta(
+  unit: BattleRuntimeUnit,
+  stackKey: string,
+  syncKey: string,
+  statKey: "damageBoost" | "damageReduction",
+  perStack: number
+): void {
+  const stackCount = unit.runtimeStacks[stackKey]?.length ?? 0;
+  const appliedCount = unit.runtimeFlags[syncKey] ?? 0;
+  const delta = stackCount - appliedCount;
+  if (delta === 0) {
+    return;
+  }
+
+  if (statKey === "damageBoost") {
+    unit.stats.damageBoost = clamp(unit.stats.damageBoost + delta * perStack, -0.8, 2);
+  } else {
+    unit.stats.damageReduction = clamp(unit.stats.damageReduction + delta * perStack, -0.5, 0.9);
+  }
+  unit.runtimeFlags[syncKey] = stackCount;
+}
+
+function syncLegendaryPassiveRuntimeStats(unit: BattleRuntimeUnit): void {
+  updateLegendaryStatByStackDelta(
+    unit,
+    LEGENDARY_YGGDRA_STACK_KEY,
+    LEGENDARY_YGGDRA_SYNC_KEY,
+    "damageBoost",
+    LEGENDARY_YGGDRA_DAMAGE_BOOST_PER_STACK
+  );
+  updateLegendaryStatByStackDelta(
+    unit,
+    LEGENDARY_CISTERN_STACK_KEY,
+    LEGENDARY_CISTERN_SYNC_KEY,
+    "damageReduction",
+    LEGENDARY_CISTERN_REDUCTION_PER_STACK
+  );
+}
+
+function addLegendaryStack(unit: BattleRuntimeUnit, stackKey: string, duration: number, maxStacks: number): boolean {
+  const current = unit.runtimeStacks[stackKey] ?? [];
+  if (current.length >= maxStacks) {
+    return false;
+  }
+  unit.runtimeStacks[stackKey] = [...current, duration];
+  return true;
+}
+
+function tickLegendaryStackDurations(unit: BattleRuntimeUnit, stackKey: string): void {
+  const current = unit.runtimeStacks[stackKey] ?? [];
+  if (current.length <= 0) {
+    return;
+  }
+  unit.runtimeStacks[stackKey] = current.map((value) => value - 1).filter((value) => value > 0);
+}
+
+function applyLegendaryTurnStart(unit: BattleRuntimeUnit): void {
+  if (hasLegendaryPassive(unit, LEGENDARY_PASSIVE_YGGDRA_ID)) {
+    tickLegendaryStackDurations(unit, LEGENDARY_YGGDRA_STACK_KEY);
+  }
+  if (hasLegendaryPassive(unit, LEGENDARY_PASSIVE_CISTERN_ID)) {
+    tickLegendaryStackDurations(unit, LEGENDARY_CISTERN_STACK_KEY);
+    unit.runtimeFlags[LEGENDARY_CISTERN_READY_KEY] = 1;
+  }
+  syncLegendaryPassiveRuntimeStats(unit);
+}
+
+function dominantOffenseStat(unit: BattleRuntimeUnit): number {
+  return Math.max(unit.stats.str, unit.stats.agi, unit.stats.int);
+}
+
 function copyUnit(unit: BattleRuntimeUnit): BattleRuntimeUnit {
   return {
     ...unit,
@@ -103,6 +205,10 @@ function copyUnit(unit: BattleRuntimeUnit): BattleRuntimeUnit {
     },
     cooldowns: { ...unit.cooldowns },
     statuses: unit.statuses.map((status) => ({ ...status })),
+    runtimeFlags: { ...unit.runtimeFlags },
+    runtimeStacks: Object.fromEntries(
+      Object.entries(unit.runtimeStacks).map(([key, values]) => [key, [...values]])
+    ) as Record<string, number[]>,
     activeSkillIds: [...unit.activeSkillIds],
     passiveSkillIds: [...unit.passiveSkillIds],
     loadout: {
@@ -428,6 +534,7 @@ function buildRuntimeUnit(template: BattleUnitTemplate): BattleRuntimeUnit {
   if (talentId) {
     finalStats = applyStatModifier(finalStats, battleTalents[talentId].modifiers);
   }
+  finalStats = applyLegendaryPassiveBaseStats(finalStats, template.tags ?? []);
 
   const cooldownKeys = new Set(activeSkillIds);
   cooldownKeys.add(DEFAULT_ACTIVE_SKILL_ID);
@@ -458,7 +565,11 @@ function buildRuntimeUnit(template: BattleUnitTemplate): BattleRuntimeUnit {
     passiveSkillIds,
     talentId,
     cooldowns,
-    statuses: []
+    statuses: [],
+    runtimeFlags: {
+      [LEGENDARY_CISTERN_READY_KEY]: hasLegendaryPassiveTag(template.tags ?? [], LEGENDARY_PASSIVE_CISTERN_ID) ? 1 : 0
+    },
+    runtimeStacks: {}
   };
 }
 
@@ -512,6 +623,7 @@ function removeStatusesByRule(
 ): BattleStatusInstance[] {
   const removable = unit.statuses
     .filter((status) => status.remainingTurns > 0)
+    .filter((status) => status.dispellable !== false)
     .filter((status) => matchesStatusPolarity(status.key, polarity))
     .sort((left, right) => {
       if (right.remainingTurns !== left.remainingTurns) {
@@ -654,8 +766,46 @@ function triggerMiyaUniversalResonance(
       timeMs,
       cause: "skill",
       skillId: MIYA_PASSIVE_SKILL_ID,
-      skillName: "万物共鸣"
+      skillName: "万物共鸣",
+      element: "life"
     });
+  });
+}
+
+function resolveLegendaryIncomingDamage(target: BattleRuntimeUnit, damage: number, element?: BattleElement | null): number {
+  if (damage <= 0) {
+    return 0;
+  }
+  if (element === "dark" && hasLegendaryPassive(target, LEGENDARY_PASSIVE_DRAINSEAL_ID)) {
+    return Math.max(1, Math.round(damage * 0.9));
+  }
+  return damage;
+}
+
+function triggerLegendaryCisternOath(target: BattleRuntimeUnit): void {
+  if (!target.alive || !hasLegendaryPassive(target, LEGENDARY_PASSIVE_CISTERN_ID)) {
+    return;
+  }
+  if ((target.runtimeFlags[LEGENDARY_CISTERN_READY_KEY] ?? 0) <= 0) {
+    return;
+  }
+  target.runtimeFlags[LEGENDARY_CISTERN_READY_KEY] = 0;
+  if (addLegendaryStack(target, LEGENDARY_CISTERN_STACK_KEY, 2, 3)) {
+    syncLegendaryPassiveRuntimeStats(target);
+  }
+}
+
+function triggerLegendaryYggdraResonance(healedUnit: BattleRuntimeUnit, units: BattleRuntimeUnit[]): void {
+  if (!healedUnit.alive) {
+    return;
+  }
+  livingUnits(units, healedUnit.side).forEach((unit) => {
+    if (!hasLegendaryPassive(unit, LEGENDARY_PASSIVE_YGGDRA_ID)) {
+      return;
+    }
+    if (addLegendaryStack(unit, LEGENDARY_YGGDRA_STACK_KEY, 2, 3)) {
+      syncLegendaryPassiveRuntimeStats(unit);
+    }
   });
 }
 
@@ -668,7 +818,8 @@ function applyDamage(
   units?: BattleRuntimeUnit[]
 ): number {
   const rawDamage = Math.max(1, Math.round(value));
-  const { damageAfterShield } = resolveShieldAbsorption(target, rawDamage, source, replay, meta.timeMs);
+  const adjustedDamage = resolveLegendaryIncomingDamage(target, rawDamage, meta.element);
+  const { damageAfterShield } = resolveShieldAbsorption(target, adjustedDamage, source, replay, meta.timeMs);
   const damage = Math.max(0, Math.round(damageAfterShield));
   if (damage <= 0) {
     return 0;
@@ -683,6 +834,9 @@ function applyDamage(
     ensureUnitStat(replay, source).kills += 1;
     ensureUnitStat(replay, target).deaths += 1;
   }
+  if (source.side !== target.side) {
+    triggerLegendaryCisternOath(target);
+  }
   if (units && source.side !== target.side) {
     triggerMiyaUniversalResonance(target, units, replay, meta.timeMs);
   }
@@ -696,13 +850,17 @@ function applyHeal(
   replay: BattleReplayData,
   timeMs: number,
   skillId: string | null,
-  skillName: string | null
+  skillName: string | null,
+  units?: BattleRuntimeUnit[]
 ): number {
   const heal = Math.max(1, Math.round(value));
   const next = Math.min(target.stats.maxHp, target.currentHp + heal);
   const actual = next - target.currentHp;
   target.currentHp = next;
   recordHealEvent(replay, source, target, actual, timeMs, skillId, skillName);
+  if (actual > 0 && units) {
+    triggerLegendaryYggdraResonance(target, units);
+  }
   return actual;
 }
 
@@ -773,6 +931,7 @@ function applyStatus(
     existing.remainingTurns = Math.max(existing.remainingTurns, application.duration);
     existing.potency = application.key === "shielded" ? existing.potency + potency : Math.max(existing.potency, potency);
     existing.sourceUnitId = source.id;
+    existing.dispellable = existing.dispellable === false ? false : application.dispellable ?? true;
     recordStatusChange(replay, "refreshed", existing, target, source, timeMs);
   } else {
     const created: BattleStatusInstance = {
@@ -780,7 +939,8 @@ function applyStatus(
       key: application.key,
       remainingTurns: application.duration,
       potency,
-      sourceUnitId: source.id
+      sourceUnitId: source.id,
+      dispellable: application.dispellable ?? true
     };
     target.statuses.push(created);
     recordStatusChange(replay, "applied", created, target, source, timeMs);
@@ -792,6 +952,42 @@ function applyStatus(
     polarity === "negative" ? "debuff" : "buff",
     `${source.name} 对 ${target.name} 施加 ${application.key} (${application.duration} 回合)`
   );
+}
+
+function applyLegendaryBattleStartEffects(
+  units: BattleRuntimeUnit[],
+  logs: BattleLogEntry[],
+  replay: BattleReplayData
+): BattleLogEntry[] {
+  let nextLogs = logs;
+  units.forEach((unit) => {
+    if (!unit.alive) {
+      return;
+    }
+    if (hasLegendaryPassive(unit, LEGENDARY_PASSIVE_EMBERSHARD_ID)) {
+      const shieldValue = Math.max(1, Math.round(unit.stats.maxHp * 0.12));
+      nextLogs = applyStatus(
+        unit,
+        unit,
+        { key: "shielded", chance: 1, duration: 99, potency: shieldValue, dispellable: false },
+        0,
+        nextLogs,
+        replay
+      );
+    }
+    if (hasLegendaryPassive(unit, LEGENDARY_PASSIVE_DRAINSEAL_ID)) {
+      const shieldValue = Math.max(1, Math.round(unit.stats.maxHp * 0.08));
+      nextLogs = applyStatus(
+        unit,
+        unit,
+        { key: "shielded", chance: 1, duration: 2, potency: shieldValue },
+        0,
+        nextLogs,
+        replay
+      );
+    }
+  });
+  return nextLogs;
 }
 
 function chooseByWeight<T>(entries: Array<{ weight: number; value: T }>): T | null {
@@ -1002,7 +1198,8 @@ function applyElementalTrigger(
       timeMs,
       cause: "element",
       skillId: null,
-      skillName: trigger.replaySkillName ?? trigger.name
+      skillName: trigger.replaySkillName ?? trigger.name,
+      element
     }, units);
     accumulator.damageDone += applied;
     accumulator.targetUnitIds.add(target.id);
@@ -1056,7 +1253,7 @@ function applyElementalTrigger(
   if (trigger.effect === "healAllies") {
     const allies = livingUnits(units, attacker.side);
     allies.forEach((ally) => {
-      const healed = applyHeal(attacker, ally, effectValue, replay, timeMs, null, trigger.replaySkillName ?? trigger.name);
+      const healed = applyHeal(attacker, ally, effectValue, replay, timeMs, null, trigger.replaySkillName ?? trigger.name, units);
       if (healed > 0) {
         accumulator.healDone += healed;
         accumulator.targetUnitIds.add(ally.id);
@@ -1131,11 +1328,13 @@ function performDamageSkill(
     const extraZone = Math.max(0.1, 1 + attacker.stats.damageBoost - weakenedPenalty);
     const reductionZone = Math.max(0.1, 1 - clamp(target.stats.damageReduction + guardedBonus, -0.8, 0.9));
     const finalDamage = Math.max(1, Math.round(basePower * critZone * defZone * elemZone * undeadZone * extraZone * reductionZone));
+    const targetHpRatioBeforeHit = target.currentHp / Math.max(1, target.stats.maxHp);
     const dealt = applyDamage(attacker, target, finalDamage, replay, {
       timeMs,
       cause: "skill",
       skillId: skill.id,
-      skillName: skill.name
+      skillName: skill.name,
+      element
     }, units);
     accumulator.damageDone += dealt;
     accumulator.targetUnitIds.add(target.id);
@@ -1148,9 +1347,28 @@ function performDamageSkill(
       `${attacker.name} 使用 ${skill.name} 对 ${target.name} 造成 ${dealt} 伤害${crit ? " (暴击)" : ""}`
     );
 
+    if (
+      dealt > 0 &&
+      target.alive &&
+      targetHpRatioBeforeHit < 0.4 &&
+      hasLegendaryPassive(attacker, LEGENDARY_PASSIVE_STARSEAL_ID)
+    ) {
+      const followUpDamage = Math.max(1, Math.round(dominantOffenseStat(attacker) * 0.25));
+      const chased = applyDamage(attacker, target, followUpDamage, replay, {
+        timeMs,
+        cause: "skill",
+        skillId: LEGENDARY_PASSIVE_STARSEAL_ID,
+        skillName: "星封猎脉"
+      }, units);
+      if (chased > 0) {
+        accumulator.damageDone += chased;
+        nextLogs = appendLog(nextLogs, timeMs, "damage", `${attacker.name} 的 星封猎脉 对 ${target.name} 追击 ${chased}`);
+      }
+    }
+
     if (attacker.stats.lifeSteal > 0 && dealt > 0 && attacker.alive) {
       const heal = Math.max(1, Math.round(dealt * attacker.stats.lifeSteal));
-      const healed = applyHeal(attacker, attacker, heal, replay, timeMs, skill.id, `${skill.name}-吸血`);
+      const healed = applyHeal(attacker, attacker, heal, replay, timeMs, skill.id, `${skill.name}-吸血`, units);
       if (healed > 0) {
         accumulator.healDone += healed;
         accumulator.targetUnitIds.add(attacker.id);
@@ -1183,7 +1401,7 @@ function performDamageSkill(
         const healValue = Math.max(1, Math.round(target.stats.maxHp * effect.ratio));
         const allies = livingUnits(units, attacker.side);
         allies.forEach((ally) => {
-          const healed = applyHeal(attacker, ally, healValue, replay, timeMs, skill.id, `${skill.name}-生命爆发`);
+          const healed = applyHeal(attacker, ally, healValue, replay, timeMs, skill.id, `${skill.name}-生命爆发`, units);
           if (healed > 0) {
             accumulator.healDone += healed;
             accumulator.targetUnitIds.add(ally.id);
@@ -1218,7 +1436,7 @@ function performHealSkill(
       return;
     }
     const healPower = Math.max(1, Math.round(basePower * (1 + actor.stats.allBoost) * (shouldDoubleLifeHeal ? 2 : 1)));
-    const healed = applyHeal(actor, target, healPower, replay, timeMs, skill.id, skill.name);
+    const healed = applyHeal(actor, target, healPower, replay, timeMs, skill.id, skill.name, units);
     accumulator.healDone += healed;
     accumulator.targetUnitIds.add(target.id);
     accumulator.targetUnitNames.add(target.name);
@@ -1396,6 +1614,7 @@ function processActorTurn(runtime: BattleRuntimeState, actorIndex: number): Batt
   const replay = copyReplayData(runtime.replay);
   let logs = [...runtime.logs];
   const timeMs = runtime.elapsedMs;
+  applyLegendaryTurnStart(actor);
   logs = applyTurnStartStatus(actor, units, logs, timeMs, replay);
   if (!actor.alive) {
     actor.actionValue = 0;
@@ -1438,6 +1657,16 @@ function processActorTurn(runtime: BattleRuntimeState, actorIndex: number): Batt
 
   if (typeof selectedSkill.actionDeltaSelf === "number") {
     actor.actionValue = clamp(actor.actionValue + selectedSkill.actionDeltaSelf, 0, ACTION_THRESHOLD - 1);
+  }
+
+  if (hasLegendaryPassive(actor, LEGENDARY_PASSIVE_TIDECORE_ID) && actor.alive) {
+    const restore = Math.max(1, Math.round(actor.stats.maxMp * 0.06));
+    const beforeMp = actor.currentMp;
+    actor.currentMp = Math.min(actor.stats.maxMp, actor.currentMp + restore);
+    const actualRestore = actor.currentMp - beforeMp;
+    if (actualRestore > 0) {
+      logs = appendLog(logs, timeMs, "buff", `${actor.name} 的 潮核低语 回复 ${actualRestore} 法力`);
+    }
   }
 
   const snapshot: BattleReplayActionSnapshot = {
@@ -1497,7 +1726,7 @@ export function createBattleRuntime(params: CreateBattleRuntimeParams): BattleRu
   const enemyTeam = params.enemyTeam.map(buildRuntimeUnit);
   const units = [...allyTeam, ...enemyTeam];
 
-  const logs: BattleLogEntry[] = [
+  let logs: BattleLogEntry[] = [
     {
       id: "init-1",
       timeMs: 0,
@@ -1505,6 +1734,8 @@ export function createBattleRuntime(params: CreateBattleRuntimeParams): BattleRu
       text: `进入战斗：${params.nodeId}（压制 ${params.suppression}%）`
     }
   ];
+  const replay = createInitialReplayData(units);
+  logs = applyLegendaryBattleStartEffects(units, logs, replay);
 
   return {
     battleId: params.battleId,
@@ -1519,7 +1750,7 @@ export function createBattleRuntime(params: CreateBattleRuntimeParams): BattleRu
     units,
     logs,
     drops: null,
-    replay: createInitialReplayData(units)
+    replay
   };
 }
 

@@ -1,2 +1,21 @@
-﻿[]
-
+[
+  {
+    "id": "passive_enemy_boss_seal_carapace",
+    "name": "封印护壳",
+    "skillPool": "enemy",
+    "allowedHeroClasses": [],
+    "description": "主教已经和腐化封印结成半共生体，任何正面强攻都会被封印壳层部分卸去。\n----------------\n最大生命值 +18%，伤害减免 +8%，全元素抗性 +10%，暗属性加成 +18%。",
+    "modifiers": {
+      "ratio": {
+        "maxHp": 0.18
+      },
+      "flat": {
+        "damageReduction": 0.08,
+        "allRes": 0.1
+      },
+      "elementBoost": {
+        "dark": 0.18
+      }
+    }
+  }
+]

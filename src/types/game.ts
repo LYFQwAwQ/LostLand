@@ -476,3 +476,82 @@ export interface MissionBattleOutcome {
   nodeArchetype?: RegionNode["archetype"];
   victory?: boolean;
 }
+
+export interface InventoryCostRequirement {
+  gold: number;
+  materials: Array<{ materialId: string; quantity: number }>;
+}
+
+export interface RitualRewardDefinition {
+  gold: number;
+  reputation: number;
+  materials: BulletinMissionRewardMaterial[];
+  consumables: BulletinMissionRewardConsumable[];
+  legendaryEquipmentIds?: string[];
+}
+
+export interface RitualBossPreview {
+  enemyIds: string[];
+  recommendedSuppression: number;
+  riskTags: string[];
+}
+
+export interface RitualDefinition {
+  id: string;
+  nodeId: string;
+  regionId: string;
+  name: string;
+  description: string;
+  unlock: {
+    requiredQuestId: string;
+    requiredSuppression: number;
+  };
+  cost: InventoryCostRequirement;
+  reward: RitualRewardDefinition;
+  boss: RitualBossPreview;
+}
+
+export type RitualStatus = "locked" | "available" | "completed";
+
+export interface RitualState {
+  ritualId: string;
+  status: RitualStatus;
+  completedAtWorldMonth: number | null;
+  lastAttemptAtWorldMonth: number | null;
+}
+
+export interface MarketStockItemDefinition {
+  itemId: string;
+  category: "material" | "consumable";
+  basePrice: number;
+  baseStock: number;
+}
+
+export interface MarketNodeDefinition {
+  nodeId: string;
+  label: string;
+  flavor: string;
+  nodeRoleMultiplier: number;
+  sellRate: number;
+  featuredItemIds: string[];
+  stockItems: MarketStockItemDefinition[];
+}
+
+export interface MarketPricedItem {
+  itemId: string;
+  category: "material" | "consumable";
+  name: string;
+  rarity: InventoryResourceRarity;
+  unitPrice: number;
+  stock: number;
+  monthlyFloat: number;
+  basePrice: number;
+}
+
+export interface MarketMonthState {
+  nodeId: string;
+  worldMonth: number;
+  buyItems: MarketPricedItem[];
+  sellRate: number;
+  monthlyFloat: number;
+}

@@ -4,7 +4,7 @@
 
 ## P0（高优先）
 
-- [ ] 消耗品实装：当前消耗品（如治疗药剂）只有示例库存。需要实装在战斗内外使用消耗品的逻辑
+- [ ] 消耗品实装：需要实装在战斗内外使用消耗品的逻辑（当前已接入“获得/入包/交易”，但战斗中使用仍未接入）
 
 ## P1（功能完整性）
 
@@ -12,13 +12,13 @@
 - [ ] 测试结束后恢复“非中央大陆入口”开放策略（当前 `WorldMapPage` 临时仅开放中央大陆，其他大陆按钮置灰且 URL 会强制回写）；建议从 `src/pages/WorldMapPage.tsx` 的大陆按钮禁用逻辑与 selection 归一化逻辑回收。
 - [ ] 大陆层“顶级装备掉落池”接入实际掉落计算链路（当前仅有配置字段，未接逻辑）。
 - [ ] 传奇英雄获取流程接入正式规则（BOSS 材料/任务条件/解锁反馈）。
-- [ ] 传奇装备获取流程接入正式渠道（当前仅支持在英雄页/背包页管理固定配置，不含产出闭环，且测试期默认拥有全部传奇装备）；建议从 `src/state/EquipmentInventoryProvider.tsx` 的 `ownedLegendaryEquipmentIds` 状态切换为正式产出写入入口，再在 `src/pages/NodeActionPage.tsx` / `src/lib/bulletinMissionSystem.ts` / 战斗结算链路中接入掉落或任务解锁来源，并同步补充 `src/data/config/legendaryEquipments.json` 的解锁条件字段设计。
-- [ ] 测试结束后移除“默认拥有全部传奇装备”逻辑，改为仅显示并允许装备已解锁的传奇装备；可从 `src/state/EquipmentInventoryProvider.tsx` 的 `buildDefaultOwnedLegendaryEquipmentIds` 回退策略与 `src/pages/InventoryPage.tsx` 的传奇装备页签说明文案入手。
+- [ ] 传奇装备获取流程扩展为正式多渠道规则（当前第一章仪式已可解锁部分传说装备，也已移除“默认全拥有”测试逻辑，但仍缺少章节结算、掉落、任务奖励等更完整来源）；建议继续从 `src/state/EquipmentInventoryProvider.tsx` 的 `ownedLegendaryEquipmentIds` 写入入口扩展，再在 `src/pages/NodeActionPage.tsx` / `src/lib/bulletinMissionSystem.ts` / 战斗结算链路中接入更多来源，并同步补充 `src/data/config/legendaryEquipments.json` 的解锁条件字段设计。
 - [ ] 测试结束后移除“弥亚固定初始英雄”注入，恢复为仅通过正式传奇获取规则出现。
 - [ ] 给玩家英雄补齐“种族”属性并接入完整战斗配置链路（当前仅敌方配置已加入种族字段）。
 - [ ] 英雄技能获取系统接入正式流程（当前仅支持“创建随机英雄时初始获得技能”）。
 - [ ] 消耗品库存接入正式产出与消耗链路（当前为示例库存实现）。
-- [ ] ST1/ST2 节点商店补齐“非装备品类”的完整交易闭环（当前 ST1 已接通建筑材料买入，ST2 仍为静态预览）：建议从 `src/pages/NodeActionPage.tsx` 的 `build_materials/market` 交易区块继续扩展材料卖出、消耗品交易与大宗贸易，再在 `src/state/EquipmentInventoryProvider.tsx` 增加对应买卖结算接口，并统一到 `src/data/config/economyConfig.ts` / 建材配置文件管理价格与刷新参数。
+- [ ] ST1 节点补齐“非装备品类”交易：当前 ST1 仅接通建材买入与装备买卖，尚未接入消耗品交易、材料卖出与更完整的交易视图；建议复用 `ST2/market` 的交易区块，在 `src/pages/NodeActionPage.tsx` 增加 ST1 的消耗品/材料交易入口，并将价格与刷新逻辑统一到 `src/state/MapSystemProvider.tsx`。
+- [ ] ST2 商铺扩展为“大宗贸易”正式版：当前已接通材料/消耗品交易与回收，但仍缺少跨节点价差套利、订单合约、商队运输风险与声望折扣等玩法；建议从 `src/data/markets.ts` 扩展配置结构，并在 `src/state/MapSystemProvider.tsx` 增加跨节点价格曲线与订单状态。
 - [ ] 建筑材料交易页补齐“素材交易页”后续能力：当前仅支持按主城浮动价格购买，尚未提供材料卖出、批量采购模板、历史价格对比与跨主城价差提示；建议从 `src/pages/NodeActionPage.tsx` 的 `build_materials` 分支入手扩展交互区块，并将可调参数沉淀到 `src/data/config/buildingMaterialMarkets/*.json`。
 - [ ] 建筑材料库存上限接入正式规则（当前不设上限）：需要明确按“单材料上限 / 总仓储上限 / 仓储建筑加成”中的哪种策略生效，并在 `src/state/EquipmentInventoryProvider.tsx` 的建材买入与奖励入包链路统一校验，避免超量写入。
 - [ ] 布告栏任务刷新策略升级为正式版（当前为“地区首次加载后生成固定 2 收集 + 2 讨伐，不自动轮换”）；建议从 `src/lib/bulletinMissionSystem.ts` 增加刷新规则，再在 `MapSystemProvider` 增加月刷新/补位触发。

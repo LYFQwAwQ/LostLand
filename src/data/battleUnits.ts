@@ -1125,9 +1125,113 @@ const ABERRANT_ENEMY_POOL: EnemyPrototype[] = [
   }
 ];
 
-const ENEMY_POOL: EnemyPrototype[] = [...CORE_ENEMY_POOL, ...ABERRANT_ENEMY_POOL];
+const SPECIAL_ENEMY_POOL: EnemyPrototype[] = [
+  {
+    id: "ritual_boss_putrid_moon_bishop",
+    name: "渗月尸骸主教",
+    race: "undead",
+    rarityTier: "calamity",
+    lootQualityTier: "legendary",
+    difficultyMultiplier: 0.38,
+    baseLevel: 16,
+    slotHint: "back",
+    stats: {
+      maxHp: 4880,
+      maxMp: 1680,
+      str: 136,
+      int: 262,
+      agi: 122,
+      def: 188,
+      critRate: 0.16,
+      critDamage: 1.82,
+      evasion: 0.08,
+      aggro: 112,
+      lifeSteal: 0,
+      thorns: 0.04,
+      damageBoost: 0.14,
+      damageReduction: 0.12,
+      elementalPierce: 0.16,
+      allRes: 0.12,
+      allBoost: 0.14
+    },
+    elementBoost: { dark: 0.24, undead: 0.14 },
+    elementRes: { dark: 0.18, undead: 0.12, light: 0.04 },
+    loadout: createBattleLoadout(
+      "talent_enemy_boss_corrupt_moon",
+      ["enemy_boss_foulmoon_pulse", "enemy_boss_drain_echo", "enemy_boss_seal_shell", "enemy_claw"],
+      ["passive_enemy_boss_seal_carapace"]
+    )
+  },
+  {
+    id: "ritual_add_seal_echo",
+    name: "封印残响",
+    race: "undead",
+    rarityTier: "champion",
+    lootQualityTier: "rare",
+    difficultyMultiplier: 0.18,
+    baseLevel: 14,
+    slotHint: "back",
+    stats: {
+      maxHp: 2140,
+      maxMp: 920,
+      str: 92,
+      int: 188,
+      agi: 132,
+      def: 126,
+      critRate: 0.11,
+      critDamage: 1.6,
+      evasion: 0.08,
+      aggro: 86,
+      lifeSteal: 0,
+      thorns: 0,
+      damageBoost: 0.08,
+      damageReduction: 0.04,
+      elementalPierce: 0.12,
+      allRes: 0.06,
+      allBoost: 0.08
+    },
+    elementBoost: { dark: 0.16 },
+    elementRes: { dark: 0.08, undead: 0.08 },
+    loadout: createBattleLoadout("talent_enemy_predator", ["enemy_poison_spit", "enemy_boss_drain_echo", "enemy_claw"], [])
+  },
+  {
+    id: "ritual_add_channel_guard",
+    name: "渠底骸卫",
+    race: "undead",
+    rarityTier: "elite",
+    lootQualityTier: "uncommon",
+    difficultyMultiplier: 0.12,
+    baseLevel: 14,
+    slotHint: "front",
+    stats: {
+      maxHp: 3320,
+      maxMp: 360,
+      str: 182,
+      int: 82,
+      agi: 104,
+      def: 176,
+      critRate: 0.08,
+      critDamage: 1.52,
+      evasion: 0.04,
+      aggro: 152,
+      lifeSteal: 0.01,
+      thorns: 0.08,
+      damageBoost: 0.05,
+      damageReduction: 0.09,
+      elementalPierce: 0.04,
+      allRes: 0.08,
+      allBoost: 0.03
+    },
+    elementBoost: { undead: 0.08 },
+    elementRes: { dark: 0.08, undead: 0.1 },
+    loadout: createBattleLoadout("talent_enemy_predator", ["enemy_rush", "enemy_claw"], ["passive_enemy_feral"])
+  }
+];
 
-const ENEMY_PROTOTYPE_BY_ID: Record<string, EnemyPrototype> = ENEMY_POOL.reduce<Record<string, EnemyPrototype>>((acc, prototype) => {
+const ENEMY_POOL: EnemyPrototype[] = [...CORE_ENEMY_POOL, ...ABERRANT_ENEMY_POOL];
+const ENEMY_PROTOTYPE_LOOKUP_POOL: EnemyPrototype[] = [...ENEMY_POOL, ...SPECIAL_ENEMY_POOL];
+
+const ENEMY_PROTOTYPE_BY_ID: Record<string, EnemyPrototype> = ENEMY_PROTOTYPE_LOOKUP_POOL.reduce<Record<string, EnemyPrototype>>((acc, prototype) => {
   acc[prototype.id] = prototype;
   return acc;
 }, {});
@@ -1155,7 +1259,7 @@ function resolveLootQualityTier(prototype: EnemyPrototype): EquipmentQuality {
   return prototype.lootQualityTier ?? ENEMY_RARITY_META[prototype.rarityTier].lootQualityTier;
 }
 
-export const enemyPrototypeCatalog: EnemyPrototypeCatalogEntry[] = ENEMY_POOL.map((prototype) => ({
+export const enemyPrototypeCatalog: EnemyPrototypeCatalogEntry[] = ENEMY_PROTOTYPE_LOOKUP_POOL.map((prototype) => ({
   id: prototype.id,
   name: prototype.name,
   race: prototype.race,
@@ -1310,6 +1414,60 @@ function pickEnemyPrototypeByNodeConfig(
   return weightedPool[weightedPool.length - 1].prototype;
 }
 
+function buildEnemyTemplate(
+  prototype: EnemyPrototype,
+  unitIndex: number,
+  archetype: NodeArchetype,
+  suppression: number,
+  frontIndices: Array<0 | 1 | 2>,
+  backIndices: Array<0 | 1 | 2>
+): BattleUnitTemplate {
+  const preferFront = prototype.slotHint === "front";
+  const canFront = frontIndices.length > 0;
+  const canBack = backIndices.length > 0;
+  const line = preferFront ? (canFront ? "front" : "back") : canBack ? "back" : "front";
+  const indexPool = line === "front" ? frontIndices : backIndices;
+  const index = indexPool.shift() ?? 0;
+  const suppressionLevel = Math.max(0, Math.floor(suppression / 20));
+  const level = prototype.baseLevel + levelBonusByArchetype(archetype) + suppressionLevel;
+  const difficultyMultiplier = resolveDifficultyMultiplier(prototype);
+  const hpScale = (1 + level * 0.075) * (1 + difficultyMultiplier);
+  const statScale = (1 + level * 0.052) * (1 + difficultyMultiplier * 0.8);
+  const rarityMeta = ENEMY_RARITY_META[prototype.rarityTier];
+  const lootQualityTier = resolveLootQualityTier(prototype);
+
+  return {
+    id: `${prototype.id}-${unitIndex + 1}`,
+    name: `${prototype.name}·${rarityMeta.label} Lv.${level}`,
+    side: "enemy",
+    level,
+    slot: { line, index },
+    tags: [archetype, `enemy:${prototype.id}`, `rarity:${prototype.rarityTier}`, `race:${prototype.race}`, `loot-quality:${lootQualityTier}`, prototype.race],
+    baseStats: {
+      maxHp: Math.round(prototype.stats.maxHp * hpScale),
+      maxMp: Math.round(prototype.stats.maxMp * (1 + level * 0.03)),
+      str: Math.round(prototype.stats.str * statScale),
+      int: Math.round(prototype.stats.int * statScale),
+      agi: Math.round(prototype.stats.agi * statScale),
+      def: Math.round(prototype.stats.def * statScale),
+      critRate: prototype.stats.critRate,
+      critDamage: prototype.stats.critDamage,
+      evasion: prototype.stats.evasion,
+      aggro: prototype.stats.aggro,
+      lifeSteal: prototype.stats.lifeSteal,
+      thorns: prototype.stats.thorns,
+      damageBoost: prototype.stats.damageBoost,
+      damageReduction: prototype.stats.damageReduction,
+      elementalPierce: prototype.stats.elementalPierce,
+      allRes: prototype.stats.allRes,
+      allBoost: prototype.stats.allBoost,
+      elementBoost: prototype.elementBoost,
+      elementRes: prototype.elementRes
+    },
+    loadout: prototype.loadout
+  };
+}
+
 export function buildEnemyTeam(
   seedId: string,
   archetype: NodeArchetype,
@@ -1322,57 +1480,28 @@ export function buildEnemyTeam(
   const templates: BattleUnitTemplate[] = [];
   const frontIndices: Array<0 | 1 | 2> = [0, 1, 2];
   const backIndices: Array<0 | 1 | 2> = [0, 1, 2];
-  const suppressionLevel = Math.max(0, Math.floor(suppression / 20));
 
   for (let unitIndex = 0; unitIndex < count; unitIndex += 1) {
     const prototype = nodeBattleConfig
       ? pickEnemyPrototypeByNodeConfig(random, archetype, suppression, nodeBattleConfig)
       : pickEnemyPrototype(random, archetype, suppression);
-    const preferFront = prototype.slotHint === "front";
-    const canFront = frontIndices.length > 0;
-    const canBack = backIndices.length > 0;
-    const line = preferFront ? (canFront ? "front" : "back") : canBack ? "back" : "front";
-    const indexPool = line === "front" ? frontIndices : backIndices;
-    const index = indexPool.shift() ?? 0;
-    const level = prototype.baseLevel + levelBonusByArchetype(archetype) + suppressionLevel;
-    const difficultyMultiplier = resolveDifficultyMultiplier(prototype);
-    const hpScale = (1 + level * 0.075) * (1 + difficultyMultiplier);
-    const statScale = (1 + level * 0.052) * (1 + difficultyMultiplier * 0.8);
-    const rarityMeta = ENEMY_RARITY_META[prototype.rarityTier];
-    const lootQualityTier = resolveLootQualityTier(prototype);
-
-    templates.push({
-      id: `${prototype.id}-${unitIndex + 1}`,
-      name: `${prototype.name}·${rarityMeta.label} Lv.${level}`,
-      side: "enemy",
-      level,
-      slot: { line, index },
-      tags: [archetype, `enemy:${prototype.id}`, `rarity:${prototype.rarityTier}`, `race:${prototype.race}`, `loot-quality:${lootQualityTier}`, prototype.race],
-      baseStats: {
-        maxHp: Math.round(prototype.stats.maxHp * hpScale),
-        maxMp: Math.round(prototype.stats.maxMp * (1 + level * 0.03)),
-        str: Math.round(prototype.stats.str * statScale),
-        int: Math.round(prototype.stats.int * statScale),
-        agi: Math.round(prototype.stats.agi * statScale),
-        def: Math.round(prototype.stats.def * statScale),
-        critRate: prototype.stats.critRate,
-        critDamage: prototype.stats.critDamage,
-        evasion: prototype.stats.evasion,
-        aggro: prototype.stats.aggro,
-        lifeSteal: prototype.stats.lifeSteal,
-        thorns: prototype.stats.thorns,
-        damageBoost: prototype.stats.damageBoost,
-        damageReduction: prototype.stats.damageReduction,
-        elementalPierce: prototype.stats.elementalPierce,
-        allRes: prototype.stats.allRes,
-        allBoost: prototype.stats.allBoost,
-        elementBoost: prototype.elementBoost,
-        elementRes: prototype.elementRes
-      },
-      loadout: prototype.loadout
-    });
+    templates.push(buildEnemyTemplate(prototype, unitIndex, archetype, suppression, frontIndices, backIndices));
   }
 
   return templates;
+}
+
+export function buildFixedEnemyTeam(
+  prototypeIds: string[],
+  archetype: NodeArchetype = "BL3",
+  suppression = 90
+): BattleUnitTemplate[] {
+  const frontIndices: Array<0 | 1 | 2> = [0, 1, 2];
+  const backIndices: Array<0 | 1 | 2> = [0, 1, 2];
+
+  return prototypeIds
+    .map((prototypeId) => ENEMY_PROTOTYPE_BY_ID[prototypeId])
+    .filter((prototype): prototype is EnemyPrototype => Boolean(prototype))
+    .map((prototype, index) => buildEnemyTemplate(prototype, index, archetype, suppression, frontIndices, backIndices));
 }
 
